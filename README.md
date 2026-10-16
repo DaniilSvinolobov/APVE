@@ -18,6 +18,13 @@ Ordner, ZIP-Dateien (auch verschachtelt) oder Einzeldateien ins Feld ziehen:
   (z. B. korrigierte Stückzahl) und lassen sich per Klick ins LV übernehmen
 - PDF-Scans (z. B. gedrucktes LV) können nicht ausgewertet werden
 
+## Dokumentprüfung mit Claude (Schritt 2, optional)
+Der Button „Dokumente automatisch prüfen (Claude)“ sendet die PDFs/Scans eines Angebots an die Anthropic-API
+(`claude-opus-5-5`, PDF-Eingabe, strukturierte JSON-Antwort) und trägt je Dokument ein: ausgefüllt / teilweise / leer,
+unterschrieben / nicht unterschrieben. Die Ergebnisse stehen in der Vollständigkeitstabelle (Markierung „KI“, Begründung als
+Tooltip) und bleiben manuell änderbar. Der API-Key wird nur im Browser (localStorage) gespeichert, nicht in Datensicherungen.
+Ohne Key wird die Tabelle nur anhand der Dateinamen vorbelegt.
+
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,
 Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen), Arial 11 pt, Logo und

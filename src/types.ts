@@ -22,7 +22,7 @@ export interface PriceEntry {
   gp: number | null; // Gesamtpreis laut Bieterdatei
 }
 
-export type PStatus = 'ok' | 'nach' | 'fehlt' | 'leer' | 'entf';
+export type PStatus = 'ok' | 'nach' | 'fehlt' | 'leer' | 'teil' | 'unsign' | 'entf';
 
 export interface Offer {
   id: string;
@@ -37,7 +37,8 @@ export interface Offer {
   skonto: number | null;
   prices: Record<string, PriceEntry>; // [OZ ohne Punkte]
   summen: Record<string, number | null>; // [losId] netto, wenn ohne LV erfasst
-  pruef: Record<string, { s: PStatus; d: string }>; // Vollständigkeitsprüfung [Zeilen-ID]
+  pruef: Record<string, { s: PStatus; d: string; n?: string; k?: 'auto' | 'ki' | 'user' }>; // Vollständigkeitsprüfung [Zeilen-ID]; n = Hinweis, k = Quelle
+  kiDocs?: { datei: string; art: string; inhalt: string; unterschrift: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI)
   textErg: { oz: string; text: string }[];
   nachforderung: string[];
   dateien: { name: string; kat: string }[];
@@ -107,6 +108,8 @@ export const PSTATUS: { v: PStatus; label: string; cell: string }[] = [
   { v: 'nach', label: 'nachgereicht', cell: 'Nachgereicht' },
   { v: 'fehlt', label: 'nicht beigefügt', cell: 'Nicht beigefügt' },
   { v: 'leer', label: 'nicht ausgefüllt', cell: 'Nicht ausgefüllt' },
+  { v: 'teil', label: 'teilweise ausgefüllt', cell: 'Teilweise ausgefüllt' },
+  { v: 'unsign', label: 'nicht unterschrieben', cell: 'Nicht unterschrieben' },
   { v: 'entf', label: 'entfällt', cell: 'durchgestrichen' },
 ];
 

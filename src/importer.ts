@@ -89,7 +89,11 @@ export const cleanFirma = (s: string) => {
 
 const decodeText = (b: Uint8Array) => new TextDecoder('utf-8').decode(b);
 
-export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean }
+export interface DocFile { name: string; path: string; data: Uint8Array; mime: string }
+export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: DocFile[] }
+
+/** Originaldateien der Angebote (nur im Arbeitsspeicher, für die KI-Dokumentprüfung). */
+export const docStore = new Map<string, DocFile[]>();
 
 export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser): ParsedBid | null {
   const bidFiles = g.files.filter((f) => /\.[dpx]84$/i.test(f.path));
@@ -145,7 +149,12 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
     textErg: doc.positions.filter((p) => p.bieterText).map((p) => ({ oz: p.oz, text: p.bieterText! })),
     nachforderung, dateien, warnungen, quelle: base(used.path),
   };
-  return { offer, doc, sig: sigFound };
+  const docs: DocFile[] = g.files
+    .filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.path) && f.data.length <= 9_000_000)
+    .filter((f) => !/(^|\/)(Angebot\d+_L|.*\bLV\b.*)\.pdf$/i.test(f.path) && !/leistungsverzeichnis/i.test(f.path))
+    .filter((f, i, arr) => arr.findIndex((x) => x.data.length === f.data.length && base(x.path) === base(f.path)) === i)
+    .map((f) => ({ name: base(f.path), path: f.path.slice(g.root.length ? g.root.length + 1 : 0), data: f.data, mime: /\.pdf$/i.test(f.path) ? 'application/pdf' : /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg' }));
+  return { offer, doc, sig: sigFound, docs };
 }
 
 /** Lose aus den obersten Titeln des LV ableiten. */
@@ -234,7 +243,7 @@ function autoPruef(d: State, offer: Offer, sigFound: boolean, preise: boolean) {
     const words = label.toLowerCase().split(/[^a-zäöüß]+/).filter((w) => w.length >= 9);
     return words.length > 0 && list.some((n) => words.some((w) => n.includes(w)));
   };
-  const set = (id: string, s: 'ok' | 'nach', date = '') => { offer.pruef[id] = { s, d: date }; };
+  const set = (id: string, s: 'ok' | 'nach', date = '') => { offer.pruef[id] = { s, d: date, k: 'auto' }; };
   for (const u of d.unterlagen) {
     const l = u.label.toLowerCase();
     if (/unterschrieben|signiert/.test(l)) { if (sigFound) set(u.id, 'ok'); }

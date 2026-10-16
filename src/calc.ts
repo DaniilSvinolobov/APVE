@@ -180,7 +180,7 @@ export function auffaelligkeiten(s: State, los: Los, cells: Cell[], c: Cell): Au
 export function pruefStatus(s: State, o: Offer) {
   const rows = s.unterlagen.map((u) => ({ u, p: o.pruef?.[u.id] }));
   return {
-    fehlt: rows.filter((r) => r.p?.s === 'fehlt' || r.p?.s === 'leer').map((r) => r.u.label),
+    fehlt: rows.filter((r) => ['fehlt', 'leer', 'teil', 'unsign'].includes(r.p?.s ?? '')).map((r) => r.u.label),
     nach: rows.filter((r) => r.p?.s === 'nach').map((r) => ({ label: r.u.label, d: r.p!.d })),
     ungeprueft: rows.filter((r) => !r.p).length,
   };

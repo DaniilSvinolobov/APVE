@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import type { State } from './types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
-import { analyzeGroup, applyLv, applyOffer, expandZips, findLv, groupBids, type RawFile } from './importer';
+import { analyzeGroup, applyLv, applyOffer, docStore, expandZips, findLv, groupBids, type RawFile } from './importer';
+import { applyKi, getKey, offerDocs } from './kiApply';
 import { computeLos } from './calc';
 import { fmtDate, fmtNum } from './fmt';
 import { Chip, Icon, Seg } from './ui';
@@ -37,6 +38,30 @@ async function fromInput(list: FileList): Promise<RawFile[]> {
 
 export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
   const [busy, setBusy] = useState(false);
+  const [ki, setKi] = useState<{ running: boolean; text: string; error: string }>({ running: false, text: '', error: '' });
+  const sRef = useRef(s);
+  sRef.current = s;
+
+  /** Dokumente der Angebote mit Claude prüfen (Eintragung in die Vollständigkeitstabelle). */
+  const runKi = async (offerIds: string[]) => {
+    const key = getKey();
+    if (!key) { setKi({ running: false, text: '', error: 'Bitte zuerst den Anthropic API-Key hinterlegen.' }); return; }
+    setKi({ running: true, text: 'Dokumente werden geprüft …', error: '' });
+    try {
+      for (const id of offerIds) {
+        const o = sRef.current.offers.find((x) => x.id === id);
+        const docs = o ? offerDocs(o) : [];
+        if (!o) continue;
+        if (!docs.length) { setKi((k) => ({ ...k, error: `Nr. ${o.nr}: Originaldateien nicht mehr verfügbar – bitte den Ordner erneut einlesen.` })); continue; }
+        const { pruefeAngebot } = await import('./kiPruefung');
+        const res = await pruefeAngebot(key, docs, sRef.current.unterlagen, (t) => setKi((k) => ({ ...k, text: `Nr. ${o.nr} ${o.firma}: ${t}` })));
+        up((d) => applyKi(d, id, res));
+      }
+      setKi((k) => ({ ...k, running: false, text: 'Prüfung abgeschlossen.' }));
+    } catch (e) {
+      setKi({ running: false, text: '', error: e instanceof Error ? e.message : String(e) });
+    }
+  };
   const [drag, setDrag] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const folderRef = useRef<HTMLInputElement>(null);
@@ -52,7 +77,9 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
       if (!lv && !parsed.length) {
         setMsg({ ok: false, text: 'Keine GAEB-Dateien erkannt (.x83/.p83/.d83 für das LV, .x84/.p84/.d84 für Angebote). PDF-Dateien allein können nicht ausgewertet werden.' });
       } else {
+        parsed.forEach((p) => docStore.set(p.offer.id, p.docs));
         up((d) => { if (lv) applyLv(d, lv); parsed.forEach((p) => applyOffer(d, p)); });
+        if (parsed.length && getKey()) { setTimeout(() => runKi(parsed.map((p) => p.offer.id)), 50); }
         setMsg({ ok: true, text: [lv ? `LV geladen: ${lv.positions.length} Positionen` : '', parsed.length ? `${parsed.length} Angebot(e) eingelesen: ${parsed.map((p) => p.offer.firma).join(', ')}` : ''].filter(Boolean).join(' · ') });
       }
     } catch (e) {
@@ -145,7 +172,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         );
       })}
 
-      {s.offers.length > 0 && <Vollstaendigkeit s={s} up={up} />}
+      {s.offers.length > 0 && <Vollstaendigkeit s={s} up={up} ki={ki} runKi={runKi} />}
     </div>
   );
 }

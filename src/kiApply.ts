@@ -1,9 +1,9 @@
 import type { Offer, PStatus, State } from './types';
 import { docStore, type DocFile } from './importer';
 
-const KEY = 'apve-anthropic-key';
-export const getKey = () => { try { return localStorage.getItem(KEY) ?? ''; } catch { return ''; } };
-export const setKey = (k: string) => { try { k ? localStorage.setItem(KEY, k) : localStorage.removeItem(KEY); } catch { /* ignore */ } };
+const CODE = 'apve-access-code';
+export const getCode = () => { try { return localStorage.getItem(CODE) ?? ''; } catch { return ''; } };
+export const setCode = (c: string) => { try { c ? localStorage.setItem(CODE, c) : localStorage.removeItem(CODE); } catch { /* ignore */ } };
 
 export interface KiDoc { datei: string; art: string; zeilen: string[]; inhalt: 'ausgefuellt' | 'teilweise' | 'leer' | 'unklar'; unterschrift: 'ja' | 'nein' | 'nicht_erforderlich' | 'unklar'; bemerkung: string }
 

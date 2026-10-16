@@ -4,16 +4,15 @@ import { pruefStatus } from './calc';
 import { uid } from './fmt';
 import { Chip, Icon } from './ui';
 import { useState } from 'react';
-import { getKey, offerDocs, setKey } from './kiApply';
+import { getCode, setCode } from './kiApply';
+import type { KiStatus } from './kiPruefung';
 
 type Up = (fn: (d: State) => void) => void;
 
 /** Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen: Unterlagen × Angebote. */
-export function Vollstaendigkeit({ s, up, ki, runKi }: { s: State; up: Up; ki: { running: boolean; text: string; error: string }; runKi: (ids: string[]) => void }) {
-  const [keyOpen, setKeyOpen] = useState(false);
-  const [keyVal, setKeyVal] = useState('');
-  const hasKey = !!getKey();
-  void offerDocs;
+export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: Up; ki: { running: boolean; text: string; error: string }; runKi: (ids: string[]) => void; status: KiStatus | null }) {
+  const [codeVal, setCodeVal] = useState('');
+  const needCode = !!status?.code && !getCode();
   const set = (oi: number, id: string, st: PStatus | '') =>
     up((d) => { const o = d.offers[oi]; if (!o.pruef) o.pruef = {}; if (st) o.pruef[id] = { s: st, d: o.pruef[id]?.d ?? '', k: 'user' }; else delete o.pruef[id]; });
   return (
@@ -25,24 +24,27 @@ export function Vollstaendigkeit({ s, up, ki, runKi }: { s: State; up: Up; ki: {
         </div>
         <label className="mini big"><input type="checkbox" checked={s.project.vollstaendigkeit} onChange={(e) => up((d) => void (d.project.vollstaendigkeit = e.target.checked))} /> als Anlage drucken</label>
       </div>
-      <div className="kibox">
-        <div className="row">
-          <button className="btn primary" disabled={ki.running} onClick={() => (hasKey ? runKi(s.offers.map((o) => o.id)) : setKeyOpen(true))}>
-            <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : 'Dokumente automatisch prüfen (Claude)'}
-          </button>
-          {hasKey && <button className="link" onClick={() => setKeyOpen((v) => !v)}>API-Key ändern</button>}
-          <span className="muted">Claude öffnet jedes PDF/Scan und beurteilt: ausgefüllt? unterschrieben? Das Ergebnis trägt sich in die Tabelle ein (mit Begründung als Tooltip).</span>
-        </div>
-        {keyOpen && (
-          <div className="keyform">
-            <p className="muted">Die Dokumente werden zur Prüfung an die Anthropic-API gesendet. Der Key wird nur in Ihrem Browser gespeichert (nicht in Datensicherungen). Key erstellen unter console.anthropic.com → API Keys.</p>
-            <div className="row"><input type="password" placeholder="sk-ant-…" value={keyVal} onChange={(e) => setKeyVal(e.target.value)} autoComplete="off" /><button className="btn" onClick={() => { setKey(keyVal.trim()); setKeyOpen(false); setKeyVal(''); if (keyVal.trim()) runKi(s.offers.map((o) => o.id)); }}>Speichern & prüfen</button>{hasKey && <button className="link danger" onClick={() => { setKey(''); setKeyOpen(false); }}>Key löschen</button>}</div>
+      {status?.enabled ? (
+        <div className="kibox">
+          <div className="row">
+            <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(s.offers.map((o) => o.id))}>
+              <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : 'Dokumente automatisch prüfen (Claude)'}
+            </button>
+            <span className="muted">Beim Einlesen läuft die Prüfung automatisch: Claude öffnet jedes PDF/Scan und beurteilt, ob es ausgefüllt und unterschrieben ist. Die Dokumente werden dazu an die Anthropic-API übermittelt.</span>
           </div>
-        )}
-        {ki.running && <p className="infobox"><Icon name="sparkle" /> {ki.text}</p>}
-        {ki.error && <p className="warnbox slim"><Icon name="alert" /> {ki.error}</p>}
-        {!ki.running && ki.text && !ki.error && <p className="okbox"><Icon name="check" /> {ki.text} Bitte Ergebnisse kurz gegenprüfen – KI-Befunde sind mit „KI“ markiert und bleiben änderbar.</p>}
-      </div>
+          {needCode && (
+            <div className="keyform">
+              <p className="muted">Zugangscode des Betreibers eingeben (einmalig):</p>
+              <div className="row"><input type="password" value={codeVal} onChange={(e) => setCodeVal(e.target.value)} autoComplete="off" /><button className="btn" onClick={() => { setCode(codeVal.trim()); setCodeVal(''); runKi(s.offers.map((o) => o.id)); }}>OK</button></div>
+            </div>
+          )}
+          {ki.running && <p className="infobox"><Icon name="sparkle" /> {ki.text}</p>}
+          {ki.error && <p className="warnbox slim"><Icon name="alert" /> {ki.error}</p>}
+          {!ki.running && ki.text && <p className="okbox"><Icon name="check" /> {ki.text} Bitte Ergebnisse kurz gegenprüfen – KI-Befunde sind mit „KI“ markiert und bleiben änderbar.</p>}
+        </div>
+      ) : status && (
+        <p className="infobox" style={{ marginBottom: 14 }}><Icon name="alert" /> Die automatische Dokumentprüfung ist auf dieser Installation nicht aktiviert. Die Tabelle wird anhand der Dateinamen vorbelegt; Inhalt und Unterschrift bitte selbst prüfen.</p>
+      )}
       <div className="scroll">
         <table className="matrix vtab" style={{ minWidth: 340 + s.offers.length * 190 }}>
           <thead>

@@ -19,11 +19,21 @@ Ordner, ZIP-Dateien (auch verschachtelt) oder Einzeldateien ins Feld ziehen:
 - PDF-Scans (z. B. gedrucktes LV) können nicht ausgewertet werden
 
 ## Dokumentprüfung mit Claude (Schritt 2, optional)
-Der Button „Dokumente automatisch prüfen (Claude)“ sendet die PDFs/Scans eines Angebots an die Anthropic-API
-(`claude-opus-5-5`, PDF-Eingabe, strukturierte JSON-Antwort) und trägt je Dokument ein: ausgefüllt / teilweise / leer,
-unterschrieben / nicht unterschrieben. Die Ergebnisse stehen in der Vollständigkeitstabelle (Markierung „KI“, Begründung als
-Tooltip) und bleiben manuell änderbar. Der API-Key wird nur im Browser (localStorage) gespeichert, nicht in Datensicherungen.
-Ohne Key wird die Tabelle nur anhand der Dateinamen vorbelegt.
+Beim Einlesen öffnet Claude jedes PDF/jeden Scan eines Angebots und beurteilt: ausgefüllt / teilweise / leer,
+unterschrieben / nicht unterschrieben. Die Ergebnisse stehen in der Vollständigkeitstabelle (Markierung „KI“,
+Begründung als Tooltip) und bleiben manuell änderbar. **Nutzer der App brauchen dafür keinen eigenen Key.**
+
+Einrichtung durch den Betreiber (einmalig, Vercel → Project → Settings → Environment Variables, danach neu deployen):
+
+| Variable | Pflicht | Bedeutung |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | ja | Key aus console.anthropic.com – bleibt auf dem Server (`api/pruefen.ts`) |
+| `APP_ACCESS_CODE` | empfohlen | Zugangscode; verhindert, dass Fremde auf Ihre Kosten die Funktion nutzen (wird Nutzern einmalig abgefragt) |
+| `KI_MODEL` | nein | Standard `claude-opus-5-5`; z. B. `claude-sonnet-5-5` für geringere Kosten |
+
+Ohne `ANTHROPIC_API_KEY` bleibt die App voll nutzbar; die Tabelle wird dann nur anhand der Dateinamen vorbelegt.
+Hinweise: Im Anthropic-Console ein monatliches Ausgabenlimit setzen. Die Dokumente werden zur Prüfung über die
+Vercel-Function an die Anthropic-API übermittelt. Pro Anfrage max. ca. 3 MB (Vercel-Limit), größere Dateien werden übersprungen.
 
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,

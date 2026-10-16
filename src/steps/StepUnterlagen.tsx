@@ -2,68 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import type { State } from '../domain/types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
 import { expandZips, type RawFile } from '../import/zip';
-import { findLvFiles, groupBids, isBidFile, isLvFile } from '../import/files';
+import { groupBids, isLvFile } from '../import/files';
 import { analyzeGroup } from '../import/analyze';
-import { applyLv, applyOffer } from '../import/apply';
+import { applyOffer } from '../import/apply';
 import { docStore } from '../import/docStore';
 import { applyKi, getCode, hasConsent, offerDocs, setCode } from '../ki/kiApply';
 import { kiStatus, KiError, pruefeAngebot, type KiStatus } from '../ki/kiPruefung';
-import { computeLos, schaetzSumme } from '../domain/calc';
-import { fmtDate, fmtEur, fmtNum } from '../domain/fmt';
+import { computeLos } from '../domain/calc';
+import { fmtDate, fmtNum } from '../domain/fmt';
+import { DropZone } from '../components/DropZone';
 import { Chip, Icon, Seg } from '../components/ui';
 
 type Up = (fn: (d: State) => void) => void;
-
-async function readEntry(entry: FileSystemEntry, path: string, out: RawFile[]) {
-  if (entry.isFile) {
-    const f: File = await new Promise((res, rej) => (entry as FileSystemFileEntry).file(res, rej));
-    out.push({ path: path + f.name, data: new Uint8Array(await f.arrayBuffer()) });
-  } else if (entry.isDirectory) {
-    const reader = (entry as FileSystemDirectoryEntry).createReader();
-    let batch: FileSystemEntry[];
-    do {
-      batch = await new Promise((res, rej) => reader.readEntries(res, rej));
-      for (const e of batch) await readEntry(e, `${path}${entry.name}/`, out);
-    } while (batch.length);
-  }
-}
-
-async function collect(dt: DataTransfer): Promise<RawFile[]> {
-  const out: RawFile[] = [];
-  const entries = Array.from(dt.items).map((i) => i.webkitGetAsEntry?.()).filter(Boolean) as FileSystemEntry[];
-  if (entries.length) { for (const e of entries) await readEntry(e, '', out); return out; }
-  for (const f of Array.from(dt.files)) out.push({ path: f.name, data: new Uint8Array(await f.arrayBuffer()) });
-  return out;
-}
-async function fromInput(list: FileList): Promise<RawFile[]> {
-  const out: RawFile[] = [];
-  for (const f of Array.from(list)) out.push({ path: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, data: new Uint8Array(await f.arrayBuffer()) });
-  return out;
-}
-
-function DropZone({ busy, onFiles, title, hint, folder }: { busy: boolean; onFiles: (f: RawFile[]) => void; title: string; hint: string; folder: boolean }) {
-  const [drag, setDrag] = useState(false);
-  const folderRef = useRef<HTMLInputElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  return (
-    <div
-      className={`drop ${drag ? 'over' : ''} ${busy ? 'busy' : ''}`}
-      onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={async (e) => { e.preventDefault(); setDrag(false); onFiles(await collect(e.dataTransfer)); }}
-    >
-      <Icon name="upload" />
-      <b>{busy ? 'Wird eingelesen …' : title}</b>
-      <span className="muted">{hint}</span>
-      <div className="row">
-        {folder && <button className="btn" onClick={() => folderRef.current?.click()}><Icon name="folder" /> Ordner wählen</button>}
-        <button className="btn" onClick={() => fileRef.current?.click()}><Icon name="file" /> Dateien / ZIP wählen</button>
-      </div>
-      {folder && <input ref={folderRef} type="file" hidden multiple {...({ webkitdirectory: '' } as object)} onChange={async (e) => { if (e.target.files) onFiles(await fromInput(e.target.files)); e.target.value = ''; }} />}
-      <input ref={fileRef} type="file" hidden multiple onChange={async (e) => { if (e.target.files) onFiles(await fromInput(e.target.files)); e.target.value = ''; }} />
-    </div>
-  );
-}
 
 export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
   const [busy, setBusy] = useState(false);
@@ -71,9 +21,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
   const sRef = useRef(s);
   sRef.current = s;
 
-  const [busyLv, setBusyLv] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [msgLv, setMsgLv] = useState<{ ok: boolean; text: string } | null>(null);
   const [status, setStatus] = useState<KiStatus | null>(null);
   useEffect(() => { kiStatus().then(setStatus); }, []);
   const statusRef = useRef(status);
@@ -103,26 +51,6 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
     }
   };
 
-  /** Feld 1: eigenes LV (GAEB 81/82/83) laden. */
-  const processLv = async (raw: RawFile[]) => {
-    setBusyLv(true); setMsgLv(null);
-    try {
-      const files = await expandZips(raw);
-      const { soll, sollName, schaetz, schaetzName, pricedSkipped } = findLvFiles(files);
-      if (!soll) {
-        const bids = pricedSkipped.length > 0 || files.some((f) => isBidFile(f.path));
-        setMsgLv({ ok: false, text: pricedSkipped.length ? `„${pricedSkipped.join('“, „')}“ enthält Bieterpreise und ist damit ein Angebot, kein LV – bitte in Feld 2 „Angebote der Bieter“ ablegen.` : bids ? 'Das sind Angebotsdateien (x84/p84/d84) – bitte in Feld 2 „Angebote der Bieter“ ablegen.' : 'Kein LV erkannt. Erwartet: .x81/.x82/.x83 (GAEB DA XML), .p8x (GAEB 2000) oder .d8x (GAEB 90).' });
-      } else {
-        up((d) => applyLv(d, soll, schaetz, { lv: sollName, schaetz: schaetzName }));
-        const n = schaetz ? schaetz.positions.filter((p) => p.ep != null).length : 0;
-        setMsgLv({ ok: true, text: [`LV geladen: ${soll.positions.length} Positionen (${sollName})`, n ? `LV-Schätzpreise: ${n} Positionen (${schaetzName})` : 'keine Schätzpreise (GAEB 82) gefunden', pricedSkipped.length ? `Übersprungen (enthält Bieterpreise, gehört in Feld 2): ${pricedSkipped.join(', ')}` : '', sRef.current.offers.length ? 'Bereits geladene Angebote werden automatisch neu verglichen.' : ''].filter(Boolean).join(' · ') });
-      }
-    } catch (e) {
-      setMsgLv({ ok: false, text: `Fehler beim Einlesen: ${(e as Error).message}` });
-    }
-    setBusyLv(false);
-  };
-
   /** Feld 2: Angebote der Bieter (GAEB 84 samt Nachweisen) laden. */
   const processBids = async (raw: RawFile[]) => {
     setBusy(true); setMsg(null);
@@ -131,7 +59,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
       const groups = groupBids(files);
       const parsed = groups.map((g, i) => analyzeGroup(g, s.offers.length + i + 1)).filter((x): x is NonNullable<typeof x> => !!x);
       if (!parsed.length) {
-        setMsg({ ok: false, text: files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien (x81/x82/x83) – bitte in Feld 1 „Eigenes LV“ ablegen.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
+        setMsg({ ok: false, text: files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien ohne Preise (x81/x82/x83) – das eigene LV gehört in den Schritt „Vergabe“.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
       } else {
         parsed.forEach((p) => docStore.set(p.offer.id, p.docs));
         up((d) => parsed.forEach((p) => applyOffer(d, p)));
@@ -145,27 +73,15 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
   };
 
   const hasLv = s.lv.length > 0;
-  const hasSchaetz = Object.keys(s.schaetz ?? {}).length > 0;
-  const schaetzGesamt = s.lose.reduce((a, l) => a + (schaetzSumme(s, l) ?? 0), 0);
   const setOffer = (i: number, fn: (o: State['offers'][number]) => void) => up((d) => fn(d.offers[i]));
 
   return (
     <div className="stack">
-      <section className="card" id="lv-card">
-        <h2><span className="stepno">1</span> Eigenes LV (Ausschreibung)</h2>
-        <p className="lead">Ihr Leistungsverzeichnis als GAEB-Datei: <b>X81/X83</b> liefert Positionen und Mengen, <b>X82</b> (Kostenanschlag) die LV-Schätzpreise für den Preisvergleich und den Kostenvoranschlag je Los. Eine oder mehrere Dateien oder eine ZIP – die App erkennt die Rolle selbst.</p>
-        <DropZone busy={busyLv} onFiles={processLv} title="LV-Dateien hierher ziehen (X81 · X82 · X83)" hint="Auch .p8x (GAEB 2000) und .d8x (GAEB 90) · Daten verlassen Ihren Browser nicht" folder={false} />
-        {msgLv && <p className={msgLv.ok ? 'okbox' : 'warnbox'}><Icon name={msgLv.ok ? 'check' : 'alert'} /> {msgLv.text}</p>}
-        <div className="status">
-          <Chip kind={hasLv ? 'ok' : 'warn'}>{hasLv ? `LV: ${s.lv.length} Positionen, ${s.lose.length} Los/Lose${s.lvInfo?.lv ? ` (${s.lvInfo.lv})` : ''}` : 'LV fehlt'}</Chip>
-          <Chip kind={hasSchaetz ? 'ok' : 'info'}>{hasSchaetz ? `LV-Schätzpreise: ${Object.keys(s.schaetz).length} Positionen · ${fmtEur(schaetzGesamt)} netto` : 'keine LV-Schätzpreise (X82)'}</Chip>
-          {hasLv && s.lv.some((p) => p.menge !== p.mengeOrig) && <Chip kind="info">{s.lv.filter((p) => p.menge !== p.mengeOrig).length} Menge(n) im LV angepasst</Chip>}
-        </div>
-      </section>
+      {!hasLv && <p className="infobox"><Icon name="alert" /> Das eigene LV fehlt noch – bitte im Schritt „Vergabe“ laden. Ohne LV wird es aus der ersten Bieterdatei abgeleitet (ohne Texte und Mengen der Ausschreibung).</p>}
 
       <section className="card" id="bieter-card">
-        <h2><span className="stepno">2</span> Angebote der Bieter</h2>
-        <p className="lead">Angebotsordner oder ZIP-Dateien der Bieter, so unsortiert wie sie ankommen (GAEB X84/P84/D84 samt Nachweisen). Mehrere Bieter gleichzeitig möglich, verschachtelte ZIPs werden entpackt.{!hasLv && ' Besser zuerst das eigene LV in Feld 1 laden – sonst wird das LV aus der Bieterdatei abgeleitet.'}</p>
+        <h2>Angebote der Bieter</h2>
+        <p className="lead">Angebotsordner oder ZIP-Dateien der Bieter, so unsortiert wie sie ankommen (GAEB X84/P84/D84 samt Nachweisen). Mehrere Bieter gleichzeitig möglich, verschachtelte ZIPs werden entpackt.{!hasLv && ' Das eigene LV wird im Schritt „Vergabe“ geladen.'}</p>
         <DropZone busy={busy} onFiles={processBids} title="Ordner oder ZIP-Dateien der Bieter hierher ziehen" hint="Daten verlassen Ihren Browser nicht" folder />
         {msg && <p className={msg.ok ? 'okbox' : 'warnbox'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
         <div className="status"><Chip kind={s.offers.length ? 'ok' : 'info'}>{s.offers.length} Angebot(e) geladen</Chip></div>

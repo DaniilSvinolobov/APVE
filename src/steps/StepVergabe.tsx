@@ -3,6 +3,7 @@ import { VERFAHREN } from '../domain/types';
 import { kostenOf } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { Field, Icon, NumInput } from '../components/ui';
+import { LvKarte } from './LvKarte';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -26,9 +27,11 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
   };
   return (
     <div className="stack">
+      <LvKarte s={s} up={up} />
+
       <section className="card">
         <h2>Vorhaben</h2>
-        <p className="lead">Diese Angaben erscheinen im Kopf des Vergabevermerks. Lose und Kosten ergeben sich teilweise automatisch aus dem LV (Schritt 2).</p>
+        <p className="lead">Diese Angaben erscheinen im Kopf des Vergabevermerks. Maßnahme, Auftraggeber, Lose und Kosten werden beim Laden des LV (oben) vorbelegt.</p>
         <div className="grid">
           <Field label="Bezeichnung der Maßnahme" wide><input value={p.titel} onChange={(e) => set('titel', e.target.value)} placeholder="z. B. Umbau Schlosspark Bedburg BA3 (ISEK)" /></Field>
           <Field label="Vergabenummer"><input value={p.nummer} onChange={(e) => set('nummer', e.target.value)} placeholder="S-BEDB-2026-0020" /></Field>
@@ -45,7 +48,7 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
           <div><h2>Lose</h2><p className="lead">Pro Los wird ein eigener Preisspiegel und eine eigene Vergabeempfehlung erstellt.</p></div>
           <button className="btn" onClick={() => up((d) => void d.lose.push({ id: uid(), oz: String(d.lose.length + 1).padStart(2, '0'), nr: `LOS${d.lose.length + 1}`, name: '', kosten: null, imVermerk: true, imBudget: true }))}><Icon name="plus" /> Los</button>
         </div>
-        {s.lose.length === 0 && <p className="muted">Noch keine Lose – sie werden beim Laden des Ausschreibungs-LV automatisch angelegt, oder Sie legen sie hier an.</p>}
+        {s.lose.length === 0 && <p className="muted">Noch keine Lose – sie werden beim Laden des LV oben automatisch angelegt, oder Sie legen sie hier an.</p>}
         <div className="loslist">
           {s.lose.map((l, i) => (
             <div className="losrow" key={l.id}>

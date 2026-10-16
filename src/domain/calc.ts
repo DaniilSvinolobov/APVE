@@ -8,7 +8,7 @@ export const emptyBew = () => ({
 });
 export const getBew = (s: State, offerId: string, losId: string) => ({ ...emptyBew(), ...(s.bew[bewKey(offerId, losId)] ?? {}) });
 
-export const losPositions = (s: State, los: Los) => s.lv.filter((p) => p.oz.startsWith(los.oz + '.'));
+export const losPositions = (s: State, los: Los) => s.lv.filter((p) => !los.oz || p.oz.startsWith(los.oz + '.'));
 export const offerLabel = (o: Offer) => `Nr. ${o.nr}`;
 
 export interface Flag { kind: 'ok' | 'info' | 'warn' | 'bad'; text: string }

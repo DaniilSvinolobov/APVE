@@ -274,7 +274,7 @@ export function bewText(s: State, l: Los, cells: Cell[], c: Cell, nv = false): s
     if (prev) {
       const changed = Object.keys(o.prices).filter((k) => {
         const a = o.prices[k]?.ep, p = prev.offer.prices[k]?.ep;
-        return a != null && p != null && Math.abs(a - p) > 0.005 && s.lv.some((x) => x.oz.replace(/\./g, '') === k && x.oz.startsWith(l.oz + '.'));
+        return a != null && p != null && Math.abs(a - p) > 0.005 && s.lv.some((x) => x.oz.replace(/\./g, '') === k && (!l.oz || x.oz.startsWith(l.oz + '.')));
       }).map((k) => s.lv.find((x) => x.oz.replace(/\./g, '') === k)!.oz);
       if (changed.length) L.push(`Der Einheitspreis für Position ${listDe(changed)} wurde neu angeboten, alle weiteren Einheitspreise wurden durch den Bieter bestätigt.`);
       else L.push('Alle Einheitspreise wurden durch den Bieter bestätigt.');

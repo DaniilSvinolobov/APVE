@@ -1,7 +1,7 @@
-import type { State } from './types';
-import { VERFAHREN } from './types';
-import { uid } from './fmt';
-import { Field, Icon, NumInput } from './ui';
+import type { State } from '../domain/types';
+import { VERFAHREN } from '../domain/types';
+import { uid } from '../domain/fmt';
+import { Field, Icon, NumInput } from '../components/ui';
 
 type Up = (fn: (d: State) => void) => void;
 

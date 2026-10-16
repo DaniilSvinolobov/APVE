@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { State } from './types';
-import { buildVermerk, anlagenList, footerText, type Block } from './vermerk';
-import { computeLos, getBew, pruefStatus } from './calc';
-import { uid } from './fmt';
-import { downloadJson } from './exportCsv';
-import { Icon } from './ui';
+import type { State } from '../domain/types';
+import { buildVermerk, anlagenList, footerText, type Block } from '../vermerk/vermerk';
+import { computeLos, getBew, pruefStatus } from '../domain/calc';
+import { uid } from '../domain/fmt';
+import { downloadJson } from '../storage/exportCsv';
+import { Icon } from '../components/ui';
 
 type Up = (fn: (d: State) => void) => void;
 

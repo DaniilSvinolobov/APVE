@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import type { State } from './types';
+import type { State } from '../domain/types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
-import { analyzeGroup, applyLv, applyOffer, docStore, expandZips, findLv, groupBids, type RawFile } from './importer';
-import { applyKi, getCode, hasConsent, offerDocs, setCode } from './kiApply';
-import { kiStatus, KiError, pruefeAngebot, type KiStatus } from './kiPruefung';
-import { computeLos } from './calc';
-import { fmtDate, fmtNum } from './fmt';
-import { Chip, Icon, Seg } from './ui';
+import { expandZips, type RawFile } from '../import/zip';
+import { findLv, groupBids } from '../import/files';
+import { analyzeGroup } from '../import/analyze';
+import { applyLv, applyOffer } from '../import/apply';
+import { docStore } from '../import/docStore';
+import { applyKi, getCode, hasConsent, offerDocs, setCode } from '../ki/kiApply';
+import { kiStatus, KiError, pruefeAngebot, type KiStatus } from '../ki/kiPruefung';
+import { computeLos } from '../domain/calc';
+import { fmtDate, fmtNum } from '../domain/fmt';
+import { Chip, Icon, Seg } from '../components/ui';
 
 type Up = (fn: (d: State) => void) => void;
 

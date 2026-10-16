@@ -1,5 +1,5 @@
 import { useState, type ClipboardEventHandler, type ReactNode } from 'react';
-import { fmtNum, parseNum } from './fmt';
+import { fmtNum, parseNum } from '../domain/fmt';
 
 export function NumInput(props: {
   value: number | null;

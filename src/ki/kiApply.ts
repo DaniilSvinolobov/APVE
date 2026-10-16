@@ -1,5 +1,5 @@
-import type { Offer, PStatus, State } from './types';
-import { docStore, type DocFile } from './importer';
+import type { Offer, PStatus, State } from '../domain/types';
+import { docStore, type DocFile } from '../import/docStore';
 
 const CONSENT = 'apve-ki-consent';
 export const hasConsent = () => { try { return localStorage.getItem(CONSENT) === '1'; } catch { return false; } };

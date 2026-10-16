@@ -1,9 +1,9 @@
 import { Fragment, useMemo, useState } from 'react';
-import type { Bew, State } from './types';
-import { auffaelligkeiten, computeLos, emptyBew, getBew, zuschlagCell, bewKey, type Cell } from './calc';
-import { fmtEur, fmtNum, fmtPct } from './fmt';
-import { bewText } from './vermerk';
-import { Chip, Icon, NumInput, Tabs } from './ui';
+import type { Bew, State } from '../domain/types';
+import { auffaelligkeiten, computeLos, emptyBew, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
+import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
+import { bewText } from '../vermerk/vermerk';
+import { Chip, Icon, NumInput, Tabs } from '../components/ui';
 
 type Up = (fn: (d: State) => void) => void;
 

@@ -21,13 +21,16 @@ Maßnahme, Auftraggeber und Lose werden daraus vorbelegt:
 - **X83 / X81:** Positionen, Texte, Mengen, Lose (bevorzugt 83, sonst 81)
 - **X82 (Kostenanschlag):** LV-Schätzpreise je Position → Spalte „LV-Schätzpreis“ im Preisspiegel; der Kostenvoranschlag je Los wird daraus vorbelegt (manuelle Eingabe hat Vorrang)
 - Eine x81/x83-Datei **mit Preisen** ist kein LV, sondern ein Angebot und wird hier abgewiesen.
+- **LV-Prüfung** (Kasten „Prüfung des LV“): doppelte OZ, Positionen ohne Menge/Einheit/Kurztext, leere Titel, Rechen- und Summenprüfung bei Preisen; mehrere Dateien desselben LV (z. B. X83 ↔ D83, X82) werden auf Positionen, Mengen, Einheiten und Texte verglichen.
+- **LV als PDF** zusätzlich ablegen: Text wird lokal im Browser gelesen (pdf.js) und je Ordnungszahl mit Menge und Einheit der GAEB-Datei verglichen (fehlende/zusätzliche Positionen, abweichende Mengen). Scans ohne Text können nicht gelesen werden und werden als Hinweis gemeldet.
 
 **Angebote der Bieter (Schritt 2):** Ordner oder ZIP-Dateien (auch verschachtelt)
 - GAEB X84 / P84 / D84 je Bieterordner; Signaturbeleg, Eignungsfragebogen, Nachforderungen usw. werden erkannt
 - Exportiert ein Bieter seine Preise als **X83/X81** (statt X84), wird die Datei am Preisbestand erkannt (Mehrheit der Positionen mit Einheitspreis) und als Angebot gelesen; im Angebot steht dazu ein Hinweis
 - Zuordnung der Preise über die Ordnungszahl (OZ); Mengenabweichungen zwischen LV und Bieterdatei werden markiert
   (z. B. korrigierte Stückzahl) und lassen sich per Klick ins LV übernehmen
-- PDF-Scans (z. B. gedrucktes LV) können nicht ausgewertet werden
+- Liegt im Angebot das **LV als PDF** (Dateiname enthält „LV“/„Leistungsverzeichnis“ oder `AngebotN_L.pdf`), wird es mit den Preisen der GAEB-Datei abgeglichen (Einheitspreis, Gesamtbetrag, Menge × EP); das Ergebnis steht am Angebot
+- PDF-Scans ohne Text können nicht ausgewertet werden
 
 ## Dokumentprüfung mit Claude (Schritt 2, optional)
 Beim Einlesen öffnet Claude jedes PDF/jeden Scan eines Angebots und beurteilt: ausgefüllt / teilweise / leer,

@@ -62,32 +62,50 @@ const isoDate = (d: string) => {
 };
 
 /* ---------- GAEB 90 ---------- */
+/**
+ * OZ aus dem 9-stelligen Feld. Enthält es Leerzeichen („00     1“), wird es anhand der OZ-Maske aus
+ * Satzart 00 (z. B. „1122PPPPI“: Ebene 1 = 2, Ebene 2 = 2, Position = 4, Index = 1 Stelle) zerlegt –
+ * so entsteht dieselbe OZ wie in der X-Datei („00.1“). Ohne Leerzeichen bleibt es bei der Zweiergruppierung.
+ */
+export function dOz(field: string, mask: string): string {
+  const f = field.replace(/\s+$/, '');
+  if (!/\s/.test(f.trim()) || !mask) return chunkOz(f.trim());
+  const parts: string[] = [];
+  let pos = 0;
+  for (const run of mask.replace(/I+$/, '').match(/(.)\1*/g) ?? []) {
+    const part = f.slice(pos, pos + run.length).trim();
+    pos += run.length;
+    if (part) parts.push(part);
+  }
+  return parts.join('.');
+}
+
 function parseD(buf: Uint8Array): GaebDoc {
   const lines = decodeDos(buf).replace(/\r\n?/g, '\n').split('\n');
   const doc = empty('D', 83);
+  let mask = '';
   let cur: GaebPos | null = null;
   let title: string | null = null;
   let titleLines: string[] = [];
   const flushTitle = () => {
-    if (title != null) doc.titles[chunkOz(title)] = titleLines.join(' ').replace(/\s+/g, ' ').trim();
+    if (title != null) doc.titles[title] = titleLines.join(' ').replace(/\s+/g, ' ').trim();
     title = null;
   };
   for (const l of lines) {
     const t = l.slice(0, 2);
     const body = l.slice(2, 72);
     switch (t) {
-      case '00': doc.phase = Number(l.slice(10, 12)) || doc.phase; break;
+      case '00': doc.phase = Number(l.slice(10, 12)) || doc.phase; mask = l.match(/\s([1-9]*P+I?)(?=\d{2}\s)/)?.[1] ?? ''; break;
       case '01': doc.projekt = body.slice(0, 40).trim(); doc.datum = isoDate(l.slice(42, 52)); break;
       case '02': doc.bezeichnung = body.trim(); break;
       case '03': doc.auftraggeber = body.trim(); break;
       case '04': doc.bieter = body.trim(); break;
-      case '11': flushTitle(); title = body.slice(0, 9).trim(); titleLines = []; break;
+      case '11': flushTitle(); title = dOz(l.slice(2, 11), mask); titleLines = []; break;
       case '12': if (title != null) titleLines.push(body.trim()); break;
       case '21': {
         flushTitle();
-        const oz = l.slice(2, 11).trim();
         cur = {
-          oz: chunkOz(oz), kurz: '', lang: '', menge: null, einheit: l.slice(34, 38).trim(),
+          oz: dOz(l.slice(2, 11), mask), kurz: '', lang: '', menge: null, einheit: l.slice(34, 38).trim(),
           bedarf: /[BE]/.test(l.slice(11, 14).replace(/N/g, '')) , ep: null, gp: null,
         };
         const q = l.slice(23, 34).trim();
@@ -96,15 +114,15 @@ function parseD(buf: Uint8Array): GaebDoc {
         break;
       }
       case '23': {
-        const m = l.match(/^23(\d+)\s+([-+]?\d{10})\s+([-+]?\d{12})/);
-        if (m) doc.positions.push({ oz: chunkOz(m[1]), kurz: '', lang: '', menge: null, einheit: '', bedarf: false, ep: Number(m[2]) / 100, gp: Number(m[3]) / 100 });
+        const m = l.match(/^23([\d ]{1,9}?)\s+([-+]?\d{10})\s+([-+]?\d{12})/);
+        if (m) doc.positions.push({ oz: dOz(m[1], mask), kurz: '', lang: '', menge: null, einheit: '', bedarf: false, ep: Number(m[2]) / 100, gp: Number(m[3]) / 100 });
         break;
       }
       case '25': if (cur) { cur.kurz = (cur.kurz + ' ' + l.slice(2, 72).trim()).trim(); } break;
       case '26': if (cur) { cur.lang += (cur.lang ? '\n' : '') + l.slice(2, 72).replace(/\s+$/, '').replace(/^ {3}/, ''); } break;
       case '32': {
-        const m = l.match(/^32(\d*)\s+([-+]?\d{12})/);
-        if (m) doc.totals[chunkOz(m[1])] = Number(m[2]) / 100;
+        const m = l.match(/^32([\d ]{0,9}?)\s+([-+]?\d{12})/);
+        if (m) doc.totals[dOz(m[1], mask)] = Number(m[2]) / 100;
         break;
       }
       case '99': {

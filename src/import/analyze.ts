@@ -14,16 +14,18 @@ export const cleanFirma = (s: string) => {
 
 const decodeText = (b: Uint8Array) => new TextDecoder('utf-8').decode(b);
 
+const is84 = (path: string) => /\.[dpx]84$/i.test(path);
+
 export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: DocFile[] }
 
 export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser): ParsedBid | null {
-  const bidFiles = g.files.filter((f) => /\.[dpx]84$/i.test(f.path));
+  const bidFiles = g.bids;
   const warnungen: string[] = [];
   // Duplikate erkennen
   const byHash = new Map<string, RawFile[]>();
   for (const f of bidFiles) byHash.set(hash(f.data), [...(byHash.get(hash(f.data)) ?? []), f]);
   const distinct = [...byHash.values()].map((arr) => arr.sort((a, b) => rank(a.path) - rank(b.path))[0]);
-  distinct.sort((a, b) => (/nachverh/i.test(base(b.path)) ? 1 : 0) - (/nachverh/i.test(base(a.path)) ? 1 : 0) || rank(a.path) - rank(b.path));
+  distinct.sort((a, b) => (/nachverh/i.test(base(b.path)) ? 1 : 0) - (/nachverh/i.test(base(a.path)) ? 1 : 0) || (is84(b.path) ? 1 : 0) - (is84(a.path) ? 1 : 0) || rank(a.path) - rank(b.path));
   // gleiche Inhalte in verschiedenen Formaten (x84/d84) sind kein Warnsignal; gleiche Dateien mit "Nachverhandlung" im Namen schon
   for (const arr of byHash.values()) {
     const nv = arr.find((f) => /nachverh/i.test(base(f.path)));
@@ -37,6 +39,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
     try { doc = parseGaeb(base(f.path), f.data, DP); used = f; break; } catch (e) { warnungen.push(`„${base(f.path)}“ konnte nicht gelesen werden.`); }
   }
   if (!doc || !used) return null;
+  if (!is84(used.path)) warnungen.push(`Preise aus „${base(used.path)}“ gelesen (Endung ${used.path.slice(-3).toUpperCase()} statt x84): Die Datei enthält Bieterpreise und wurde deshalb als Angebot erkannt.`);
   if (distinct.length > 1 && formats.size === 1) warnungen.push(`Mehrere unterschiedliche Preisdateien gefunden – verwendet: „${base(used.path)}“.`);
 
   const sig = g.files.find((f) => /signaturbeleg/i.test(base(f.path)));
@@ -50,8 +53,9 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
   const datumRaw = grab(/Angebotsdatum:\s*(\d{2}\.\d{2}\.\d{4})/);
   const datum = datumRaw ? datumRaw.split('.').reverse().join('-') : doc.datum;
 
+  const isBidPath = new Set(g.bids.map((f) => f.path));
   const dateien = g.files
-    .filter((f) => !/\.[dpx]84$/i.test(f.path) && !/signaturbeleg|\.offerinfo/i.test(base(f.path)))
+    .filter((f) => !isBidPath.has(f.path) && !/signaturbeleg|\.offerinfo/i.test(base(f.path)))
     .filter((f, i, arr) => arr.findIndex((x) => base(x.path) === base(f.path) && x.data.length === f.data.length) === i)
     .map((f) => ({ name: base(f.path), kat: kategorie(f.path) }));
   const nachforderung = g.files

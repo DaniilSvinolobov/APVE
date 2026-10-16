@@ -108,14 +108,14 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
     setBusyLv(true); setMsgLv(null);
     try {
       const files = await expandZips(raw);
-      const { soll, sollName, schaetz, schaetzName } = findLvFiles(files);
+      const { soll, sollName, schaetz, schaetzName, pricedSkipped } = findLvFiles(files);
       if (!soll) {
-        const bids = files.some((f) => isBidFile(f.path));
-        setMsgLv({ ok: false, text: bids ? 'Das sind Angebotsdateien (x84/p84/d84) – bitte in Feld 2 „Angebote der Bieter“ ablegen.' : 'Kein LV erkannt. Erwartet: .x81/.x82/.x83 (GAEB DA XML), .p8x (GAEB 2000) oder .d8x (GAEB 90).' });
+        const bids = pricedSkipped.length > 0 || files.some((f) => isBidFile(f.path));
+        setMsgLv({ ok: false, text: pricedSkipped.length ? `„${pricedSkipped.join('“, „')}“ enthält Bieterpreise und ist damit ein Angebot, kein LV – bitte in Feld 2 „Angebote der Bieter“ ablegen.` : bids ? 'Das sind Angebotsdateien (x84/p84/d84) – bitte in Feld 2 „Angebote der Bieter“ ablegen.' : 'Kein LV erkannt. Erwartet: .x81/.x82/.x83 (GAEB DA XML), .p8x (GAEB 2000) oder .d8x (GAEB 90).' });
       } else {
         up((d) => applyLv(d, soll, schaetz, { lv: sollName, schaetz: schaetzName }));
         const n = schaetz ? schaetz.positions.filter((p) => p.ep != null).length : 0;
-        setMsgLv({ ok: true, text: [`LV geladen: ${soll.positions.length} Positionen (${sollName})`, n ? `LV-Schätzpreise: ${n} Positionen (${schaetzName})` : 'keine Schätzpreise (GAEB 82) gefunden', sRef.current.offers.length ? 'Bereits geladene Angebote werden automatisch neu verglichen.' : ''].filter(Boolean).join(' · ') });
+        setMsgLv({ ok: true, text: [`LV geladen: ${soll.positions.length} Positionen (${sollName})`, n ? `LV-Schätzpreise: ${n} Positionen (${schaetzName})` : 'keine Schätzpreise (GAEB 82) gefunden', pricedSkipped.length ? `Übersprungen (enthält Bieterpreise, gehört in Feld 2): ${pricedSkipped.join(', ')}` : '', sRef.current.offers.length ? 'Bereits geladene Angebote werden automatisch neu verglichen.' : ''].filter(Boolean).join(' · ') });
       }
     } catch (e) {
       setMsgLv({ ok: false, text: `Fehler beim Einlesen: ${(e as Error).message}` });
@@ -131,7 +131,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
       const groups = groupBids(files);
       const parsed = groups.map((g, i) => analyzeGroup(g, s.offers.length + i + 1)).filter((x): x is NonNullable<typeof x> => !!x);
       if (!parsed.length) {
-        setMsg({ ok: false, text: files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien (x81/x82/x83) – bitte in Feld 1 „Eigenes LV“ ablegen.' : 'Keine Angebote erkannt (.x84/.p84/.d84). PDF-Dateien allein können nicht ausgewertet werden.' });
+        setMsg({ ok: false, text: files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien (x81/x82/x83) – bitte in Feld 1 „Eigenes LV“ ablegen.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
       } else {
         parsed.forEach((p) => docStore.set(p.offer.id, p.docs));
         up((d) => parsed.forEach((p) => applyOffer(d, p)));

@@ -1,35 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { State } from './domain/types';
 import { emptyState, demoState } from './domain/demo';
-import { computeLos } from './domain/calc';
+import { STEPS, stepsDone } from './steps/stepList';
+import { clearAllLocal, loadState, loadStep, parseBackup, saveState, saveStep } from './storage/projectStore';
 import { StepVergabe } from './steps/StepVergabe';
 import { StepUnterlagen } from './steps/StepUnterlagen';
 import { StepPreisspiegel } from './steps/StepPreisspiegel';
 import { StepWertung } from './steps/StepWertung';
 import { StepVermerk } from './steps/StepVermerk';
 import { Icon } from './components/ui';
-import { docStore } from './import/importer';
-
-const KEY = 'apve-state-v2';
-const STEPS = [
-  { id: 'vergabe', title: 'Vergabe', sub: 'Eckdaten & Lose' },
-  { id: 'unterlagen', title: 'Unterlagen', sub: 'LV & Angebote einlesen' },
-  { id: 'preis', title: 'Preisspiegel', sub: 'je Los vergleichen' },
-  { id: 'wertung', title: 'Wertung', sub: 'Prüfen & bewerten' },
-  { id: 'vermerk', title: 'Vermerk', sub: 'Vergabevorschlag' },
-];
-
-function load(): State {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) { const j = JSON.parse(raw); if (j?.v === 2) return { ...emptyState(), ...j }; }
-  } catch { /* ignore */ }
-  return emptyState();
-}
+import { docStore } from './import/docStore';
 
 export function App() {
-  const [s, setS] = useState<State>(load);
-  const [step, setStep] = useState(() => Number(sessionStorage.getItem('apve-step') ?? 0) || 0);
+  const [s, setS] = useState<State>(loadState);
+  const [step, setStep] = useState(loadStep);
   const [saved, setSaved] = useState(true);
   const [err, setErr] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -39,30 +23,24 @@ export function App() {
   useEffect(() => {
     setSaved(false);
     const t = setTimeout(() => {
-      try { localStorage.setItem(KEY, JSON.stringify(s)); setErr(''); } catch { setErr('Speicher des Browsers voll – bitte „Datensicherung“ im Vermerk-Schritt nutzen.'); }
+      setErr(saveState(s) ? '' : 'Speicher des Browsers voll – bitte „Datensicherung“ im Vermerk-Schritt nutzen.');
       setSaved(true);
     }, 500);
     return () => clearTimeout(t);
   }, [s]);
-  useEffect(() => { try { sessionStorage.setItem('apve-step', String(step)); } catch { /* ignore */ } window.scrollTo(0, 0); }, [step]);
+  useEffect(() => { saveStep(step); window.scrollTo(0, 0); }, [step]);
 
-  const done = [
-    !!s.project.titel.trim() && s.lose.length > 0,
-    s.lv.length > 0 && s.offers.length > 0,
-    s.lose.length > 0 && s.lose.every((l) => computeLos(s, l).some((c) => c.complete)),
-    s.lose.length > 0 && s.lose.every((l) => computeLos(s, l).some((c) => c.rank === 1)),
-    false,
-  ];
+  const done = stepsDone(s);
 
   const confirmNew = (fn: () => State) => { if (confirm('Aktuelle Daten werden überschrieben. Fortfahren?')) { setS(fn()); setStep(0); } };
   const wipeAll = () => {
     if (!confirm('Alle lokal gespeicherten Daten dieser Anwendung (Projekt, Angebote, Zugangscode, Einwilligung) in diesem Browser löschen?\n\nTipp: Vorher eine Datensicherung anlegen (Schritt „Vermerk“).')) return;
-    try { Object.keys(localStorage).filter((k) => k.startsWith('apve-')).forEach((k) => localStorage.removeItem(k)); sessionStorage.clear(); } catch { /* ignore */ }
+    clearAllLocal();
     docStore.clear();
     setS(emptyState()); setStep(0);
   };
   const importJson = async (f: File) => {
-    try { const j = JSON.parse(await f.text()); if (j?.v !== 2) throw new Error(); setS({ ...emptyState(), ...j }); setStep(0); } catch { alert('Datei konnte nicht gelesen werden (keine Datensicherung dieser Version).'); }
+    try { const st = parseBackup(JSON.parse(await f.text())); if (!st) throw new Error(); setS(st); setStep(0); } catch { alert('Datei konnte nicht gelesen werden (keine Datensicherung dieser Version).'); }
   };
   const Views = [StepVergabe, StepUnterlagen, StepPreisspiegel, StepWertung, StepVermerk];
   const View = Views[step];

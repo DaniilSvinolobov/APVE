@@ -40,6 +40,16 @@ Ohne `ANTHROPIC_API_KEY` bleibt die App voll nutzbar; die Tabelle wird dann nur 
 Hinweise: Im Anthropic-Console ein monatliches Ausgabenlimit setzen. Die Dokumente werden zur Prüfung über die
 Vercel-Function an die Anthropic-API übermittelt. Pro Anfrage max. ca. 3 MB (Vercel-Limit), größere Dateien werden übersprungen.
 
+## Datenschutz (DSGVO)
+- Projektdaten bleiben im Browser (localStorage); „Daten löschen“ in der Kopfzeile entfernt sie.
+- Schriftarten werden lokal ausgeliefert (keine Google Fonts), keine Cookies, kein Tracking.
+- Vercel-Functions laufen in Frankfurt (`regions: ["fra1"]` in `vercel.json`).
+- Die Claude-Dokumentprüfung ist optional und erst nach ausdrücklicher Aktivierung im Browser aktiv. Übermittelt werden nur Formulare und
+  Erklärungen (Angebotsschreiben, Eignungsfragebogen, Nachforderungen, Nachunternehmerverzeichnis) – keine Meisterbriefe, Referenzen,
+  Versicherungs- oder Präqualifikationsnachweise.
+- `public/datenschutz.html` und `public/impressum.html` sind **Entwürfe** mit gelb markierten Platzhaltern; vor dem produktiven Einsatz
+  ergänzen und rechtlich prüfen lassen (AVV mit Vercel und Anthropic, Drittlandübertragung, Verarbeitungsverzeichnis, Vertraulichkeit im Vergabeverfahren).
+
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,
 Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen) mit Vollständigkeitsprüfung als Anlage,

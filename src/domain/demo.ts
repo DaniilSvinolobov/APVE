@@ -12,7 +12,7 @@ export function emptyState(): State {
     },
     lose: [], titles: {}, unterlagen: DEFAULT_UNTERLAGEN.map((label) => ({ id: uid(), label })), lv: [], offers: [], bew: {}, texte: {}, zuschlag: {},
     anlagen: [],
-    logo: '',
+    logo: '', schaetz: {}, lvInfo: { lv: '', schaetz: '' },
   };
 }
 

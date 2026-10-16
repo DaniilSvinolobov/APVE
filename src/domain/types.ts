@@ -101,6 +101,8 @@ export interface State {
   zuschlag: Record<string, string>; // [losId] -> offerId ('' = automatisch)
   anlagen: Anlage[];
   logo: string; // data-URL
+  schaetz: Record<string, number>; // LV-Schätzpreis (EP netto) je Position [OZ ohne Punkte], aus GAEB 82
+  lvInfo: { lv: string; schaetz: string }; // Quelldateien des eigenen LV (Anzeige)
 }
 
 export const PSTATUS: { v: PStatus; label: string; cell: string }[] = [

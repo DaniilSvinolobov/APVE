@@ -29,7 +29,11 @@ const titleCase = (s: string) => {
   return t.toLowerCase().replace(/(^|[\s/-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase()).replace(/\bUnd\b/g, 'und');
 };
 
-export function applyLv(d: State, doc: GaebDoc) {
+/** Eigenes LV laden; `schaetz` (GAEB 82) liefert die LV-Schätzpreise je Position. */
+export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, names = { lv: '', schaetz: '' }) {
+  d.schaetz = {};
+  for (const p of (schaetz ?? doc).positions) if (p.ep != null) d.schaetz[ozKey(p.oz)] = p.ep;
+  d.lvInfo = { lv: names.lv, schaetz: Object.keys(d.schaetz).length ? (schaetz ? names.schaetz : names.lv) : '' };
   const old = new Map(d.lv.map((p) => [p.oz, p]));
   d.lv = doc.positions
     .filter((p) => p.menge != null || p.kurz)

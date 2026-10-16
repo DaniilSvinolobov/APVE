@@ -1,5 +1,5 @@
 import type { Los, State } from '../domain/types';
-import { auffaelligkeiten, computeLos, finalRound, getBew, offerBrutto, pruefStatus, zuschlagCell, type Cell } from '../domain/calc';
+import { auffaelligkeiten, computeLos, finalRound, getBew, kostenOf, offerBrutto, pruefStatus, zuschlagCell, type Cell } from '../domain/calc';
 import { PSTATUS } from '../domain/types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
 
@@ -80,9 +80,9 @@ export function buildVermerk(s: State): Block[] {
   /* 3 */
   B.push({ t: 'h', n: '3.', text: 'Vergabeverfahren', lvl: 1 });
   B.push(T('verfahren', `Gewähltes Vergabeverfahren: ${p.verfahren || '–'}`));
-  if (s.lose.some((l) => l.kosten != null)) {
+  if (s.lose.some((l) => kostenOf(s, l) != null)) {
     B.push({ t: 'p', id: '_kosten', text: `Ermittlung Baukosten, Kostenvoranschlag${p.kostenDatum ? ' vom ' + fmtDate(p.kostenDatum) : ''}:` });
-    B.push({ t: 'kv', rows: s.lose.filter((l) => l.kosten != null).map((l) => ({ k: `${l.nr}:`, v: fmtEUR(l.kosten) })), ra: true });
+    B.push({ t: 'kv', rows: s.lose.filter((l) => kostenOf(s, l) != null).map((l) => ({ k: `${l.nr}:`, v: fmtEUR(kostenOf(s, l)) })), ra: true });
   }
   B.push({ t: 'p', id: '_fristen', text: 'Vergabefristen:' });
   B.push({ t: 'kv', rows: [

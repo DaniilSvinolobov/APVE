@@ -30,6 +30,7 @@ Maßnahme, Auftraggeber und Lose werden daraus vorbelegt:
 - Zuordnung der Preise über die Ordnungszahl (OZ); Mengenabweichungen zwischen LV und Bieterdatei werden markiert
   (z. B. korrigierte Stückzahl) und lassen sich per Klick ins LV übernehmen
 - Liegt im Angebot das **LV als PDF** (Dateiname enthält „LV“/„Leistungsverzeichnis“ oder `AngebotN_L.pdf`), wird es mit den Preisen der GAEB-Datei abgeglichen (Einheitspreis, Gesamtbetrag, Menge × EP); das Ergebnis steht am Angebot
+- **Preise nur im PDF:** Enthält der Bieterordner nur ein unbepreistes GAEB-LV (x81/x83) und das bepreiste LV als PDF, erkennt die App das, liest EP/GP aus dem PDF (je OZ, anhand des eigenen LV), markiert das Angebot („Preise aus PDF“) und setzt in der Vollständigkeitsprüfung bei „Preise vollständig (GAEB-Angebotsdatei)“ den Status „Nur als PDF (GAEB ohne Preise)“. Im Vermerk (4.4) steht ein entsprechender Satz. Die Zahlen stammen aus der PDF-Texterkennung und sind stichprobenartig zu prüfen; nicht lesbare Positionen werden als „nicht bepreist“ gemeldet.
 - PDF-Scans ohne Text können nicht ausgewertet werden
 
 ## Dokumentprüfung mit Claude (Schritt 2, optional)

@@ -25,7 +25,7 @@ export interface PriceEntry {
   gp: number | null; // Gesamtpreis laut Bieterdatei
 }
 
-export type PStatus = 'ok' | 'nach' | 'fehlt' | 'leer' | 'teil' | 'unsign' | 'entf';
+export type PStatus = 'ok' | 'nach' | 'fehlt' | 'leer' | 'teil' | 'unsign' | 'entf' | 'pdf';
 
 export interface Offer {
   id: string;
@@ -47,6 +47,7 @@ export interface Offer {
   dateien: { name: string; kat: string }[];
   warnungen: string[];
   quelle: string;
+  preisQuelle?: 'gaeb' | 'pdf'; // pdf = GAEB-Datei des Bieters ohne Preise, Preise aus dem bepreisten LV-PDF gelesen
   lvPdf?: { name: string; befunde: LvBefund[] }[]; // Abgleich des beigelegten LV-PDF mit der GAEB-Preisdatei
 }
 
@@ -118,6 +119,7 @@ export const PSTATUS: { v: PStatus; label: string; cell: string }[] = [
   { v: 'teil', label: 'teilweise ausgefüllt', cell: 'Teilweise ausgefüllt' },
   { v: 'unsign', label: 'nicht unterschrieben', cell: 'Nicht unterschrieben' },
   { v: 'entf', label: 'entfällt', cell: 'durchgestrichen' },
+  { v: 'pdf', label: 'Preise nur im PDF', cell: 'Nur als PDF (GAEB ohne Preise)' },
 ];
 
 /** Standard-Prüfzeilen (Vorlage: „Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen“) */

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { State } from './types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
 import { analyzeGroup, applyLv, applyOffer, docStore, expandZips, findLv, groupBids, type RawFile } from './importer';
-import { applyKi, getCode, offerDocs, setCode } from './kiApply';
+import { applyKi, getCode, hasConsent, offerDocs, setCode } from './kiApply';
 import { kiStatus, KiError, pruefeAngebot, type KiStatus } from './kiPruefung';
 import { computeLos } from './calc';
 import { fmtDate, fmtNum } from './fmt';
@@ -55,7 +55,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
   /** Dokumente der Angebote mit Claude prüfen (Eintragung in die Vollständigkeitstabelle). */
   const runKi = async (offerIds: string[]) => {
     const st = statusRef.current;
-    if (!st?.enabled) return;
+    if (!st?.enabled || !hasConsent()) return;
     if (st.code && !getCode()) { setKi({ running: false, text: '', error: 'Bitte den Zugangscode eingeben.' }); return; }
     setKi({ running: true, text: 'Dokumente werden geprüft …', error: '' });
     try {

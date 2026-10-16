@@ -303,3 +303,5 @@ input.pdate{margin-top:4px;padding:4px 8px;font-size:12.5px}
 .kidocs{margin-top:10px}.kidocs ul{margin:6px 0 0;padding-left:20px;font-size:13px}.kidocs li{margin:4px 0}
 select.pst.teil{background:var(--warn-l);border-color:#f3d28a}select.pst.unsign{background:#fdeaf2;border-color:#f2b8d3}
 .v-tab.pr td.st-teil,.v-tab.pr td.st-unsign{color:#a3201a}
+
+.foot{text-align:center;color:var(--muted);font-size:12.5px;padding:0 0 28px}.foot a{color:var(--muted)}

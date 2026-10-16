@@ -8,6 +8,7 @@ import { StepPreisspiegel } from './StepPreisspiegel';
 import { StepWertung } from './StepWertung';
 import { StepVermerk } from './StepVermerk';
 import { Icon } from './ui';
+import { docStore } from './importer';
 
 const KEY = 'apve-state-v2';
 const STEPS = [
@@ -54,6 +55,12 @@ export function App() {
   ];
 
   const confirmNew = (fn: () => State) => { if (confirm('Aktuelle Daten werden überschrieben. Fortfahren?')) { setS(fn()); setStep(0); } };
+  const wipeAll = () => {
+    if (!confirm('Alle lokal gespeicherten Daten dieser Anwendung (Projekt, Angebote, Zugangscode, Einwilligung) in diesem Browser löschen?\n\nTipp: Vorher eine Datensicherung anlegen (Schritt „Vermerk“).')) return;
+    try { Object.keys(localStorage).filter((k) => k.startsWith('apve-')).forEach((k) => localStorage.removeItem(k)); sessionStorage.clear(); } catch { /* ignore */ }
+    docStore.clear();
+    setS(emptyState()); setStep(0);
+  };
   const importJson = async (f: File) => {
     try { const j = JSON.parse(await f.text()); if (j?.v !== 2) throw new Error(); setS({ ...emptyState(), ...j }); setStep(0); } catch { alert('Datei konnte nicht gelesen werden (keine Datensicherung dieser Version).'); }
   };
@@ -70,6 +77,7 @@ export function App() {
           <button className="btn ghost" onClick={() => confirmNew(demoState)}><Icon name="sparkle" /> Beispiel</button>
           <button className="btn ghost" onClick={() => fileRef.current?.click()}><Icon name="upload" /> Laden</button>
           <button className="btn ghost" onClick={() => confirmNew(emptyState)}>Neu</button>
+          <button className="btn ghost" title="Löscht alle in diesem Browser gespeicherten Daten dieser Anwendung" onClick={wipeAll}><Icon name="trash" /> Daten löschen</button>
           <input ref={fileRef} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
         </div>
       </header>
@@ -90,6 +98,7 @@ export function App() {
           {step < STEPS.length - 1 && <button className="btn primary" onClick={() => setStep(step + 1)}>Weiter: {STEPS[step + 1].title} <Icon name="arrow" /></button>}
         </div>
       </main>
+      <footer className="foot no-print"><a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutz</a> · <a href="/impressum.html" target="_blank" rel="noreferrer">Impressum</a></footer>
     </div>
   );
 }

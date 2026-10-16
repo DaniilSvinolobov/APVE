@@ -2,13 +2,18 @@
 
 Web-App (deutsch) für die Auswertung von Angeboten mit mehreren Losen und Nachverhandlung:
 Unterlagen einlesen → Preisspiegel je Los → Wertung → Vergabevermerk (PDF).
-Alle Daten bleiben im Browser (localStorage), es gibt kein Backend.
+Alle Projektdaten bleiben im Browser (localStorage). Einziger Server-Teil ist die optionale Dokumentprüfung (`api/pruefen.ts`, siehe unten).
 
 ```bash
 npm install
 npm run dev     # Entwicklung
 npm run build   # Produktions-Build nach dist/ (Vercel erkennt Vite automatisch)
 ```
+
+## Arbeitsablauf (Git/Vercel)
+- `main` ist der stabile Stand; Vercel-Production deployt von `main`.
+- Änderungen entstehen auf eigenen Feature-Branches (Vercel baut dafür automatisch Preview-Links) und gelangen per Pull Request nach `main`.
+- Vor Push, Pull oder Merge wird nachgefragt.
 
 ## Einlesen (Schritt 2)
 Ordner, ZIP-Dateien (auch verschachtelt) oder Einzeldateien ins Feld ziehen:
@@ -37,8 +42,9 @@ Vercel-Function an die Anthropic-API übermittelt. Pro Anfrage max. ca. 3 MB (Ve
 
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,
-Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen), Arial 11 pt, Logo und
-„Seite x von y“ auf jeder Seite. Als PDF über „Drucken“ (Chrome/Edge) speichern. Texte sind anklickbar und editierbar.
+Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen) mit Vollständigkeitsprüfung als Anlage,
+Segoe UI Light 11 pt, Logo und „Seite x von y“ auf jeder Seite. Als PDF über „Drucken“ (Chrome/Edge) speichern.
+Texte sind anklickbar und editierbar.
 
 ## Fachliche Logik
 - Nachlass ohne Bedingung wird eingerechnet, Skonto nicht gewertet

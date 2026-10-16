@@ -158,6 +158,7 @@ export function buildVermerk(s: State): Block[] {
         const ds = [...new Set(ps.nach.map((x) => x.d).filter(Boolean))];
         out.push(`Für das Angebot Nr. ${o.nr} ${ps.nach.length > 1 ? 'fehlten die Unterlagen' : 'fehlte die Unterlage'} ${listDe(ps.nach.map((x) => x.label))}; ${ps.nach.length > 1 ? 'diese wurden' : 'diese wurde'} nachträglich durch die ${p.vergabestelle || 'Vergabestelle'} bei Fa. ${o.firma} angefordert${ds.length === 1 ? ` und am ${fmtDate(ds[0])} nachgereicht` : ''}.`);
       } else if (!Object.keys(o.pruef ?? {}).length && o.nachforderung.length) out.push(`Für das Angebot Nr. ${o.nr} fehlten Unterlagen (${o.nachforderung.join(', ')}); diese wurden nachträglich durch die ${p.vergabestelle || 'Vergabestelle'} bei Fa. ${o.firma} angefordert.`);
+      if (o.preisQuelle === 'pdf') out.push(`Das Angebot Nr. ${o.nr} (Fa. ${o.firma}) enthält die Preise nur im Leistungsverzeichnis als PDF; die beigefügte GAEB-Datei ist nicht bepreist. Die Preise wurden aus dem PDF übernommen und rechnerisch geprüft.`);
       if (ps.fehlt.length) out.push(`Beim Angebot Nr. ${o.nr} fehlen weiterhin: ${listDe(ps.fehlt)}.`);
       return out;
     }),

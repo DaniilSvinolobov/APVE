@@ -108,7 +108,10 @@ function autoPruef(d: State, offer: Offer, sigFound: boolean, preise: boolean) {
   for (const u of d.unterlagen) {
     const l = u.label.toLowerCase();
     if (/unterschrieben|signiert/.test(l)) { if (sigFound) set(u.id, 'ok'); }
-    else if (/preise vollständig|gaeb/.test(l)) { if (preise) set(u.id, 'ok'); }
+    else if (/preise vollständig|gaeb/.test(l)) {
+      if (offer.preisQuelle === 'pdf') offer.pruef[u.id] = { s: 'pdf', d: '', n: 'Die GAEB-Datei des Bieters enthält keine Preise; das bepreiste LV liegt nur als PDF vor. Die Preise wurden aus dem PDF gelesen und sind zu prüfen.', k: 'auto' };
+      else if (preise) set(u.id, 'ok');
+    }
     else if (/fristgerecht/.test(l)) { /* nur manuell */ }
     else if (matches(u.label, nach)) set(u.id, 'nach');
     else if (matches(u.label, names)) set(u.id, 'ok');

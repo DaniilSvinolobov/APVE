@@ -104,3 +104,16 @@ export function groupBids(files: RawFile[], DP?: typeof DOMParser): BidGroup[] {
     return { root, files: inRoot.filter((f) => !LV_FILE.test(f.path) || isBid.has(f)), bids: inRoot.filter((f) => isBid.has(f)) };
   });
 }
+
+export interface PdfGroup { root: string; files: RawFile[]; pdfs: RawFile[] }
+
+/** Ordner mit einem LV-PDF, aber ohne Preisdatei (x84 bzw. bepreistes x83): Kandidaten für „Preise nur im PDF“. */
+export function groupPdfBids(files: RawFile[], covered: BidGroup[]): PdfGroup[] {
+  const pdfs = files.filter((f) => isLvPdf(f.path) && !covered.some((g) => !g.root || f.path.startsWith(g.root + '/')));
+  const dirs = [...new Set(pdfs.map((f) => dir(f.path)))].sort((a, b) => a.length - b.length);
+  const roots = dirs.filter((d, i) => !dirs.slice(0, i).some((r) => r && d.startsWith(r + '/')));
+  return roots.map((root) => {
+    const inRoot = files.filter((f) => (root ? f.path.startsWith(root + '/') : true));
+    return { root, files: inRoot, pdfs: inRoot.filter((f) => isLvPdf(f.path)) };
+  });
+}

@@ -11,7 +11,7 @@ export const setCode = (c: string) => { try { c ? localStorage.setItem(CODE, c) 
 
 export interface KiDoc { datei: string; art: string; zeilen: string[]; inhalt: 'ausgefuellt' | 'teilweise' | 'leer' | 'unklar'; unterschrift: 'ja' | 'nein' | 'nicht_erforderlich' | 'unklar'; bemerkung: string }
 
-const rankS: Record<PStatus, number> = { ok: 5, nach: 4, teil: 3, unsign: 2, leer: 1, fehlt: 0, entf: -1 };
+const rankS: Record<PStatus, number> = { ok: 5, nach: 4, teil: 3, unsign: 2, leer: 1, fehlt: 0, entf: -1, pdf: 0 };
 
 /** Überträgt KI-Befunde in die Vollständigkeitstabelle (Eintragungen des Nutzers bleiben unangetastet). */
 export function applyKi(d: State, offerId: string, results: KiDoc[]) {

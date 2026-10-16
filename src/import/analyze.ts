@@ -18,7 +18,8 @@ const is84 = (path: string) => /\.[dpx]84$/i.test(path);
 
 export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: DocFile[] }
 
-export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser): ParsedBid | null {
+/** `pre`: Preise stammen nicht aus einer GAEB-Datei, sondern aus dem LV-PDF (Dokument bereits aufgebaut). */
+export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser, pre?: { doc: GaebDoc; quelle: string; hinweis: string }): ParsedBid | null {
   const bidFiles = g.bids;
   const warnungen: string[] = [];
   // Duplikate erkennen
@@ -32,14 +33,15 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
     const other = arr.find((f) => f !== nv);
     if (nv && other) warnungen.push(`„${base(nv.path)}“ ist identisch mit „${base(other.path)}“ – die Nachverhandlungsdatei enthält keine geänderten Preise.`);
   }
-  let doc: GaebDoc | null = null;
-  let used: RawFile | null = null;
+  let doc: GaebDoc | null = pre?.doc ?? null;
+  let used: { path: string } | null = pre ? { path: pre.quelle } : null;
+  if (pre) warnungen.push(pre.hinweis);
   const formats = new Set(distinct.map((f) => f.path.slice(-3).toLowerCase()));
-  for (const f of distinct) {
+  if (!pre) for (const f of distinct) {
     try { doc = parseGaeb(base(f.path), f.data, DP); used = f; break; } catch (e) { warnungen.push(`„${base(f.path)}“ konnte nicht gelesen werden.`); }
   }
   if (!doc || !used) return null;
-  if (!is84(used.path)) warnungen.push(`Preise aus „${base(used.path)}“ gelesen (Endung ${used.path.slice(-3).toUpperCase()} statt x84): Die Datei enthält Bieterpreise und wurde deshalb als Angebot erkannt.`);
+  if (!pre && !is84(used.path)) warnungen.push(`Preise aus „${base(used.path)}“ gelesen (Endung ${used.path.slice(-3).toUpperCase()} statt x84): Die Datei enthält Bieterpreise und wurde deshalb als Angebot erkannt.`);
   if (distinct.length > 1 && formats.size === 1) warnungen.push(`Mehrere unterschiedliche Preisdateien gefunden – verwendet: „${base(used.path)}“.`);
 
   const sig = g.files.find((f) => /signaturbeleg/i.test(base(f.path)));
@@ -70,7 +72,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
   for (const p of doc.positions) prices[ozKey(p.oz)] = { ep: p.ep, gp: p.gp };
   const offer: Offer = {
     id: uid(), nr, firma, ort: grab(/Firmenort:\s*(.+)/), runde: g.files.some((f) => /nachverh/i.test(f.path)) ? 2 : 1,
-    datum, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
+    datum, preisQuelle: pre ? 'pdf' : undefined, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
     textErg: doc.positions.filter((p) => p.bieterText).map((p) => ({ oz: p.oz, text: p.bieterText! })),
     nachforderung, dateien, warnungen, quelle: base(used.path),
   };

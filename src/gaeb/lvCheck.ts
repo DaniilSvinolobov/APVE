@@ -75,7 +75,7 @@ export function vergleicheLv(a: { name: string; doc: GaebDoc }, b: { name: strin
 /* ---------- PDF ---------- */
 
 export interface PdfPos { oz: string; menge: number | null; einheit: string; ep: number | null; gp: number | null }
-export interface RefPos { oz: string; menge: number | null; einheit: string; ep?: number | null; gp?: number | null }
+export interface RefPos { oz: string; menge: number | null; einheit: string; ep?: number | null; gp?: number | null; kurz?: string; bedarf?: boolean }
 
 const NUM = String.raw`\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?`;
 const deNum = (s: string) => Number(s.replace(/\./g, '').replace(',', '.'));
@@ -108,6 +108,11 @@ export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
     // Menge Einheit [EP GP] – das letzte Vorkommen im Block gilt (Texte nennen oft Maße wie „3 cm“)
     const priced = [...text.matchAll(new RegExp(String.raw`(${NUM})\s*${unit}(?=\s)\s+(${NUM})\s+(${NUM})`, 'gi'))].pop();
     const plain = [...text.matchAll(new RegExp(String.raw`(${NUM})\s*${unit}(?=\s|$)`, 'gi'))].pop();
+    // Fallback ohne passende Einheit im Text: letztes Zahlentripel Menge · EP · GP, das rechnerisch aufgeht
+    const nums = [...text.matchAll(new RegExp(String.raw`(?<![\d.,])(${NUM})(?![\d.,])`, 'g'))].map((m) => deNum(m[1]));
+    let tri: [number, number, number] | null = null;
+    for (let i = nums.length - 3; i >= 0 && !tri; i--) if (Math.abs(r2(nums[i] * nums[i + 1]) - nums[i + 2]) <= 0.01 && nums[i + 1] > 0) tri = [nums[i], nums[i + 1], nums[i + 2]];
+    if (!priced && tri) { out.push({ oz: b.oz, menge: tri[0], einheit: r.einheit, ep: tri[1], gp: tri[2] }); continue; }
     if (priced) out.push({ oz: b.oz, menge: deNum(priced[1]), einheit: r.einheit, ep: deNum(priced[2]), gp: deNum(priced[3]) });
     else if (plain) out.push({ oz: b.oz, menge: deNum(plain[1]), einheit: r.einheit, ep: null, gp: null });
     else out.push({ oz: b.oz, menge: null, einheit: '', ep: null, gp: null });

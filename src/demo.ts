@@ -1,5 +1,6 @@
 import type { Offer, State } from './types';
 import { uid } from './fmt';
+import { DEFAULT_UNTERLAGEN } from './types';
 
 export function emptyState(): State {
   return {
@@ -7,9 +8,9 @@ export function emptyState(): State {
     project: {
       titel: '', nummer: '', auftraggeber: '', vergabestelle: '', ersteller: '', ort: '', verfahren: 'Nichtförmliches Verfahren',
       kostenBasis: 'brutto', kostenDatum: '', mwst: 19, schwelle: 15, abweichung: 30, engereWahl: 2,
-      eroeffnung: '', zuschlagsfrist: '', beginn: '', ende: '', angefordert: null, budgetBrutto: null, unterzeichner: '', datum: '',
+      eroeffnung: '', zuschlagsfrist: '', beginn: '', ende: '', angefordert: null, budgetBrutto: null, unterzeichner: '', datum: '', vollstaendigkeit: true,
     },
-    lose: [], titles: {}, lv: [], offers: [], bew: {}, texte: {}, zuschlag: {},
+    lose: [], titles: {}, unterlagen: DEFAULT_UNTERLAGEN.map((label) => ({ id: uid(), label })), lv: [], offers: [], bew: {}, texte: {}, zuschlag: {},
     anlagen: [],
     logo: '',
   };
@@ -17,8 +18,7 @@ export function emptyState(): State {
 
 const mkOffer = (nr: number, firma: string, ort: string, runde: 1 | 2, lose: string[], prices: Offer['prices'], extra: Partial<Offer> = {}): Offer => ({
   id: uid(), nr, firma, ort, runde, datum: runde === 1 ? '2026-07-30' : '2026-08-24', lose, nachlass: null, nachlassLose: [], skonto: null,
-  prices, summen: {}, checks: Object.fromEntries(['frist', 'unterschrift', 'preise', 'erklaerungen', 'unveraendert', 'nu'].map((k) => [k, true])),
-  evidence: {}, textErg: [], nachforderung: [], dateien: [], warnungen: [], quelle: 'Beispiel', ...extra,
+  prices, summen: {}, pruef: {}, textErg: [], nachforderung: [], dateien: [], warnungen: [], quelle: 'Beispiel', ...extra,
 });
 
 /** Synthetisches Beispiel (frei erfunden): 2 Lose, 3 Bieter, Nachverhandlung für LOS1. */
@@ -58,6 +58,10 @@ export function demoState(): State {
   const o4 = mkOffer(4, 'Natura Außenanlagen GmbH', 'Düren', 2, [l1.id], p4);
   const o5 = mkOffer(5, 'Gartenbau Weber GmbH', 'Kerpen', 2, [l1.id], pr(0, '01'));
   s.offers = [o1, o2, o3, o4, o5];
+  for (const o of [o1, o2, o3]) for (const u of s.unterlagen) o.pruef[u.id] = { s: /222|234|248|223/.test(u.label) ? 'entf' : 'ok', d: '' };
+  o3.pruef[s.unterlagen.find((u) => u.label.includes('221'))!.id] = { s: 'nach', d: '2026-08-04' };
+  o2.pruef[s.unterlagen.find((u) => u.label.includes('233'))!.id] = { s: 'fehlt', d: '' };
+  o3.nachforderung = ['VVB 221'];
   s.bew[`${o3.id}|${l1.id}`] = { ausschluss: '', aufklaerung: 'angemessen', aufklaerungNotiz: 'Rasen/Pflanzen aus eigener Baumschule', qualifikation: 'Die Qualifikation des Bieters ist bekannt, die Fachfirma hat bereits vergleichbare Leistungen für die Stadt erbracht (Quartierspark BA1).', km: null, auskoemm: true, erlaeuterung: 'Es handelt sich hierbei insbesondere um die Pflanzenlieferungen (Eigenproduktion).', zusatz: '' };
   return s;
 }

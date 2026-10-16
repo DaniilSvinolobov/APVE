@@ -89,7 +89,7 @@ export const cleanFirma = (s: string) => {
 
 const decodeText = (b: Uint8Array) => new TextDecoder('utf-8').decode(b);
 
-export interface ParsedBid { offer: Offer; doc: GaebDoc }
+export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean }
 
 export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser): ParsedBid | null {
   const bidFiles = g.files.filter((f) => /\.[dpx]84$/i.test(f.path));
@@ -124,7 +124,6 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
   const firma = cands.find((c) => LEGAL.test(c)) || cands[0] || folder.replace(/^Angebot\s*\d+[_\s-]*/i, '').replace(/_/g, '/');
   const datumRaw = grab(/Angebotsdatum:\s*(\d{2}\.\d{2}\.\d{4})/);
   const datum = datumRaw ? datumRaw.split('.').reverse().join('-') : doc.datum;
-  const sigNr = grab(/Vergabenummer:\s*(.+)/);
 
   const dateien = g.files
     .filter((f) => !/\.[dpx]84$/i.test(f.path) && !/signaturbeleg|\.offerinfo/i.test(base(f.path)))
@@ -134,22 +133,19 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
     .filter((f) => /nachforderung/i.test(f.path) && !/\.zip$/i.test(f.path))
     .map((f) => base(f.path).replace(/\.[a-z0-9]+$/i, '').replace(/\s*-\s*[^-]+$/, ''));
   const has = (k: string) => dateien.some((d) => d.kat === k);
-  const evidence: Record<string, string> = {};
-  const checks: Record<string, boolean> = {};
-  if (has('Signatur') || sig) { checks.unterschrift = true; evidence.unterschrift = 'Elektronische Signatur gefunden (signature.p7m / Signaturbeleg)'; }
-  if (has('Eignungsfragebogen')) { checks.erklaerungen = true; evidence.erklaerungen = 'Eignungsfragebogen vorhanden'; }
-  if (has('Nachunternehmer')) { checks.nu = true; evidence.nu = 'Nachunternehmerleistungen.pdf vorhanden'; }
-  if (sigNr) evidence.nummer = sigNr;
+  const sigFound = has('Signatur') || !!sig;
+  const sigNr = grab(/Vergabenummer:\s*(.+)/);
+  void sigNr;
 
   const prices: Offer['prices'] = {};
   for (const p of doc.positions) prices[ozKey(p.oz)] = { ep: p.ep, gp: p.gp };
   const offer: Offer = {
     id: uid(), nr, firma, ort: grab(/Firmenort:\s*(.+)/), runde: g.files.some((f) => /nachverh/i.test(f.path)) ? 2 : 1,
-    datum, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, checks, evidence,
+    datum, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
     textErg: doc.positions.filter((p) => p.bieterText).map((p) => ({ oz: p.oz, text: p.bieterText! })),
     nachforderung, dateien, warnungen, quelle: base(used.path),
   };
-  return { offer, doc };
+  return { offer, doc, sig: sigFound };
 }
 
 /** Lose aus den obersten Titeln des LV ableiten. */
@@ -187,7 +183,7 @@ export function applyLv(d: State, doc: GaebDoc) {
 }
 
 /** Fügt ein analysiertes Angebot in den State ein. */
-export function applyOffer(d: State, parsed: ParsedBid) {
+export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   const { offer, doc } = parsed;
   if (!d.lv.length) {
     // Fallback: LV aus Bieterdatei ableiten (ohne Texte/Mengen aus der Ausschreibung)
@@ -208,7 +204,7 @@ export function applyOffer(d: State, parsed: ParsedBid) {
   if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
   offer.lose = d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
   const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => d.lose.find((l) => l.id === id)?.oz === p.oz.split('.')[0]));
-  if (preise) { offer.checks.preise = true; offer.evidence.preise = 'Alle Positionen bepreist'; }
+  autoPruef(d, offer, sigFound, preise);
   const eroeff = d.project.eroeffnung.slice(0, 10);
   if (eroeff && offer.datum && offer.datum > eroeff && offer.runde === 1) offer.runde = 2;
   const dup = d.offers.filter((o) => o.firma.toLowerCase().replace(/\W/g, '') === offer.firma.toLowerCase().replace(/\W/g, ''));
@@ -221,3 +217,39 @@ export function applyOffer(d: State, parsed: ParsedBid) {
 }
 
 export function ozFirst(oz: string) { return oz.split('.')[0]; }
+
+
+const SYN: Record<string, RegExp> = {
+  '124': /eigenerkl|eignung/, '213': /angebotsschreiben/, '221': /zuschlagskalk/, '222': /endsumme/, '223': /aufgliederung/,
+  '233': /nachunternehmer/, '234': /arbeitsgemeinschaft|bietergemeinschaft/, '235': /kapazit/, '248': /holzprodukt/,
+};
+
+/** Vollständigkeitsprüfung aus vorhandenen Dateien vorbelegen. */
+function autoPruef(d: State, offer: Offer, sigFound: boolean, preise: boolean) {
+  const names = offer.dateien.filter((x) => x.kat !== 'Nachforderung').map((x) => x.name.toLowerCase());
+  const nach = offer.nachforderung.map((n) => n.toLowerCase());
+  const matches = (label: string, list: string[]) => {
+    const num = label.match(/\b(\d{3})\b/)?.[1];
+    if (num) return list.some((n) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(n) || (SYN[num]?.test(n) ?? false));
+    const words = label.toLowerCase().split(/[^a-zäöüß]+/).filter((w) => w.length >= 9);
+    return words.length > 0 && list.some((n) => words.some((w) => n.includes(w)));
+  };
+  const set = (id: string, s: 'ok' | 'nach', date = '') => { offer.pruef[id] = { s, d: date }; };
+  for (const u of d.unterlagen) {
+    const l = u.label.toLowerCase();
+    if (/unterschrieben|signiert/.test(l)) { if (sigFound) set(u.id, 'ok'); }
+    else if (/preise vollständig|gaeb/.test(l)) { if (preise) set(u.id, 'ok'); }
+    else if (/fristgerecht/.test(l)) { /* nur manuell */ }
+    else if (matches(u.label, nach)) set(u.id, 'nach');
+    else if (matches(u.label, names)) set(u.id, 'ok');
+  }
+  // nachgereichte Unterlagen ohne passende Zeile → neue Prüfzeile
+  for (const n of offer.nachforderung) {
+    if (d.unterlagen.some((u) => matches(u.label, [n.toLowerCase()]))) continue;
+    const label = n.replace(/\s+/g, ' ').trim();
+    if (!label) continue;
+    const row = d.unterlagen.find((u) => u.label === label) ?? { id: uid(), label };
+    if (!d.unterlagen.includes(row)) d.unterlagen.push(row);
+    set(row.id, 'nach');
+  }
+}

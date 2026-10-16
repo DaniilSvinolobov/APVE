@@ -22,6 +22,8 @@ export interface PriceEntry {
   gp: number | null; // Gesamtpreis laut Bieterdatei
 }
 
+export type PStatus = 'ok' | 'nach' | 'fehlt' | 'leer' | 'entf';
+
 export interface Offer {
   id: string;
   nr: number; // Angebot Nr.
@@ -35,8 +37,7 @@ export interface Offer {
   skonto: number | null;
   prices: Record<string, PriceEntry>; // [OZ ohne Punkte]
   summen: Record<string, number | null>; // [losId] netto, wenn ohne LV erfasst
-  checks: Record<string, boolean>;
-  evidence: Record<string, string>;
+  pruef: Record<string, { s: PStatus; d: string }>; // Vollständigkeitsprüfung [Zeilen-ID]
   textErg: { oz: string; text: string }[];
   nachforderung: string[];
   dateien: { name: string; kat: string }[];
@@ -83,6 +84,7 @@ export interface Project {
   budgetBrutto: number | null;
   unterzeichner: string;
   datum: string; // Datum des Vermerks
+  vollstaendigkeit: boolean; // Vollständigkeitsprüfung als Anlage drucken
 }
 
 export interface State {
@@ -90,6 +92,7 @@ export interface State {
   project: Project;
   lose: Los[];
   titles: Record<string, string>;
+  unterlagen: { id: string; label: string }[]; // Prüfzeilen der Vollständigkeitsprüfung
   lv: LvPos[];
   offers: Offer[];
   bew: Record<string, Bew>;
@@ -99,13 +102,28 @@ export interface State {
   logo: string; // data-URL
 }
 
-export const FORMAL_CHECKS = [
-  { id: 'frist', label: 'Fristgerecht eingegangen' },
-  { id: 'unterschrift', label: 'Unterschrieben / signiert' },
-  { id: 'preise', label: 'Preise vollständig' },
-  { id: 'erklaerungen', label: 'Erklärungen & Nachweise' },
-  { id: 'unveraendert', label: 'Unterlagen unverändert' },
-  { id: 'nu', label: 'Nachunternehmer-Angaben' },
-] as const;
+export const PSTATUS: { v: PStatus; label: string; cell: string }[] = [
+  { v: 'ok', label: 'vorhanden', cell: 'x' },
+  { v: 'nach', label: 'nachgereicht', cell: 'Nachgereicht' },
+  { v: 'fehlt', label: 'nicht beigefügt', cell: 'Nicht beigefügt' },
+  { v: 'leer', label: 'nicht ausgefüllt', cell: 'Nicht ausgefüllt' },
+  { v: 'entf', label: 'entfällt', cell: 'durchgestrichen' },
+];
+
+/** Standard-Prüfzeilen (Vorlage: „Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen“) */
+export const DEFAULT_UNTERLAGEN = [
+  'Fristgerecht eingegangen',
+  'Angebot unterschrieben / signiert',
+  'Preise vollständig (GAEB-Angebotsdatei)',
+  'VVB 124 - Eigenerklärung zur Eignung',
+  'VVB 213 - Angebotsschreiben',
+  'VVB 221 - Preisermittlung bei Zuschlagskalkulation',
+  'VVB 222 - Preisermittlung bei Kalkulation über die Endsumme',
+  'VVB 223 - Aufgliederung der Einheitspreise',
+  'VVB 233 - Verzeichnis der Nachunternehmerleistungen',
+  'VVB 234 - Erklärung Bieter-/Arbeitsgemeinschaft',
+  'VVB 235 - Verzeichnis der Leistungen/Kapazitäten anderer Unternehmen',
+  'VVB 248 - Erklärung zur Verwendung von Holzprodukten',
+];
 
 export const VERFAHREN = ['Nichtförmliches Verfahren', 'VOB/A (national)', 'VOB/A-EU', 'UVgO', 'VgV', 'Freihändige Vergabe', 'Privat / intern'];

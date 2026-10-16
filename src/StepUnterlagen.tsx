@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { State } from './types';
-import { FORMAL_CHECKS } from './types';
+import { Vollstaendigkeit } from './Vollstaendigkeit';
 import { analyzeGroup, applyLv, applyOffer, expandZips, findLv, groupBids, type RawFile } from './importer';
 import { computeLos } from './calc';
 import { fmtDate, fmtNum } from './fmt';
@@ -63,7 +63,6 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
 
   const hasLv = s.lv.length > 0;
   const setOffer = (i: number, fn: (o: State['offers'][number]) => void) => up((d) => fn(d.offers[i]));
-  const abw = s.offers.filter((o) => o.warnungen.length);
 
   return (
     <div className="stack">
@@ -146,33 +145,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         );
       })}
 
-      {s.offers.length > 0 && (
-        <section className="card">
-          <h2>Formalprüfung</h2>
-          <p className="lead">Automatisch erkannte Punkte sind vorbelegt (grüner Punkt). Alles andere bitte selbst bestätigen.</p>
-          <div className="scroll">
-            <table className="matrix" style={{ minWidth: 220 + s.offers.length * 170 }}>
-              <thead><tr><th className="left">Prüfpunkt</th>{s.offers.map((o) => <th key={o.id}>Nr. {o.nr}<small className="muted block">{o.firma}</small></th>)}</tr></thead>
-              <tbody>
-                {FORMAL_CHECKS.map((c) => (
-                  <tr key={c.id}>
-                    <td className="left"><b>{c.label}</b></td>
-                    {s.offers.map((o, i) => (
-                      <td key={o.id}>
-                        <label className="check" title={o.evidence[c.id] ?? ''}>
-                          <input type="checkbox" checked={!!o.checks[c.id]} onChange={(e) => setOffer(i, (x) => void (x.checks[c.id] = e.target.checked))} /><span />
-                        </label>
-                        {o.evidence[c.id] && <i className="auto" title={o.evidence[c.id]} />}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {abw.length === 0 && <p className="tip" style={{ marginTop: 14 }}><b>Gut zu wissen:</b> Fehlende Erklärungen oder Nachweise dürfen nachgefordert werden, bevor ein Angebot ausgeschlossen wird (§ 16a VOB/A). Ausschlüsse tragen Sie je Los im Schritt „Wertung“ ein.</p>}
-        </section>
-      )}
+      {s.offers.length > 0 && <Vollstaendigkeit s={s} up={up} />}
     </div>
   );
 }

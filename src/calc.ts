@@ -1,5 +1,4 @@
 import type { Los, Offer, State } from './types';
-import { FORMAL_CHECKS } from './types';
 import { round2 } from './fmt';
 
 export const zkey = (oz: string) => oz.replace(/\./g, '');
@@ -177,7 +176,15 @@ export function auffaelligkeiten(s: State, los: Los, cells: Cell[], c: Cell): Au
   return res;
 }
 
-export const formalOk = (o: Offer) => FORMAL_CHECKS.every((c) => o.checks[c.id]);
+/** Offene Punkte der Vollständigkeitsprüfung eines Angebots. */
+export function pruefStatus(s: State, o: Offer) {
+  const rows = s.unterlagen.map((u) => ({ u, p: o.pruef?.[u.id] }));
+  return {
+    fehlt: rows.filter((r) => r.p?.s === 'fehlt' || r.p?.s === 'leer').map((r) => r.u.label),
+    nach: rows.filter((r) => r.p?.s === 'nach').map((r) => ({ label: r.u.label, d: r.p!.d })),
+    ungeprueft: rows.filter((r) => !r.p).length,
+  };
+}
 
 /** Zusammenfassung über alle Lose eines Angebots (für Bieterliste „ungeprüft“). */
 export function offerBrutto(s: State, o: Offer): number | null {

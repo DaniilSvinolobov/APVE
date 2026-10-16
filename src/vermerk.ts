@@ -1,5 +1,6 @@
 import type { Los, State } from './types';
-import { auffaelligkeiten, computeLos, finalRound, getBew, offerBrutto, zuschlagCell, type Cell } from './calc';
+import { auffaelligkeiten, computeLos, finalRound, getBew, offerBrutto, pruefStatus, zuschlagCell, type Cell } from './calc';
+import { PSTATUS } from './types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from './fmt';
 
 export type Block =
@@ -7,12 +8,13 @@ export type Block =
   | { t: 'h'; n: string; text: string; lvl: 1 | 2 | 3 }
   | { t: 'p'; id: string; text: string }
   | { t: 'kv'; rows: { k: string; v: string; bold?: boolean }[]; ra?: boolean }
-  | { t: 'tab'; cols: { h: string; w: number; a?: 'l' | 'c' | 'r' }[]; rows: string[][] }
+  | { t: 'tab'; cols: { h: string; w: number; a?: 'l' | 'c' | 'r' }[]; rows: string[][]; hl?: number[] }
+  | { t: 'pruef'; title: string; head: string[]; rows: { label: string; cells: { txt: string; kind: string }[] }[]; foot: string[] }
   | { t: 'sign'; lines: string[] }
   | { t: 'anlagen'; items: string[] }
   | { t: 'gap' };
 
-export const AKEYS = ['eroeffnung', 'mitteilung1', 'preisspiegel1', 'mitteilung2', 'preisspiegel2'] as const;
+export const AKEYS = ['eroeffnung', 'mitteilung1', 'preisspiegel1', 'mitteilung2', 'preisspiegel2', 'vollstaendigkeit'] as const;
 
 const pctDe = (v: number) => fmtNum(v, 2);
 const losNrList = (lose: Los[]) => {
@@ -34,8 +36,9 @@ export function anlagenList(s: State): { key: string; titel: string; custom?: bo
     preisspiegel1: `Preisspiegel Angebote ${range(r1)}`,
     mitteilung2: 'Mitteilung über das Ergebnis nach Öffnung der Angebote (Nachverhandlung)',
     preisspiegel2: `Preisspiegel Angebote ${range(r2)} (Nachverhandlung)`,
+    vollstaendigkeit: 'Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen',
   };
-  const keys = AKEYS.filter((k) => (k.endsWith('2') ? r2.length > 0 : true));
+  const keys = AKEYS.filter((k) => (k.endsWith('2') ? r2.length > 0 : k === 'vollstaendigkeit' ? s.project.vollstaendigkeit : true));
   const out: { key: string; titel: string; custom?: boolean }[] = keys.map((k) => ({ key: k as string, titel: s.texte[`anlage:${k}`] ?? def[k] }));
   for (const a of s.anlagen) out.push({ key: a.id, titel: a.titel, custom: true });
   return out;
@@ -113,7 +116,7 @@ export function buildVermerk(s: State): Block[] {
   });
 
   B.push({ t: 'h', n: '4.1', text: `Formale Prüfung der Angebote${vergabe ? ' gem. VOB/A § 16' : ''}`, lvl: 2 });
-  B.push(T('formal', `Die ${p.vergabestelle || 'Vergabestelle'} hat eine erste formelle und rechnerische Prüfung durchgeführt. Es wurden keine Angebote von der weiteren Prüfung ausgeschlossen.\n${aNr('mitteilung1')}`));
+  B.push(T('formal', `Die ${p.vergabestelle || 'Vergabestelle'} hat eine erste formelle und rechnerische Prüfung durchgeführt. Es wurden keine Angebote von der weiteren Prüfung ausgeschlossen.\n${aNr('mitteilung1')}${s.project.vollstaendigkeit ? `\nDas Ergebnis der Prüfung auf Vollständigkeit der Angebotsunterlagen ist in Anlage ${anl.findIndex((a) => a.key === 'vollstaendigkeit') + 1} dargestellt.` : ''}`));
 
   B.push({ t: 'h', n: '4.2', text: 'Submissionsergebnis', lvl: 2 });
   const nachlassNrs = r1.filter((o) => o.nachlass).map((o) => o.nr);
@@ -129,6 +132,7 @@ export function buildVermerk(s: State): Block[] {
     t: 'tab',
     cols: [{ h: 'Rang\nNr.', w: 10, a: 'c' }, { h: 'Angebot\nNr.', w: 12, a: 'c' }, { h: 'Bieter\nFirmenname, Ort', w: 38 }, { h: 'Nachlass\nv. H.', w: 13, a: 'c' }, { h: 'Angebotssumme\nungeprüft (brutto EUR)', w: 27, a: 'c' }],
     rows: cells.filter((c) => c.rankAll).sort((a, b) => a.rankAll! - b.rankAll!).map((c) => [String(c.rankAll), String(c.offer.nr), c.offer.firma, c.nachlass ? pctDe(c.nachlass) : '-', fmtNum(c.gross ?? 0)]),
+    hl: [0],
   });
   for (const l of s.lose) {
     const cells = (allCells.get(l.id) ?? []).filter((c) => c.offer.runde === hr);
@@ -142,13 +146,21 @@ export function buildVermerk(s: State): Block[] {
   B.push(T('rechnerisch', `${errs.length ? `Bei folgenden Angeboten wurden Rechenfehler festgestellt: ${errs.map((c) => `Angebot Nr. ${c.offer.nr} (${c.los.nr})`).join(', ')}.` : 'Alle Angebote wurden nachgerechnet, es wurden keine Fehler festgestellt.'}\n${aNr('preisspiegel1')}`));
 
   B.push({ t: 'h', n: '4.4', text: 'Festlegungen aufgrund der formalen und rechnerischen Prüfung', lvl: 2 });
-  const nachf = s.offers.filter((o) => o.nachforderung.length);
   const sep = s.lose.filter((l) => !l.imVermerk);
   B.push(T('festlegungen', [
     'Aufgrund o.a. Prüfung wurde kein Angebot von der weiteren Prüfung ausgeschlossen.',
     `Nachfolgend werden die Angebote Nr. ${listDe(r1.map((o) => String(o.nr)))} technisch und wirtschaftlich geprüft.`,
     '',
-    ...nachf.map((o) => `Für das Angebot Nr. ${o.nr} fehlten Unterlagen (${o.nachforderung.join(', ')}); diese wurden nachträglich durch die ${p.vergabestelle || 'Vergabestelle'} bei Fa. ${o.firma} angefordert.`),
+    ...s.offers.flatMap((o) => {
+      const ps = pruefStatus(s, o);
+      const out: string[] = [];
+      if (ps.nach.length) {
+        const ds = [...new Set(ps.nach.map((x) => x.d).filter(Boolean))];
+        out.push(`Für das Angebot Nr. ${o.nr} ${ps.nach.length > 1 ? 'fehlten die Unterlagen' : 'fehlte die Unterlage'} ${listDe(ps.nach.map((x) => x.label))}; ${ps.nach.length > 1 ? 'diese wurden' : 'diese wurde'} nachträglich durch die ${p.vergabestelle || 'Vergabestelle'} bei Fa. ${o.firma} angefordert${ds.length === 1 ? ` und am ${fmtDate(ds[0])} nachgereicht` : ''}.`);
+      } else if (!Object.keys(o.pruef ?? {}).length && o.nachforderung.length) out.push(`Für das Angebot Nr. ${o.nr} fehlten Unterlagen (${o.nachforderung.join(', ')}); diese wurden nachträglich durch die ${p.vergabestelle || 'Vergabestelle'} bei Fa. ${o.firma} angefordert.`);
+      if (ps.fehlt.length) out.push(`Beim Angebot Nr. ${o.nr} fehlen weiterhin: ${listDe(ps.fehlt)}.`);
+      return out;
+    }),
     ...(sep.length ? ['', `Die Angebote für ${listDe(sep.map((l) => l.nr))} werden durch die ${p.auftraggeber || 'Auftraggeberin'} technisch und wirtschaftlich geprüft und nachfolgend nicht weiter im Vergabevermerk aufgeführt.`] : []),
   ].join('\n').replace(/\n{3,}/g, '\n\n')));
 
@@ -219,6 +231,23 @@ export function buildVermerk(s: State): Block[] {
   B.push({ t: 'gap' });
   B.push({ t: 'sign', lines: [`${p.ort || '…'}, den ${fmtDate(p.datum)}`, p.unterzeichner ? `${p.unterzeichner},` : '', p.ersteller] });
   B.push({ t: 'anlagen', items: anl.map((a, i) => `${i + 1} - ${a.titel}`) });
+  if (p.vollstaendigkeit && s.offers.length) {
+    const st = Object.fromEntries(PSTATUS.map((x) => [x.v, x]));
+    B.push({
+      t: 'pruef',
+      title: 'Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen',
+      head: s.offers.map((o) => `${o.nr}_${o.firma}`),
+      rows: s.unterlagen.filter((u) => u.label.trim()).map((u) => ({
+        label: u.label,
+        cells: s.offers.map((o) => {
+          const x = o.pruef?.[u.id];
+          if (!x) return { txt: '', kind: '' };
+          return { txt: x.s === 'nach' ? `Nachgereicht${x.d ? ' ' + fmtDate(x.d) : ''}` : st[x.s].cell, kind: x.s };
+        }),
+      })),
+      foot: [fmtDate(p.datum), p.ersteller],
+    });
+  }
   void finalRound; void hasR2; void getBew;
   return B;
 }

@@ -256,3 +256,44 @@ table.v-tab{width:100%;border-collapse:collapse;margin:0 0 1.2em;table-layout:fi
 
 @media print{.paper{padding:0!important;width:auto!important}.main{padding:0!important}.ptext.keep{break-after:avoid}.v-kv{break-inside:avoid}}
 .v-tab th{padding:6pt 4pt!important}
+
+/* ===== v3: Vergabevermerk – ruhiger, heller Schnitt (Segoe UI Light 11 pt) ===== */
+.paper{font-family:"Segoe UI","Helvetica Neue",Inter,"Liberation Sans",Arial,sans-serif;font-weight:300;font-size:11pt;line-height:1.5;color:#1b1b1b;letter-spacing:.005em}
+.paper b,.paper strong{font-weight:600}
+.paper-rule{border-top:.75pt solid #b9b9b9}
+.v-meta{margin-bottom:6pt;font-weight:300}
+.v-meta .full:first-child{font-size:16pt;font-weight:600;line-height:1.25;margin-bottom:8pt;letter-spacing:-.005em}
+.v-meta .row2{grid-template-columns:34mm 1fr}.v-meta .row2 span:first-child{color:#666}.v-meta .row2 span:last-child{font-weight:600}
+.v-meta .full:last-child{margin-top:10pt;font-size:10.5pt;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#444}
+.v-h{font-weight:600;letter-spacing:0}
+.v-h.l1{font-size:12pt;margin:22pt 0 9pt;padding-bottom:4pt;border-bottom:.5pt solid #c8c8c8}
+.v-h.l2{font-size:11pt;margin:16pt 0 7pt}.v-h.l3{font-size:11pt;margin:13pt 0 6pt;font-weight:600;color:#333}
+.v-h .n{color:#777;font-weight:400}
+.ptext{margin:0 0 9pt;font-weight:300}.ptext-edit{font-weight:300;font-family:inherit}
+.v-kv>div{padding:1pt 0}.v-kv .b{font-weight:600;border-top:.5pt solid #444;margin-top:3pt;padding-top:3pt}
+.v-kv.ra>div{grid-template-columns:62mm 44mm}
+table.v-tab{margin:4pt 0 14pt;border-top:1pt solid #222;border-bottom:.5pt solid #bbb}
+.v-tab th,.v-tab td{border:0;border-bottom:.5pt solid #d6d6d6;padding:6pt 8pt;font-size:10.5pt;font-weight:300}
+.v-tab thead th{font-weight:600;border-bottom:.75pt solid #222;font-size:10pt;color:#222!important;vertical-align:bottom}
+.v-tab tbody td{height:auto}.v-tab tr.hl td{background:#f2f2f2;font-weight:400}.v-tab tr.hl td:nth-child(n){font-weight:400}
+.v-tab tbody tr:last-child td{border-bottom:0}
+.v-sign{margin:0 0 22pt;break-inside:avoid}.v-sign .line{width:62mm;border-top:.5pt solid #222;margin:18mm 0 4pt}
+.v-anl{font-size:10pt;color:#333;break-inside:avoid}.v-anl>div:first-child{font-weight:600;margin-bottom:3pt}
+.v-pruef{break-before:page;margin-top:28pt}
+.v-pruef .v-h{margin-top:0}
+table.v-tab.pr{border-top:1pt solid #222;table-layout:fixed}
+.v-tab.pr td,.v-tab.pr th{border:.5pt solid #bdbdbd;font-size:9.5pt;padding:5pt 6pt;line-height:1.3;word-break:break-word}
+.v-tab.pr thead th{border-bottom:.75pt solid #222}
+.v-tab.pr td.c{text-align:center}
+.v-tab.pr td.st-nach{color:#1d5fb4}.v-tab.pr td.st-fehlt,.v-tab.pr td.st-leer{color:#a3201a}.v-tab.pr td.st-entf{color:#777;text-decoration:line-through;text-decoration-color:#999}
+.v-foot{margin-top:14pt;font-size:10pt;color:#444}
+.nobreak{break-after:avoid}
+
+/* Vollständigkeitsprüfung in der App */
+.vtab td{padding:6px 8px}.vtab input.plain.wide{width:100%;min-width:220px}
+select.pst{width:100%;min-width:150px;padding:6px 8px;font-size:13px;border-radius:8px}
+select.pst.ok{background:var(--ok-l);border-color:#a8dcc5}select.pst.nach{background:#e8f0ff;border-color:#a9c3f5}
+select.pst.fehlt,select.pst.leer{background:var(--bad-l);border-color:#f2b8b3}select.pst.entf{background:#f1f1f1;color:#777;text-decoration:line-through}
+input.pdate{margin-top:4px;padding:4px 8px;font-size:12.5px}
+@media print{.v-pruef{break-before:page}.v-h.l1{break-after:avoid}}
+.vtab input.plain.wide{min-width:340px;font-size:13.5px}

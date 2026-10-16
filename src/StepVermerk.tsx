@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { State } from './types';
 import { buildVermerk, anlagenList, footerText, type Block } from './vermerk';
-import { computeLos, getBew } from './calc';
+import { computeLos, getBew, pruefStatus } from './calc';
 import { uid } from './fmt';
 import { downloadJson } from './exportCsv';
 import { Icon } from './ui';
@@ -46,14 +46,17 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
       if (c.rechenDiff != null && Math.abs(c.rechenDiff) > 0.01 && !c.mengeAbw.length) open.push(`${l.nr}, Nr. ${c.offer.nr}: Rechenabweichung`);
     }
   }
-  const unchecked = s.offers.filter((o) => Object.values(o.checks).filter(Boolean).length < 6);
-  if (unchecked.length) open.push(`Formalprüfung unvollständig bei Nr. ${unchecked.map((o) => o.nr).join(', ')}`);
+  for (const o of s.offers) {
+    const ps = pruefStatus(s, o);
+    if (ps.fehlt.length) open.push(`Nr. ${o.nr}: Unterlagen fehlen (${ps.fehlt.join(', ')}) – nachfordern oder Ausschluss prüfen`);
+    else if (ps.ungeprueft) open.push(`Nr. ${o.nr}: Vollständigkeitsprüfung unvollständig (${ps.ungeprueft} Zeile(n) offen)`);
+  }
   if (!p.budgetBrutto) open.push('Gesamtbudget für Abschnitt 6 fehlt');
 
   const pageCss = `@page { size: A4; margin: 36.5mm 20mm 24mm 20mm;
     ${s.logo ? `@top-right { content: url("${esc(s.logo)}"); vertical-align: top; margin-top: 8mm; }` : ''}
-    @bottom-left { content: "${esc(footerText(s))}"; font: 8pt Arial, Helvetica, sans-serif; width: 80%; vertical-align: bottom; }
-    @bottom-right { content: "Seite " counter(page) " von " counter(pages); font: 8pt Arial, Helvetica, sans-serif; width: 20%; vertical-align: bottom; } }`;
+    @bottom-left { content: "${esc(footerText(s))}"; font: 300 8pt \"Segoe UI\", \"Helvetica Neue\", Inter, Arial, sans-serif; color: #555; width: 80%; vertical-align: bottom; }
+    @bottom-right { content: "Seite " counter(page) " von " counter(pages); font: 300 8pt \"Segoe UI\", \"Helvetica Neue\", Inter, Arial, sans-serif; color: #555; width: 20%; vertical-align: bottom; } }`;
 
   return (
     <div className="stack">
@@ -111,16 +114,28 @@ function BlockView({ b, s, up }: { b: Block; s: State; up: Up }) {
           {b.rows.map((r, i) => <div key={i} className={r.bold ? 'b' : ''}><span>{r.k}</span><span>{r.v}</span></div>)}
         </div>
       );
+    case 'pruef':
+      return (
+        <div className="v-pruef">
+          <h4 className="v-h l1 nobreak">{b.title}</h4>
+          <table className="v-tab pr">
+            <colgroup><col style={{ width: '36%' }} />{b.head.map((_, i) => <col key={i} />)}</colgroup>
+            <thead><tr><th />{b.head.map((h, i) => <th key={i} className="c">{h}</th>)}</tr></thead>
+            <tbody>{b.rows.map((r, i) => <tr key={i}><td>{r.label}</td>{r.cells.map((c, k) => <td key={k} className={`c st-${c.kind}`}>{c.txt}</td>)}</tr>)}</tbody>
+          </table>
+          <div className="v-foot">{b.foot.filter(Boolean).map((f, i) => <div key={i}>{f}</div>)}</div>
+        </div>
+      );
     case 'tab':
       return (
         <table className="v-tab">
           <colgroup>{b.cols.map((c, i) => <col key={i} style={{ width: `${c.w}%` }} />)}</colgroup>
           <thead><tr>{b.cols.map((c, i) => <th key={i} className={c.a ?? ''}>{c.h.split('\n').map((x, k) => <div key={k}>{x}</div>)}</th>)}</tr></thead>
-          <tbody>{b.rows.map((r, i) => <tr key={i}>{r.map((v, k) => <td key={k} className={b.cols[k].a ?? ''}>{v.split('\n').map((x, j) => <div key={j}>{x}</div>)}</td>)}</tr>)}</tbody>
+          <tbody>{b.rows.map((r, i) => <tr key={i} className={b.hl?.includes(i) ? 'hl' : ''}>{r.map((v, k) => <td key={k} className={b.cols[k].a ?? ''}>{v.split('\n').map((x, j) => <div key={j}>{x}</div>)}</td>)}</tr>)}</tbody>
         </table>
       );
     case 'sign':
-      return <div className="v-sign">{b.lines.filter(Boolean).map((l, i) => <div key={i}>{l}</div>)}</div>;
+      return <div className="v-sign"><div>{b.lines[0]}</div><div className="line" /><div>{b.lines.slice(1).filter(Boolean).map((l, i) => <div key={i}>{l}</div>)}</div></div>;
     case 'anlagen':
       return <div className="v-anl"><div>Anlagen:</div>{b.items.map((x, i) => <div key={i}>{x}</div>)}</div>;
     case 'gap':

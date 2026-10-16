@@ -96,7 +96,7 @@ export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
     const isDate = !!m && /^\d{1,2}\.\d{1,2}\.(19|20)?\d{2}$/.test(m[1]);
     if (m && refBy.has(ozNorm(m[1]))) blocks.push({ oz: m[1], text: line.trim().slice(m[1].length), known: true });
     // OZ-artige Zeile, die das GAEB nicht kennt (aber in einem bekannten Titel liegt) – nur melden, nicht auswerten
-    else if (m && !isDate && tops.has(ozNorm(m[1]).split('.')[0]) && /\s\S/.test(line.trim().slice(m[1].length))) blocks.push({ oz: m[1], text: '', known: false });
+    else if (m && !isDate && /^\d{2}\./.test(m[1]) && tops.has(ozNorm(m[1]).split('.')[0]) && /\s\S/.test(line.trim().slice(m[1].length))) blocks.push({ oz: m[1], text: '', known: false });
     else if (blocks.length && !/^(Übertrag|Summe|Seite)\b/i.test(line.trim())) blocks[blocks.length - 1].text += ' ' + line.trim();
   }
   const out: PdfPos[] = [];
@@ -118,6 +118,12 @@ export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
     else out.push({ oz: b.oz, menge: null, einheit: '', ep: null, gp: null });
   }
   return out;
+}
+
+/** „Gesamtsumme (netto)“ eines Angebots-PDF, sofern vorhanden. */
+export function pdfNettoSumme(lines: string[]): number | null {
+  for (const l of lines) { const m = l.match(/Gesamtsumme\s*\(\s*netto\s*\)\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i); if (m) return deNum(m[1]); }
+  return null;
 }
 
 /** PDF-Positionen gegen die GAEB-Positionen halten. `mitPreisen`: Bieter-PDF (EP/GP prüfen) statt Ausschreibungs-LV. */

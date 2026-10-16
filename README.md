@@ -15,10 +15,13 @@ npm run build   # Produktions-Build nach dist/ (Vercel erkennt Vite automatisch)
 - Änderungen entstehen auf eigenen Feature-Branches (Vercel baut dafür automatisch Preview-Links) und gelangen per Pull Request nach `main`.
 - Vor Push, Pull oder Merge wird nachgefragt.
 
-## Einlesen (Schritt 2)
-Ordner, ZIP-Dateien (auch verschachtelt) oder Einzeldateien ins Feld ziehen:
-- **Soll-LV:** GAEB X83 (DA XML), P83 (GAEB 2000) oder D83 (GAEB 90) – liefert Positionen, Texte, Mengen, Lose
-- **Angebote:** GAEB X84 / P84 / D84 je Bieterordner; Signaturbeleg, Eignungsfragebogen, Nachforderungen usw. werden erkannt
+## Einlesen (Schritt 2) – zwei getrennte Felder
+**Feld 1 – Eigenes LV:** GAEB-Dateien (X8x, P8x, D8x), die App erkennt die Rolle selbst:
+- **X83 / X81:** Positionen, Texte, Mengen, Lose (bevorzugt 83, sonst 81)
+- **X82 (Kostenanschlag):** LV-Schätzpreise je Position → Spalte „LV-Schätzpreis“ im Preisspiegel; der Kostenvoranschlag je Los wird daraus vorbelegt (manuelle Eingabe in Schritt 1 hat Vorrang)
+
+**Feld 2 – Angebote der Bieter:** Ordner oder ZIP-Dateien (auch verschachtelt)
+- GAEB X84 / P84 / D84 je Bieterordner; Signaturbeleg, Eignungsfragebogen, Nachforderungen usw. werden erkannt
 - Zuordnung der Preise über die Ordnungszahl (OZ); Mengenabweichungen zwischen LV und Bieterdatei werden markiert
   (z. B. korrigierte Stückzahl) und lassen sich per Klick ins LV übernehmen
 - PDF-Scans (z. B. gedrucktes LV) können nicht ausgewertet werden

@@ -1,11 +1,12 @@
 import { Fragment, useMemo, useState, type ClipboardEvent } from 'react';
 import type { State } from '../domain/types';
-import { computeLos, losPositions, zkey } from '../domain/calc';
+import { computeLos, losPositions, schaetzSumme, titelKey, zkey } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from '../domain/fmt';
-import { Chip, Icon, NumInput, Tabs } from '../components/ui';
+import { Chip, Icon, NumInput, Seg, Tabs } from '../components/ui';
 import { downloadCsv } from '../storage/exportCsv';
 
 type Up = (fn: (d: State) => void) => void;
+type RK = 'avg' | 'min' | 'sch';
 
 export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
@@ -13,6 +14,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const [runde, setRunde] = useState<number | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [onlyAuff, setOnlyAuff] = useState(false);
+  const [basis, setBasis] = useState<'min' | 'schaetz'>('min');
 
   const cellsAll = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
   if (!los) return <section className="card"><h2>Preisspiegel</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden (Schritt 2).</p></section>;
@@ -24,7 +26,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const th = s.project.abweichung / 100;
 
   const groups = new Map<string, typeof pos>();
-  for (const p of pos) { const k = p.oz.split('.').slice(0, 2).join('.'); groups.set(k, [...(groups.get(k) ?? []), p]); }
+  for (const p of pos) { const k = titelKey(p.oz); groups.set(k, [...(groups.get(k) ?? []), p]); }
 
   const epOf = (c: (typeof cells)[number], oz: string) => c.offer.prices[zkey(oz)]?.ep ?? null;
   const peerStats = (oz: string) => {
@@ -40,6 +42,29 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   };
   const titelSum = (c: (typeof cells)[number], ps: typeof pos) => round2(ps.filter((p) => !p.bedarf).reduce((a, p) => a + (p.menge ?? 0) * (epOf(c, p.oz) ?? 0), 0));
 
+  /* Vergleichswerte: Mittelwert und Günstigst über die gewerteten Bieter, LV-Schätzpreis aus GAEB 82 */
+  const valid = cells.filter((c) => c.complete && !c.excluded);
+  const hasSch = Object.keys(s.schaetz ?? {}).length > 0;
+  const useBasis = basis === 'schaetz' && hasSch ? 'schaetz' : 'min';
+  const avgOf = (v: number[]) => (v.length ? round2(v.reduce((a, b) => a + b, 0) / v.length) : null);
+  const minOf = (v: number[]) => (v.length ? Math.min(...v) : null);
+  const refEp = (oz: string) => {
+    const v = valid.map((c) => epOf(c, oz)).filter((x): x is number => x != null && x > 0);
+    return { avg: avgOf(v), min: minOf(v), sch: s.schaetz?.[zkey(oz)] ?? null };
+  };
+  const refSum = (sums: number[], sch: number | null) => { const v = sums.filter((x) => x > 0); return { avg: avgOf(v), min: minOf(v), sch }; };
+  const gpOf = (p: (typeof pos)[number], ep: number | null) => (ep == null ? null : round2((p.menge ?? 0) * ep));
+  const pct = (v: number | null, ref: number | null) => (v == null || ref == null || ref <= 0 || v <= 0 ? null : (v / ref - 1) * 100);
+  const Pct = ({ v, to }: { v: number | null; to: number | null }) => { const d = pct(v, to); return d == null || Math.abs(d) < 0.05 ? null : <small className="pct">{fmtPct(d)}</small>; };
+  const refHead: [RK, string][] = [['avg', 'Ø Bieter'], ['min', 'Günstigst'], ...(hasSch ? ([['sch', 'LV-Schätzpreis']] as [RK, string][]) : [])];
+
+  const refTotNum = (k: RK, f: (c: (typeof cells)[number]) => number | null): number | null => {
+    if (k === 'sch') { const n = schaetzSumme(s, los); return n; }
+    const v = valid.map(f).filter((x): x is number => x != null && x > 0);
+    return k === 'avg' ? avgOf(v) : minOf(v);
+  };
+  const refTot = (k: RK, f: (c: (typeof cells)[number]) => number | null) => { const n = refTotNum(k, f); return n == null ? null : fmtNum(n); };
+
   const onPaste = (e: ClipboardEvent<HTMLElement>, oz0: string, c0: number, visible: string[]) => {
     const text = e.clipboardData.getData('text');
     if (!/[\t\n]/.test(text.trim())) return;
@@ -51,9 +76,12 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
 
   const setEp = (offerId: string, oz: string, v: number | null) => up((d) => { const o = d.offers.find((x) => x.id === offerId)!; o.prices[zkey(oz)] = { ep: v, gp: null }; });
   const exportCsv = () => {
-    const head = ['Pos.', 'Leistung', 'Menge', 'Einheit', ...cells.flatMap((c) => [`Nr.${c.offer.nr} ${c.offer.firma} EP`, `GP`])];
-    const rows = pos.map((p) => [p.oz, p.kurz, p.menge ?? '', p.einheit, ...cells.flatMap((c) => { const ep = epOf(c, p.oz); return [ep ?? '', ep == null ? '' : round2((p.menge ?? 0) * ep)]; })]);
-    rows.push([], ['', 'Summe netto', '', '', ...cells.flatMap((c) => ['', c.sumNet ?? ''])], ['', 'Nachlass %', '', '', ...cells.flatMap((c) => ['', c.nachlass])], ['', 'Angebotssumme netto', '', '', ...cells.flatMap((c) => ['', c.net ?? ''])], ['', 'Angebotssumme brutto', '', '', ...cells.flatMap((c) => ['', c.gross ?? ''])]);
+    const head = ['Pos.', 'Leistung', 'Menge', 'Einheit', ...cells.flatMap((c) => [`Nr.${c.offer.nr} ${c.offer.firma} EP`, `GP`]), ...refHead.flatMap(([, l]) => [`${l} EP`, `${l} GP`])];
+    const rows = pos.map((p) => { const r = refEp(p.oz); return [p.oz, p.kurz, p.menge ?? '', p.einheit, ...cells.flatMap((c) => { const ep = epOf(c, p.oz); return [ep ?? '', gpOf(p, ep) ?? '']; }), ...refHead.flatMap(([k]) => [r[k] ?? '', gpOf(p, r[k]) ?? ''])]; });
+    const blank = refHead.flatMap(() => ['', '']);
+    const tot = (f: (c: (typeof cells)[number]) => number | null) => { const v = cells.filter((c) => c.complete && !c.excluded).map(f).filter((x): x is number => x != null); return [avgOf(v) ?? '', minOf(v) ?? '', ...(hasSch ? [schaetzSumme(s, los) ?? ''] : [])]; };
+    const fill = (vals: (number | string)[]) => refHead.flatMap((_, i) => ['', vals[i] ?? '']);
+    rows.push([], ['', 'Summe netto', '', '', ...cells.flatMap((c) => ['', c.sumNet ?? '']), ...fill(tot((c) => c.sumNet))], ['', 'Nachlass %', '', '', ...cells.flatMap((c) => ['', c.nachlass]), ...blank], ['', 'Angebotssumme netto', '', '', ...cells.flatMap((c) => ['', c.net ?? '']), ...fill(tot((c) => c.net))], ['', 'Angebotssumme brutto', '', '', ...cells.flatMap((c) => ['', c.gross ?? '']), ...fill(tot((c) => c.net).map((v) => (v === '' ? v : round2(Number(v) * (1 + s.project.mwst / 100)))))]);
     downloadCsv(`Preisspiegel_${los.nr}_Runde${rd}.csv`, [head, ...rows]);
   };
 
@@ -82,16 +110,19 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
             <div className="row" style={{ margin: '14px 0' }}>
               {hasLv && <><button className="btn small" onClick={() => setOpen(new Set(groups.keys()))}>Alle Titel öffnen</button><button className="btn small" onClick={() => setOpen(new Set())}>Alle schließen</button>
               <label className="mini"><input type="checkbox" checked={onlyAuff} onChange={(e) => setOnlyAuff(e.target.checked)} /> nur Titel mit Preisauffälligkeiten</label></>}
+              <span className="field-label" style={{ marginLeft: 8 }}>Abweichung in % zu:</span>
+              <Seg small value={useBasis} onChange={setBasis} options={[{ value: 'min', label: 'Günstigstem' }, ...(hasSch ? [{ value: 'schaetz' as const, label: 'LV-Schätzpreis' }] : [])]} />
               {cells.some((c) => c.mengeAbw.length) && <Chip kind="warn">Mengen im LV weichen von der Bieterdatei ab – siehe markierte Positionen</Chip>}
             </div>
             <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>
-              <table className="preis" style={{ minWidth: 560 + cells.length * 250 }}>
+              <table className="preis" style={{ minWidth: 560 + (cells.length + refHead.length) * 250 }}>
                 <thead>
                   <tr>
                     {hasLv ? <><th className="sticky c0 left">Pos.</th><th className="sticky c1 left">Leistung</th><th>Menge</th><th>Einh.</th></> : <th className="left">Position</th>}
+                    {hasLv && refHead.map(([k, l]) => <th key={k} colSpan={2} className="bh ref">{l}<small className="block muted">{k === 'sch' ? 'GAEB 82' : 'gewertete Bieter'}</small></th>)}
                     {cells.map((c) => <th key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`bh ${c.excluded ? 'dim' : ''}`}>Nr. {c.offer.nr}<small className="block muted">{c.offer.firma}</small></th>)}
                   </tr>
-                  {hasLv && <tr className="sub"><th className="sticky c0" /><th className="sticky c1" /><th /><th />{cells.map((c) => <Fragment key={c.offer.id}><th>EP €</th><th>GP €</th></Fragment>)}</tr>}
+                  {hasLv && <tr className="sub"><th className="sticky c0" /><th className="sticky c1" /><th /><th />{refHead.map(([k]) => <Fragment key={k}><th className="ref">EP €</th><th className="ref">GP €</th></Fragment>)}{cells.map((c) => <Fragment key={c.offer.id}><th>EP €</th><th>GP €</th></Fragment>)}</tr>}
                 </thead>
                 <tbody>
                   {!hasLv && (
@@ -101,16 +132,21 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                     const isOpen = open.has(k) || onlyAuff;
                     const sums = cells.map((c) => titelSum(c, ps));
                     const min = Math.min(...sums.filter((x) => x > 0));
+                    const tr = refSum(sums.filter((_, i) => valid.includes(cells[i])), schaetzSumme(s, los, k));
+                    const tBase = useBasis === 'schaetz' ? tr.sch : tr.min;
                     return (
                       <Fragment key={k}>
                         <tr className="titel" onClick={() => setOpen((o) => { const n = new Set(o); n.has(k) ? n.delete(k) : n.add(k); return n; })}>
                           <td className="sticky c0 left"><Icon name={isOpen ? 'down' : 'right'} /> {k}</td>
                           <td className="sticky c1 left"><b>{s.titles[k] || `Titel ${k}`}</b><small className="muted"> · {ps.length} Pos.</small></td><td /><td />
-                          {cells.map((c, i) => <Fragment key={c.offer.id}><td /><td className={`gp strong ${sums[i] > 0 && sums[i] === min ? 'low' : ''}`}>{fmtNum(sums[i])}</td></Fragment>)}
+                          {refHead.map(([rk]) => <Fragment key={rk}><td className="ref" /><td className="gp strong ref">{tr[rk] != null ? fmtNum(tr[rk]!) : ''}</td></Fragment>)}
+                          {cells.map((c, i) => <Fragment key={c.offer.id}><td /><td className={`gp strong ${sums[i] > 0 && sums[i] === min ? 'low' : ''}`}>{fmtNum(sums[i])}<Pct v={sums[i]} to={tBase} /></td></Fragment>)}
                         </tr>
                         {isOpen && ps.map((p) => {
                           const st = peerStats(p.oz);
                           const abw = cells.map((c) => c.mengeAbw.find((m) => m.oz === p.oz));
+                          const rp = refEp(p.oz);
+                          const base = gpOf(p, useBasis === 'schaetz' ? rp.sch : rp.min);
                           return (
                             <tr key={p.oz} className={p.bedarf ? 'bedarf' : ''}>
                               <td className="sticky c0 left">{p.oz}</td>
@@ -120,6 +156,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                                 {p.menge !== p.mengeOrig && <small className="muted block">LV-Original: {p.mengeOrig}</small>}
                               </td>
                               <td>{p.einheit}</td>
+                              {refHead.map(([rk]) => <Fragment key={rk}><td className="ref gp">{rp[rk] != null ? fmtNum(rp[rk]!) : ''}</td><td className="ref gp">{rp[rk] != null ? fmtNum(gpOf(p, rp[rk])!) : ''}</td></Fragment>)}
                               {cells.map((c, ci) => {
                                 const ep = epOf(c, p.oz);
                                 const gp = ep == null ? null : round2((p.menge ?? 0) * ep);
@@ -131,7 +168,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                                         onFocus={(e) => e.currentTarget.select()} onBlur={(e) => { const v = parseNum(e.target.value); if (v !== ep) setEp(c.offer.id, p.oz, v); }} />
                                     </td>
                                     <td className={`gp ${cls}`}>
-                                      {gp == null ? '' : fmtNum(gp)}
+                                      {gp == null ? '' : fmtNum(gp)}{!c.excluded && <Pct v={gp} to={base} />}
                                       {abw[ci] && <button className="mini-act" title={`Bieter rechnet mit ${abw[ci]!.bieter} ${p.einheit} (LV: ${p.menge ?? '–'})`} onClick={() => up((d) => void (d.lv.find((x) => x.oz === p.oz)!.menge = abw[ci]!.bieter))}>Menge {abw[ci]!.bieter} übernehmen</button>}
                                     </td>
                                   </Fragment>
@@ -145,10 +182,11 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                   })}
                 </tbody>
                 <tfoot>
-                  <FootRow ncol={ncol} hasLv={hasLv} label="Summe netto (ohne Bedarfspositionen)">{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp strong">{fmtNum(c.sumNet ?? 0)}</td>)}</FootRow>
+                  <FootRow ncol={ncol} hasLv={hasLv} label="Summe netto (ohne Bedarfspositionen)">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="gp strong ref">{refTot(rk, (c) => c.sumNet) ?? ''}</td>)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp strong">{fmtNum(c.sumNet ?? 0)}</td>)}</FootRow>
                   <FootRow ncol={ncol} hasLv={hasLv} label="Nachlass ohne Bedingung">{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1}>{c.nachlass ? <b>{fmtNum(c.nachlass)} %</b> : <span className="muted">–</span>}</td>)}</FootRow>
                   <tr className="total">
                     <td className={hasLv ? 'sticky c0' : ''} />{hasLv ? <td className="sticky c1 left"><b>Angebotssumme netto</b></td> : <td className="left"><b>Angebotssumme netto</b></td>}{hasLv && <><td /><td /></>}
+                    {hasLv && refHead.map(([rk]) => { const n = refTotNum(rk, (c) => c.net); return <td key={rk} colSpan={2} className="ref"><div className="big">{fmtEur(n)}</div><small className="muted">brutto {fmtEur(n == null ? null : round2(n * (1 + s.project.mwst / 100)))}</small></td>; })}
                     {cells.map((c) => (
                       <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className={c.excluded ? 'dim' : ''}>
                         <div className="big">{fmtEur(c.net)}</div><small className="muted">brutto {fmtEur(c.gross)}</small>

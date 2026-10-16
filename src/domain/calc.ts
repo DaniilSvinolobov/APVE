@@ -8,8 +8,30 @@ export const emptyBew = () => ({
 });
 export const getBew = (s: State, offerId: string, losId: string) => ({ ...emptyBew(), ...(s.bew[bewKey(offerId, losId)] ?? {}) });
 
+/** Titel einer Position: Ordnungszahl ohne letzte Ebene (01.1 → 01, 01.02.03 → 01.02). */
+export const titelKey = (oz: string) => oz.split('.').slice(0, -1).join('.') || oz;
+
 export const losPositions = (s: State, los: Los) => s.lv.filter((p) => !los.oz || p.oz.startsWith(los.oz + '.'));
 export const offerLabel = (o: Offer) => `Nr. ${o.nr}`;
+
+/** LV-Schätzpreis (netto) eines Loses: Menge × geschätzter EP; null ohne Schätzpreise. */
+export function schaetzSumme(s: State, los: Los, prefix = ''): number | null {
+  let acc = 0, any = false;
+  for (const p of losPositions(s, los)) {
+    if (p.bedarf || (prefix && !p.oz.startsWith(prefix + '.'))) continue;
+    const ep = s.schaetz?.[zkey(p.oz)];
+    if (ep == null) continue;
+    acc += round2((p.menge ?? 0) * ep); any = true;
+  }
+  return any ? round2(acc) : null;
+}
+
+/** Kostenvoranschlag eines Loses: manuelle Eingabe, sonst aus den LV-Schätzpreisen (in der Kostenbasis brutto/netto). */
+export function kostenOf(s: State, los: Los): number | null {
+  if (los.kosten != null) return los.kosten;
+  const n = schaetzSumme(s, los);
+  return n == null ? null : round2(s.project.kostenBasis === 'brutto' ? n * (1 + s.project.mwst / 100) : n);
+}
 
 export interface Flag { kind: 'ok' | 'info' | 'warn' | 'bad'; text: string }
 
@@ -77,7 +99,7 @@ export function computeLos(s: State, los: Los): Cell[] {
       };
     });
 
-  const kosten = los.kosten;
+  const kosten = kostenOf(s, los);
   const byRound = new Map<number, Cell[]>();
   for (const c of cells) byRound.set(c.offer.runde, [...(byRound.get(c.offer.runde) ?? []), c]);
   for (const group of byRound.values()) {
@@ -152,7 +174,7 @@ export function auffaelligkeiten(s: State, los: Los, cells: Cell[], c: Cell): Au
     const me = c.offer.prices[zkey(p.oz)]?.ep;
     if (me == null) continue;
     const pe = peers.map((x) => x.offer.prices[zkey(p.oz)]?.ep).filter((v): v is number => v != null);
-    const ts = p.oz.split('.').slice(0, 2).join('.');
+    const ts = titelKey(p.oz);
     const t = titelSum.get(ts) ?? { me: 0, peers: peers.map(() => 0) };
     t.me += (p.menge ?? 0) * me;
     peers.forEach((x, i) => (t.peers[i] += (p.menge ?? 0) * (x.offer.prices[zkey(p.oz)]?.ep ?? 0)));

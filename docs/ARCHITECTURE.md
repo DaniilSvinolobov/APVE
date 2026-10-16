@@ -6,9 +6,9 @@ Reihenfolge zum Einlesen: `src/main.tsx` → `src/App.tsx` → ein Schritt in `s
 ```
 Dateien (Ordner/ZIP)
    │  import/zip.ts       ZIPs entpacken
-   │  import/files.ts     Soll-LV finden, Angebote je Bieterordner gruppieren
+   │  import/files.ts     eigenes LV (81/82/83) finden, Angebote je Bieterordner gruppieren
    │  import/analyze.ts   ein Angebot lesen (gaeb/gaeb.ts), Firma/Datum/Unterlagen erkennen
-   │  import/apply.ts     LV und Angebote in den State schreiben, Vollständigkeit vorbelegen
+   │  import/apply.ts     LV (+ Schätzpreise aus 82) und Angebote in den State schreiben, Vollständigkeit vorbelegen
    ▼
 State  (domain/types.ts)  ── ein Objekt für das ganze Projekt, liegt im Browser (storage/projectStore.ts)
    │  domain/calc.ts      Preisspiegel, Rang je Los und Runde, Auffälligkeiten, Rechenprüfung

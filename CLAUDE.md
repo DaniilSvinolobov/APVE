@@ -19,10 +19,11 @@ Zusätzlich die betroffene Funktion im Browser prüfen (z. B. mit Playwright). E
 
 ## Aufbau
 - `src/gaeb/gaeb.ts` – Parser GAEB 90 (D8x), GAEB 2000 (P8x), GAEB DA XML (X8x)
-- `src/import/importer.ts` – Ordner/ZIP einlesen, Angebote und Soll-LV zuordnen (über Ordnungszahl)
+- `src/import/` – Ordner/ZIP einlesen (`zip`, `files`), Angebote lesen (`analyze`), in den State schreiben (`apply`); Zuordnung über Ordnungszahl
 - `src/domain/calc.ts` – Preisspiegel, Rang je Los und Runde, Auffälligkeiten, Rechenprüfung
 - `src/vermerk/vermerk.ts` – Aufbau und Texte des Vergabevermerks; `src/steps/StepVermerk.tsx` – Anzeige/Druck
-- `src/steps/` (`Step*.tsx`, `Vollstaendigkeit.tsx`) – die fünf Schritte der Oberfläche
+- `src/steps/` (`Step*.tsx`, `Vollstaendigkeit.tsx`) – die fünf Schritte der Oberfläche; `src/storage/` – Browser-Speicher und Export
+- `docs/ARCHITECTURE.md` – Datenfluss und Ordnerübersicht
 - `api/pruefen.ts` – optionale Dokumentprüfung mit Claude (serverseitig, Key nur in `ANTHROPIC_API_KEY`)
 
 ## Fachliche Leitplanken

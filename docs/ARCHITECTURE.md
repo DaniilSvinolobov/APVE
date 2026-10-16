@@ -6,7 +6,7 @@ Reihenfolge zum Einlesen: `src/main.tsx` → `src/App.tsx` → ein Schritt in `s
 ```
 Dateien (Ordner/ZIP)
    │  import/zip.ts       ZIPs entpacken
-   │  import/files.ts     eigenes LV (81/82/83) finden, Angebote je Bieterordner gruppieren
+   │  import/files.ts     eigenes LV (81/82/83, ohne Preise) finden, Angebote (84, auch 81/83 mit Preisen) je Bieterordner gruppieren
    │  import/analyze.ts   ein Angebot lesen (gaeb/gaeb.ts), Firma/Datum/Unterlagen erkennen
    │  import/apply.ts     LV (+ Schätzpreise aus 82) und Angebote in den State schreiben, Vollständigkeit vorbelegen
    ▼
@@ -25,7 +25,7 @@ Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
 | `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Aufruf von `api/pruefen.ts`) | nein |
 | `vermerk/` | Aufbau und Texte des Vergabevermerks | nein |
 | `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken | ja |
-| `components/` | wiederverwendbare UI-Bausteine (`ui.tsx`) | ja |
+| `components/` | wiederverwendbare UI-Bausteine (`ui.tsx`, `DropZone.tsx`) | ja |
 | `storage/` | Browser-Speicher (`projectStore.ts`), Export CSV/JSON (`exportCsv.ts`) | nein |
 
 ## Regeln, damit es lesbar bleibt

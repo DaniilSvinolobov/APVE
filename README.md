@@ -15,13 +15,16 @@ npm run build   # Produktions-Build nach dist/ (Vercel erkennt Vite automatisch)
 - Änderungen entstehen auf eigenen Feature-Branches (Vercel baut dafür automatisch Preview-Links) und gelangen per Pull Request nach `main`.
 - Vor Push, Pull oder Merge wird nachgefragt.
 
-## Einlesen (Schritt 2) – zwei getrennte Felder
-**Feld 1 – Eigenes LV:** GAEB-Dateien (X8x, P8x, D8x), die App erkennt die Rolle selbst:
+## Einlesen – LV im Schritt „Vergabe“, Angebote im Schritt „Unterlagen“
+**Eigenes LV (Schritt 1, ganz oben):** GAEB-Dateien (X8x, P8x, D8x), die App erkennt die Rolle selbst.
+Maßnahme, Auftraggeber und Lose werden daraus vorbelegt:
 - **X83 / X81:** Positionen, Texte, Mengen, Lose (bevorzugt 83, sonst 81)
-- **X82 (Kostenanschlag):** LV-Schätzpreise je Position → Spalte „LV-Schätzpreis“ im Preisspiegel; der Kostenvoranschlag je Los wird daraus vorbelegt (manuelle Eingabe in Schritt 1 hat Vorrang)
+- **X82 (Kostenanschlag):** LV-Schätzpreise je Position → Spalte „LV-Schätzpreis“ im Preisspiegel; der Kostenvoranschlag je Los wird daraus vorbelegt (manuelle Eingabe hat Vorrang)
+- Eine x81/x83-Datei **mit Preisen** ist kein LV, sondern ein Angebot und wird hier abgewiesen.
 
-**Feld 2 – Angebote der Bieter:** Ordner oder ZIP-Dateien (auch verschachtelt)
+**Angebote der Bieter (Schritt 2):** Ordner oder ZIP-Dateien (auch verschachtelt)
 - GAEB X84 / P84 / D84 je Bieterordner; Signaturbeleg, Eignungsfragebogen, Nachforderungen usw. werden erkannt
+- Exportiert ein Bieter seine Preise als **X83/X81** (statt X84), wird die Datei am Preisbestand erkannt (Mehrheit der Positionen mit Einheitspreis) und als Angebot gelesen; im Angebot steht dazu ein Hinweis
 - Zuordnung der Preise über die Ordnungszahl (OZ); Mengenabweichungen zwischen LV und Bieterdatei werden markiert
   (z. B. korrigierte Stückzahl) und lassen sich per Klick ins LV übernehmen
 - PDF-Scans (z. B. gedrucktes LV) können nicht ausgewertet werden

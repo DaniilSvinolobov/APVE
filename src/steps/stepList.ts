@@ -3,8 +3,8 @@ import { computeLos } from '../domain/calc';
 
 /** Die fünf Schritte der Oberfläche (Reihenfolge = Reihenfolge der Views in App.tsx). */
 export const STEPS = [
-  { id: 'vergabe', title: 'Vergabe', sub: 'Eckdaten & Lose' },
-  { id: 'unterlagen', title: 'Unterlagen', sub: 'LV & Angebote einlesen' },
+  { id: 'vergabe', title: 'Vergabe', sub: 'LV laden, Eckdaten & Lose' },
+  { id: 'unterlagen', title: 'Unterlagen', sub: 'Angebote einlesen' },
   { id: 'preis', title: 'Preisspiegel', sub: 'je Los vergleichen' },
   { id: 'wertung', title: 'Wertung', sub: 'Prüfen & bewerten' },
   { id: 'vermerk', title: 'Vermerk', sub: 'Vergabevorschlag' },

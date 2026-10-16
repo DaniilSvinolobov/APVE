@@ -1,28 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { State } from './types';
 import { emptyState, demoState } from './demo';
-import { computeAll } from './calc';
-import { FORMAL_CHECKS } from './types';
-import { StepProjekt } from './StepProjekt';
-import { StepBieter } from './StepBieter';
+import { computeLos } from './calc';
+import { StepVergabe } from './StepVergabe';
+import { StepUnterlagen } from './StepUnterlagen';
 import { StepPreisspiegel } from './StepPreisspiegel';
 import { StepWertung } from './StepWertung';
-import { StepEmpfehlung } from './StepEmpfehlung';
+import { StepVermerk } from './StepVermerk';
 import { Icon } from './ui';
 
-const KEY = 'apve-state-v1';
+const KEY = 'apve-state-v2';
 const STEPS = [
-  { id: 'projekt', title: 'Vergabe', sub: 'Eckdaten' },
-  { id: 'bieter', title: 'Bieter', sub: 'Formalprüfung' },
-  { id: 'preis', title: 'Preisspiegel', sub: 'Preise erfassen' },
+  { id: 'vergabe', title: 'Vergabe', sub: 'Eckdaten & Lose' },
+  { id: 'unterlagen', title: 'Unterlagen', sub: 'LV & Angebote einlesen' },
+  { id: 'preis', title: 'Preisspiegel', sub: 'je Los vergleichen' },
   { id: 'wertung', title: 'Wertung', sub: 'Prüfen & bewerten' },
-  { id: 'empfehlung', title: 'Empfehlung', sub: 'Vermerk' },
+  { id: 'vermerk', title: 'Vermerk', sub: 'Vergabevorschlag' },
 ];
 
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...emptyState(), ...JSON.parse(raw) };
+    if (raw) { const j = JSON.parse(raw); if (j?.v === 2) return { ...emptyState(), ...j }; }
   } catch { /* ignore */ }
   return emptyState();
 }
@@ -31,6 +30,7 @@ export function App() {
   const [s, setS] = useState<State>(load);
   const [step, setStep] = useState(() => Number(sessionStorage.getItem('apve-step') ?? 0) || 0);
   const [saved, setSaved] = useState(true);
+  const [err, setErr] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const up = useCallback((fn: (d: State) => void) => setS((prev) => { const n = structuredClone(prev); fn(n); return n; }), []);
@@ -38,31 +38,27 @@ export function App() {
   useEffect(() => {
     setSaved(false);
     const t = setTimeout(() => {
-      try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* ignore */ }
+      try { localStorage.setItem(KEY, JSON.stringify(s)); setErr(''); } catch { setErr('Speicher des Browsers voll – bitte „Datensicherung“ im Vermerk-Schritt nutzen.'); }
       setSaved(true);
-    }, 400);
+    }, 500);
     return () => clearTimeout(t);
   }, [s]);
   useEffect(() => { try { sessionStorage.setItem('apve-step', String(step)); } catch { /* ignore */ } window.scrollTo(0, 0); }, [step]);
 
-  const res = computeAll(s, FORMAL_CHECKS.map((c) => c.id));
   const done = [
-    !!s.project.titel.trim(),
-    s.bidders.filter((b) => b.name.trim()).length >= 1 && s.bidders.every((b) => b.excluded || FORMAL_CHECKS.every((c) => b.checks[c.id])),
-    res.some((r) => r.eligible),
-    res.some((r) => r.rank === 1),
+    !!s.project.titel.trim() && s.lose.length > 0,
+    s.lv.length > 0 && s.offers.length > 0,
+    s.lose.length > 0 && s.lose.every((l) => computeLos(s, l).some((c) => c.complete)),
+    s.lose.length > 0 && s.lose.every((l) => computeLos(s, l).some((c) => c.rank === 1)),
     false,
   ];
 
-  const confirmNew = (fn: () => State) => {
-    if (confirm('Aktuelle Daten werden überschrieben. Fortfahren?')) { setS(fn()); setStep(0); }
-  };
+  const confirmNew = (fn: () => State) => { if (confirm('Aktuelle Daten werden überschrieben. Fortfahren?')) { setS(fn()); setStep(0); } };
   const importJson = async (f: File) => {
-    try { setS({ ...emptyState(), ...JSON.parse(await f.text()) }); setStep(0); } catch { alert('Datei konnte nicht gelesen werden.'); }
+    try { const j = JSON.parse(await f.text()); if (j?.v !== 2) throw new Error(); setS({ ...emptyState(), ...j }); setStep(0); } catch { alert('Datei konnte nicht gelesen werden (keine Datensicherung dieser Version).'); }
   };
-
-  const view = [StepProjekt, StepBieter, StepPreisspiegel, StepWertung, StepEmpfehlung][step];
-  const View = view;
+  const Views = [StepVergabe, StepUnterlagen, StepPreisspiegel, StepWertung, StepVermerk];
+  const View = Views[step];
 
   return (
     <div className="app">
@@ -70,7 +66,7 @@ export function App() {
         <div className="brand"><span className="logo"><i /><i /><i /></span><div><b>Angebotsauswertung</b><small>Preisspiegel & Vergabeempfehlung</small></div></div>
         <div className="top-title">{s.project.titel || 'Neue Vergabe'}</div>
         <div className="top-actions">
-          <span className={`saved ${saved ? '' : 'busy'}`}>{saved ? 'Automatisch gespeichert' : 'Speichert …'}</span>
+          <span className={`saved ${saved && !err ? '' : 'busy'}`}>{err || (saved ? 'Automatisch gespeichert' : 'Speichert …')}</span>
           <button className="btn ghost" onClick={() => confirmNew(demoState)}><Icon name="sparkle" /> Beispiel</button>
           <button className="btn ghost" onClick={() => fileRef.current?.click()}><Icon name="upload" /> Laden</button>
           <button className="btn ghost" onClick={() => confirmNew(emptyState)}>Neu</button>

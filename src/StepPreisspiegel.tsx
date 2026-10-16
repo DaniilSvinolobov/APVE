@@ -1,231 +1,182 @@
-import { Fragment, useState, type ClipboardEvent } from 'react';
+import { Fragment, useMemo, useState, type ClipboardEvent } from 'react';
 import type { State } from './types';
-import { computeAll, lineTotal, lowestEp, outlier } from './calc';
-import { FORMAL_CHECKS } from './types';
-import { fmtEur, fmtNum, parseNum, uid } from './fmt';
-import { Icon, NumInput, Chip } from './ui';
+import { computeLos, losPositions, zkey } from './calc';
+import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from './fmt';
+import { Chip, Icon, NumInput, Tabs } from './ui';
+import { downloadCsv } from './exportCsv';
 
 type Up = (fn: (d: State) => void) => void;
 
 export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
-  const lv = s.project.mode === 'lv';
-  const [importing, setImporting] = useState(false);
-  const results = computeAll(s, FORMAL_CHECKS.map((c) => c.id));
-  const nb = s.bidders.length;
-  const cols = lv ? 2 : 1;
-  const posIds = s.positions.map((p) => p.id);
+  const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
+  const los = s.lose.find((l) => l.id === losId) ?? s.lose[0];
+  const [runde, setRunde] = useState<number | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [onlyAuff, setOnlyAuff] = useState(false);
 
-  const addPos = () =>
-    up((d) => {
-      const last = d.positions[d.positions.length - 1];
-      d.positions.push({ id: uid(), nr: nextNr(last?.nr), text: '', menge: null, einheit: 'm²', bedarf: false });
-    });
+  const cellsAll = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
+  if (!los) return <section className="card"><h2>Preisspiegel</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden (Schritt 2).</p></section>;
+  const runden = [...new Set(cellsAll.map((c) => c.offer.runde))].sort();
+  const rd = runde != null && runden.includes(runde as 1 | 2 | 3) ? runde : runden[runden.length - 1] ?? 1;
+  const cells = cellsAll.filter((c) => c.offer.runde === rd);
+  const pos = losPositions(s, los);
+  const hasLv = pos.length > 0;
+  const th = s.project.abweichung / 100;
 
-  const onPaste = (e: ClipboardEvent<HTMLElement>) => {
-    const t = e.target as HTMLElement;
-    const r0 = Number(t.dataset.r);
-    const c0 = Number(t.dataset.c);
-    if (Number.isNaN(r0) || Number.isNaN(c0)) return;
+  const groups = new Map<string, typeof pos>();
+  for (const p of pos) { const k = p.oz.split('.').slice(0, 2).join('.'); groups.set(k, [...(groups.get(k) ?? []), p]); }
+
+  const epOf = (c: (typeof cells)[number], oz: string) => c.offer.prices[zkey(oz)]?.ep ?? null;
+  const peerStats = (oz: string) => {
+    const v = cells.filter((c) => c.complete && !c.excluded).map((c) => epOf(c, oz)).filter((x): x is number => x != null && x > 0);
+    return { low: v.length > 1 ? Math.min(...v) : null, n: v.length };
+  };
+  const isOut = (c: (typeof cells)[number], oz: string) => {
+    const me = epOf(c, oz);
+    const others = cells.filter((x) => x !== c && x.complete && !x.excluded).map((x) => epOf(x, oz)).filter((x): x is number => x != null && x > 0);
+    if (me == null || me <= 0 || others.length < 2) return false;
+    const avg = others.reduce((a, b) => a + b, 0) / others.length;
+    return Math.abs(me / avg - 1) > th;
+  };
+  const titelSum = (c: (typeof cells)[number], ps: typeof pos) => round2(ps.filter((p) => !p.bedarf).reduce((a, p) => a + (p.menge ?? 0) * (epOf(c, p.oz) ?? 0), 0));
+
+  const onPaste = (e: ClipboardEvent<HTMLElement>, oz0: string, c0: number, visible: string[]) => {
     const text = e.clipboardData.getData('text');
-    if (!/[\t\n]/.test(text.trim())) return; // einzelne Zelle: normales Einfügen
+    if (!/[\t\n]/.test(text.trim())) return;
     e.preventDefault();
     const rows = text.replace(/\r/g, '').replace(/\n+$/, '').split('\n').map((r) => r.split('\t'));
-    up((d) => {
-      rows.forEach((row, i) => {
-        const pid = posIds[r0 + i];
-        if (!pid) return;
-        row.forEach((cell, j) => {
-          const b = d.bidders[c0 + j];
-          if (b) (d.prices[pid] ??= {})[b.id] = parseNum(cell);
-        });
-      });
-    });
+    const r0 = visible.indexOf(oz0);
+    up((d) => rows.forEach((row, i) => { const oz = visible[r0 + i]; if (oz) row.forEach((cell, j) => { const o = cells[c0 + j]?.offer; if (o) { const dd = d.offers.find((x) => x.id === o.id)!; dd.prices[zkey(oz)] = { ep: parseNum(cell), gp: null }; } }); }));
   };
+
+  const setEp = (offerId: string, oz: string, v: number | null) => up((d) => { const o = d.offers.find((x) => x.id === offerId)!; o.prices[zkey(oz)] = { ep: v, gp: null }; });
+  const exportCsv = () => {
+    const head = ['Pos.', 'Leistung', 'Menge', 'Einheit', ...cells.flatMap((c) => [`Nr.${c.offer.nr} ${c.offer.firma} EP`, `GP`])];
+    const rows = pos.map((p) => [p.oz, p.kurz, p.menge ?? '', p.einheit, ...cells.flatMap((c) => { const ep = epOf(c, p.oz); return [ep ?? '', ep == null ? '' : round2((p.menge ?? 0) * ep)]; })]);
+    rows.push([], ['', 'Summe netto', '', '', ...cells.flatMap((c) => ['', c.sumNet ?? ''])], ['', 'Nachlass %', '', '', ...cells.flatMap((c) => ['', c.nachlass])], ['', 'Angebotssumme netto', '', '', ...cells.flatMap((c) => ['', c.net ?? ''])], ['', 'Angebotssumme brutto', '', '', ...cells.flatMap((c) => ['', c.gross ?? ''])]);
+    downloadCsv(`Preisspiegel_${los.nr}_Runde${rd}.csv`, [head, ...rows]);
+  };
+
+  const visibleGroups = [...groups.entries()].filter(([, ps]) => !onlyAuff || ps.some((p) => cells.some((c) => isOut(c, p.oz))));
+  const visibleOz = visibleGroups.flatMap(([k, ps]) => (open.has(k) || onlyAuff ? ps.map((p) => p.oz) : []));
+  const ncol = hasLv ? 4 : 1;
 
   return (
     <div className="stack">
       <section className="card">
         <div className="card-head">
-          <div>
-            <h2>Preisspiegel</h2>
-            <p className="lead">
-              {lv
-                ? 'Einheitspreise (EP) je Bieter eintragen. Tipp: Aus Excel kopierte Spalten lassen sich direkt in eine EP-Zelle einfügen (Strg+V).'
-                : 'Angebotssumme (netto) je Bieter eintragen.'}
-            </p>
+          <div><h2>Preisspiegel</h2><p className="lead">Automatisch aus LV und Bieterdateien erstellt. Titel anklicken, um Einzelpositionen zu sehen. Einheitspreise lassen sich direkt korrigieren.</p></div>
+          <div className="row">
+            <button className="btn" onClick={exportCsv}><Icon name="download" /> Excel (CSV)</button>
           </div>
-          {lv && (
-            <div className="row">
-              <button className="btn" onClick={() => setImporting(true)}><Icon name="upload" /> LV aus Excel einfügen</button>
-              <button className="btn" onClick={addPos}><Icon name="plus" /> Position</button>
+        </div>
+        <Tabs value={los.id} onChange={setLosId} items={s.lose.map((l) => ({ value: l.id, label: l.nr, sub: l.name }))} />
+        {runden.length > 1 && (
+          <div className="row" style={{ margin: '14px 0 0' }}>
+            <span className="field-label">Runde:</span>
+            {runden.map((r) => <button key={r} className={`pill btnpill ${r === rd ? 'on' : ''}`} onClick={() => setRunde(r)}>{r === 1 ? 'Hauptangebote' : `Nachverhandlung${r > 2 ? ' ' + (r - 1) : ''}`} ({cellsAll.filter((c) => c.offer.runde === r).length})</button>)}
+          </div>
+        )}
+        {cells.length === 0 ? <p className="muted" style={{ marginTop: 18 }}>Für {los.nr} liegt in dieser Runde kein Angebot vor.</p> : (
+          <>
+            <div className="row" style={{ margin: '14px 0' }}>
+              {hasLv && <><button className="btn small" onClick={() => setOpen(new Set(groups.keys()))}>Alle Titel öffnen</button><button className="btn small" onClick={() => setOpen(new Set())}>Alle schließen</button>
+              <label className="mini"><input type="checkbox" checked={onlyAuff} onChange={(e) => setOnlyAuff(e.target.checked)} /> nur Titel mit Preisauffälligkeiten</label></>}
+              {cells.some((c) => c.mengeAbw.length) && <Chip kind="warn">Mengen im LV weichen von der Bieterdatei ab – siehe markierte Positionen</Chip>}
             </div>
-          )}
-        </div>
-
-        <div className="scroll" onPaste={onPaste}>
-          <table className="preis" style={{ minWidth: (lv ? 520 : 300) + nb * (lv ? 230 : 190) }}>
-            <thead>
-              <tr>
-                {lv && <><th className="sticky c0 left">Pos.</th><th className="sticky c1 left">Leistung</th><th>Menge</th><th>Einh.</th></>}
-                {!lv && <th className="left">Position</th>}
-                {s.bidders.map((b) => (
-                  <th key={b.id} colSpan={cols} className={`bh ${b.excluded ? 'dim' : ''}`}>
-                    {b.name || 'Bieter'}
-                    {b.excluded && <small className="muted block">ausgeschlossen</small>}
-                  </th>
-                ))}
-              </tr>
-              {lv && (
-                <tr className="sub">
-                  <th className="sticky c0" /><th className="sticky c1" /><th /><th />
-                  {s.bidders.map((b) => (
-                    <Fragment key={b.id}><th>EP €</th><th>GP €</th></Fragment>
-                  ))}
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {lv && s.positions.length === 0 && (
-                <tr><td colSpan={4 + nb * 2} className="empty">
-                  Noch keine Positionen. Fügen Sie das Leistungsverzeichnis aus Excel ein oder legen Sie Positionen manuell an.
-                </td></tr>
-              )}
-              {lv && s.positions.map((p, r) => {
-                const low = lowestEp(s, p.id);
-                return (
-                  <tr key={p.id} className={p.bedarf ? 'bedarf' : ''}>
-                    <td className="sticky c0 left"><input className="plain nr" value={p.nr} onChange={(e) => up((d) => void (d.positions[r].nr = e.target.value))} /></td>
-                    <td className="sticky c1 left">
-                      <input className="plain" value={p.text} placeholder="Leistungsbeschreibung" onChange={(e) => up((d) => void (d.positions[r].text = e.target.value))} />
-                      <div className="pos-tools">
-                        <label className="mini"><input type="checkbox" checked={p.bedarf} onChange={(e) => up((d) => void (d.positions[r].bedarf = e.target.checked))} /> Bedarfsposition</label>
-                        <button className="link danger" onClick={() => up((d) => { d.positions.splice(r, 1); delete d.prices[p.id]; })}>entfernen</button>
-                      </div>
-                    </td>
-                    <td><NumInput value={p.menge} onChange={(v) => up((d) => void (d.positions[r].menge = v))} className="sm" label="Menge" /></td>
-                    <td><input className="plain unit" value={p.einheit} onChange={(e) => up((d) => void (d.positions[r].einheit = e.target.value))} /></td>
-                    {s.bidders.map((b, c) => {
-                      const ep = s.prices[p.id]?.[b.id] ?? null;
-                      const gp = lineTotal(p.menge, ep);
-                      const cls = [b.excluded ? 'dim' : '', ep != null && low != null && ep === low && !b.excluded ? 'low' : '', outlier(s, p.id, b.id) ? 'out' : ''].join(' ');
-                      return (
-                        <Fragment key={b.id}>
-                          <td className={cls}>
-                            <NumInput
-                              value={ep}
-                              data={{ r, c }}
-                              label={`EP ${p.nr} ${b.name}`}
-                              onChange={(v) => up((d) => void ((d.prices[p.id] ??= {})[b.id] = v))}
-                              className="sm"
-                            />
-                          </td>
-                          <td className={`gp ${cls}`}>{gp == null ? '' : fmtNum(gp)}</td>
-                        </Fragment>
-                      );
-                    })}
+            <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>
+              <table className="preis" style={{ minWidth: 560 + cells.length * 250 }}>
+                <thead>
+                  <tr>
+                    {hasLv ? <><th className="sticky c0 left">Pos.</th><th className="sticky c1 left">Leistung</th><th>Menge</th><th>Einh.</th></> : <th className="left">Position</th>}
+                    {cells.map((c) => <th key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`bh ${c.excluded ? 'dim' : ''}`}>Nr. {c.offer.nr}<small className="block muted">{c.offer.firma}</small></th>)}
                   </tr>
-                );
-              })}
-
-              {!lv && (
-                <tr>
-                  <td className="left"><b>Angebotssumme (netto)</b></td>
-                  {s.bidders.map((b, c) => (
-                    <td key={b.id} className={b.excluded ? 'dim' : ''}>
-                      <NumInput value={b.summe} onChange={(v) => up((d) => void (d.bidders[c].summe = v))} suffix="€" label={`Summe ${b.name}`} />
-                    </td>
-                  ))}
-                </tr>
-              )}
-            </tbody>
-            <tfoot>
-              {lv && (
-                <tr className="sumrow">
-                  <td className="sticky c0" /><td className="sticky c1 left"><b>Summe netto (ohne Bedarfspositionen)</b></td><td /><td />
-                  {results.map((r) => (<Fragment key={r.bidder.id}><td /><td className={`gp strong ${r.bidder.excluded ? 'dim' : ''}`}>{fmtNum(r.brutto ?? 0)}</td></Fragment>))}
-                </tr>
-              )}
-              <FootRow label="Nachlass ohne Bedingung" lv={lv} results={results}
-                render={(r, c) => <NumInput value={r.bidder.nachlass} onChange={(v) => up((d) => void (d.bidders[c].nachlass = v))} suffix="%" className="sm" label="Nachlass" />} />
-              <FootRow label="Skonto (nur Info – wird nicht gewertet)" lv={lv} results={results}
-                render={(r, c) => <NumInput value={r.bidder.skonto} onChange={(v) => up((d) => void (d.bidders[c].skonto = v))} suffix="%" className="sm" label="Skonto" />} />
-              {lv && (
-                <FootRow label="Angebotssumme laut Bieter (zur Rechenprüfung)" lv={lv} results={results}
-                  render={(r, c) => (
-                    <>
-                      <NumInput value={r.bidder.summeBieter} onChange={(v) => up((d) => void (d.bidders[c].summeBieter = v))} suffix="€" label="Summe laut Bieter" />
-                      {r.rechnerDiff != null && Math.abs(r.rechnerDiff) > 0.01 && <Chip kind="warn">Δ {fmtNum(r.rechnerDiff)} €</Chip>}
-                    </>
-                  )} />
-              )}
-              <tr className="total">
-                <td className={lv ? 'sticky c0' : ''} />{lv && <td className="sticky c1 left"><b>Angebotssumme netto</b></td>}{lv && <><td /><td /></>}
-                {!lv && <td className="left"><b>Angebotssumme netto (nach Nachlass)</b></td>}
-                {results.map((r) => (
-                  <td key={r.bidder.id} colSpan={cols} className={r.bidder.excluded ? 'dim' : ''}>
-                    <div className="big">{fmtEur(r.net)}</div>
-                    <small className="muted">brutto {fmtEur(r.gross)}</small>
-                    {r.rank && <div><Chip kind={r.rank === 1 ? 'ok' : 'info'}>Rang {r.rank}</Chip></div>}
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <div className="legend">
-          <span><i className="sw low" /> günstigster EP der Position</span>
-          <span><i className="sw out" /> Ausreißer (&gt; 50 % vom Median) – bitte prüfen</span>
-          <span><i className="sw bed" /> Bedarfsposition (nicht in Summe)</span>
-        </div>
+                  {hasLv && <tr className="sub"><th className="sticky c0" /><th className="sticky c1" /><th /><th />{cells.map((c) => <Fragment key={c.offer.id}><th>EP €</th><th>GP €</th></Fragment>)}</tr>}
+                </thead>
+                <tbody>
+                  {!hasLv && (
+                    <tr><td className="left"><b>Angebotssumme (netto, vor Nachlass)</b></td>{cells.map((c) => <td key={c.offer.id}><NumInput value={c.offer.summen[los.id] ?? null} suffix="€" onChange={(v) => up((d) => void (d.offers.find((x) => x.id === c.offer.id)!.summen[los.id] = v))} /></td>)}</tr>
+                  )}
+                  {visibleGroups.map(([k, ps]) => {
+                    const isOpen = open.has(k) || onlyAuff;
+                    const sums = cells.map((c) => titelSum(c, ps));
+                    const min = Math.min(...sums.filter((x) => x > 0));
+                    return (
+                      <Fragment key={k}>
+                        <tr className="titel" onClick={() => setOpen((o) => { const n = new Set(o); n.has(k) ? n.delete(k) : n.add(k); return n; })}>
+                          <td className="sticky c0 left"><Icon name={isOpen ? 'down' : 'right'} /> {k}</td>
+                          <td className="sticky c1 left"><b>{s.titles[k] || `Titel ${k}`}</b><small className="muted"> · {ps.length} Pos.</small></td><td /><td />
+                          {cells.map((c, i) => <Fragment key={c.offer.id}><td /><td className={`gp strong ${sums[i] > 0 && sums[i] === min ? 'low' : ''}`}>{fmtNum(sums[i])}</td></Fragment>)}
+                        </tr>
+                        {isOpen && ps.map((p) => {
+                          const st = peerStats(p.oz);
+                          const abw = cells.map((c) => c.mengeAbw.find((m) => m.oz === p.oz));
+                          return (
+                            <tr key={p.oz} className={p.bedarf ? 'bedarf' : ''}>
+                              <td className="sticky c0 left">{p.oz}</td>
+                              <td className="sticky c1 left" title={p.kurz}><span className="kurz">{p.kurz}</span>{p.bedarf && <small className="muted"> (Bedarf)</small>}</td>
+                              <td>
+                                <NumInput value={p.menge} decimals={p.menge != null && Number.isInteger(p.menge) ? 0 : 3} className={`sm ${p.menge !== p.mengeOrig ? 'chg' : ''}`} label="Menge" onChange={(v) => up((d) => void (d.lv.find((x) => x.oz === p.oz)!.menge = v))} />
+                                {p.menge !== p.mengeOrig && <small className="muted block">LV-Original: {p.mengeOrig}</small>}
+                              </td>
+                              <td>{p.einheit}</td>
+                              {cells.map((c, ci) => {
+                                const ep = epOf(c, p.oz);
+                                const gp = ep == null ? null : round2((p.menge ?? 0) * ep);
+                                const cls = [c.excluded ? 'dim' : '', ep != null && st.low != null && ep === st.low && ep > 0 && !c.excluded ? 'low' : '', isOut(c, p.oz) ? 'out' : '', abw[ci] ? 'mabw' : ''].join(' ');
+                                return (
+                                  <Fragment key={c.offer.id}>
+                                    <td className={cls}>
+                                      <input className="epin" data-oz={p.oz} data-c={ci} inputMode="decimal" defaultValue={ep == null ? '' : fmtNum(ep)} key={`${c.offer.id}${p.oz}${ep}`} aria-label={`EP ${p.oz} Nr. ${c.offer.nr}`}
+                                        onFocus={(e) => e.currentTarget.select()} onBlur={(e) => { const v = parseNum(e.target.value); if (v !== ep) setEp(c.offer.id, p.oz, v); }} />
+                                    </td>
+                                    <td className={`gp ${cls}`}>
+                                      {gp == null ? '' : fmtNum(gp)}
+                                      {abw[ci] && <button className="mini-act" title={`Bieter rechnet mit ${abw[ci]!.bieter} ${p.einheit} (LV: ${p.menge ?? '–'})`} onClick={() => up((d) => void (d.lv.find((x) => x.oz === p.oz)!.menge = abw[ci]!.bieter))}>Menge {abw[ci]!.bieter} übernehmen</button>}
+                                    </td>
+                                  </Fragment>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <FootRow ncol={ncol} hasLv={hasLv} label="Summe netto (ohne Bedarfspositionen)">{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp strong">{fmtNum(c.sumNet ?? 0)}</td>)}</FootRow>
+                  <FootRow ncol={ncol} hasLv={hasLv} label="Nachlass ohne Bedingung">{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1}>{c.nachlass ? <b>{fmtNum(c.nachlass)} %</b> : <span className="muted">–</span>}</td>)}</FootRow>
+                  <tr className="total">
+                    <td className={hasLv ? 'sticky c0' : ''} />{hasLv ? <td className="sticky c1 left"><b>Angebotssumme netto</b></td> : <td className="left"><b>Angebotssumme netto</b></td>}{hasLv && <><td /><td /></>}
+                    {cells.map((c) => (
+                      <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className={c.excluded ? 'dim' : ''}>
+                        <div className="big">{fmtEur(c.net)}</div><small className="muted">brutto {fmtEur(c.gross)}</small>
+                        <div>{c.rank && <Chip kind={c.rank === 1 ? 'ok' : 'info'}>Rang {c.rank}</Chip>} {c.dMin != null && c.rank !== 1 && c.rank && <Chip kind="info">{fmtPct(c.dMin)}</Chip>} {c.dKosten != null && <Chip kind="info" title="zum Kostenvoranschlag">KV {fmtPct(c.dKosten)}</Chip>}</div>
+                      </td>
+                    ))}
+                  </tr>
+                  <FootRow ncol={ncol} hasLv={hasLv} label="Hinweise">{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="flags">{c.flags.map((f, i) => <Chip key={i} kind={f.kind}>{f.text}</Chip>)}</td>)}</FootRow>
+                </tfoot>
+              </table>
+            </div>
+            <div className="legend">
+              <span><i className="sw low" /> günstigster EP der Position</span>
+              <span><i className="sw out" /> Ausreißer (&gt; {s.project.abweichung} % vom Mittel der übrigen)</span>
+              <span><i className="sw mabw" /> Menge laut Bieter weicht vom LV ab</span>
+            </div>
+          </>
+        )}
       </section>
-      {importing && <ImportDialog onClose={() => setImporting(false)} up={up} />}
     </div>
   );
 }
 
-function FootRow({ label, lv, results, render }: { label: string; lv: boolean; results: ReturnType<typeof computeAll>; render: (r: ReturnType<typeof computeAll>[number], c: number) => React.ReactNode }) {
+function FootRow({ label, children, hasLv, ncol }: { label: string; children: React.ReactNode; hasLv: boolean; ncol: number }) {
   return (
     <tr className="footrow">
-      {lv ? <><td className="sticky c0" /><td className="sticky c1 left">{label}</td><td /><td /></> : <td className="left">{label}</td>}
-      {results.map((r, c) => (
-        <td key={r.bidder.id} colSpan={lv ? 2 : 1} className={r.bidder.excluded ? 'dim' : ''}>{render(r, c)}</td>
-      ))}
+      {hasLv ? <><td className="sticky c0" /><td className="sticky c1 left">{label}</td><td /><td /></> : <td className="left" colSpan={ncol}>{label}</td>}
+      {children}
     </tr>
-  );
-}
-
-function nextNr(prev?: string) {
-  if (!prev) return '01.01';
-  const m = prev.match(/^(.*?)(\d+)$/);
-  return m ? m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0') : '';
-}
-
-function ImportDialog({ onClose, up }: { onClose: () => void; up: Up }) {
-  const [txt, setTxt] = useState('');
-  const rows = txt.replace(/\r/g, '').split('\n').filter((r) => r.trim()).map((r) => r.split('\t'));
-  const apply = () => {
-    up((d) => {
-      for (const r of rows) {
-        // Spalten: Pos | Text | Menge | Einheit  (Kopfzeile wird erkannt und übersprungen)
-        const menge = parseNum(r[2] ?? '');
-        if (r.length >= 3 && menge == null && /pos|menge|text/i.test(r.join(' '))) continue;
-        d.positions.push({ id: uid(), nr: r[0] ?? '', text: r[1] ?? '', menge, einheit: r[3] ?? '', bedarf: /bedarf|eventual/i.test(r[1] ?? '') });
-      }
-    });
-    onClose();
-  };
-  return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Leistungsverzeichnis aus Excel einfügen</h2>
-        <p className="lead">Kopieren Sie in Excel die Spalten <b>Pos. | Leistungstext | Menge | Einheit</b> und fügen Sie sie hier ein.</p>
-        <textarea autoFocus rows={9} value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="01.01	Metallständerwand W112	640	m²" />
-        <div className="row end">
-          <span className="muted">{rows.length} Zeilen erkannt</span>
-          <button className="btn" onClick={onClose}>Abbrechen</button>
-          <button className="btn primary" disabled={!rows.length} onClick={apply}>Übernehmen</button>
-        </div>
-      </div>
-    </div>
   );
 }

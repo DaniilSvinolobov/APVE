@@ -1,113 +1,135 @@
-import type { State } from './types';
-import { FORMAL_CHECKS } from './types';
-import { computeAll } from './calc';
-import { fmtEur, fmtNum, fmtPct, uid } from './fmt';
-import { Chip, Icon, NumInput } from './ui';
+import { Fragment, useMemo, useState } from 'react';
+import type { Bew, State } from './types';
+import { auffaelligkeiten, computeLos, emptyBew, getBew, zuschlagCell, bewKey, type Cell } from './calc';
+import { fmtEur, fmtNum, fmtPct } from './fmt';
+import { bewText } from './vermerk';
+import { Chip, Icon, NumInput, Tabs } from './ui';
 
-export function StepWertung({ s, up }: { s: State; up: (fn: (d: State) => void) => void }) {
-  const res = computeAll(s, FORMAL_CHECKS.map((c) => c.id));
-  const multi = s.project.kriterienModus === 'mehrere';
-  const wKrit = s.criteria.reduce((a, c) => a + (c.weight || 0), 0);
-  const wPreis = 100 - wKrit;
-  const ranked = [...res].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-  const flagged = res.filter((r) => !r.bidder.excluded && (r.bidder.aufklaerung !== '' || r.flags.some((f) => f.text.includes('Aufklärung nötig'))));
+type Up = (fn: (d: State) => void) => void;
+
+export function StepWertung({ s, up }: { s: State; up: Up }) {
+  const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
+  const los = s.lose.find((l) => l.id === losId) ?? s.lose[0];
+  const cells = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
+  if (!los) return <section className="card"><h2>Wertung</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden.</p></section>;
+
+  const setBew = (offerId: string, patch: Partial<Bew>) => up((d) => void (d.bew[bewKey(offerId, los.id)] = { ...emptyBew(), ...(d.bew[bewKey(offerId, los.id)] ?? {}), ...patch }));
+  const runden = [...new Set(cells.map((c) => c.offer.runde))].sort();
+  const win = zuschlagCell(s, los, cells);
+  const eligible = cells.filter((c) => c.eligible);
+  const finalR = win?.offer.runde;
+
+  const detail: Cell[] = [];
+  const hrl = cells.length ? Math.min(...cells.map((c) => c.offer.runde)) : 1;
+  const first = cells.filter((c) => c.offer.runde === hrl && c.rankAll).sort((a, b) => a.rankAll! - b.rankAll!).slice(0, Math.max(1, s.project.engereWahl));
+  detail.push(...first, ...cells.filter((c) => c.offer.runde > hrl && c.rankAll).sort((a, b) => a.offer.runde - b.offer.runde || a.rankAll! - b.rankAll!));
 
   return (
     <div className="stack">
-      {multi && (
-        <section className="card">
-          <div className="card-head">
-            <div>
-              <h2>Zuschlagskriterien & Gewichtung</h2>
-              <p className="lead">Preis erhält den Rest auf 100 %. Bewertung der Bieter je Kriterium mit 0–10 Punkten.</p>
+      <section className="card">
+        <h2>Wertung</h2>
+        <p className="lead">Rangfolge je Los, Ausschlüsse, Preisaufklärung und die Angaben für die Begründung im Vergabevermerk.</p>
+        <Tabs value={los.id} onChange={setLosId} items={s.lose.map((l) => ({ value: l.id, label: l.nr, sub: l.name }))} />
+      </section>
+
+      {cells.length === 0 && <section className="card"><p className="muted">Für {los.nr} liegen keine Angebote vor (Schritt 2 → „Angebot gilt für“).</p></section>}
+
+      {runden.map((r) => {
+        const rc = cells.filter((c) => c.offer.runde === r);
+        return (
+          <section className="card" key={r}>
+            <h2>{los.nr} · {r === hrl ? (r === 1 ? 'Hauptangebote' : 'Angebote') : 'Nachverhandlung'}</h2>
+            <div className="scroll">
+              <table className="matrix rank">
+                <thead><tr><th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Prüfhinweise & Aktionen</th></tr></thead>
+                <tbody>
+                  {rc.map((c) => {
+                    const b = getBew(s, c.offer.id, los.id);
+                    const needsAufk = c.flags.some((f) => f.text.includes('Aufklärung')) || b.aufklaerung !== '';
+                    const isWin = win?.offer.id === c.offer.id;
+                    return (
+                      <Fragment key={c.offer.id}>
+                        <tr className={c.excluded ? 'dim' : isWin ? 'first' : ''}>
+                          <td>{c.rankAll ? <span className={`rankbadge ${isWin ? 'one' : ''}`}>{c.rankAll}</span> : '–'}</td>
+                          <td>{c.offer.nr}</td>
+                          <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}</small></td>
+                          <td className="r">{fmtEur(c.net)}{c.nachlass ? <small className="muted block">nach {fmtNum(c.nachlass)} % Nachlass</small> : null}</td>
+                          <td className="r">{fmtEur(c.gross)}</td>
+                          <td className="r">{c.rankAll ? fmtPct(c.dMin) : '–'}</td>
+                          <td className="r">{fmtPct(c.dKosten)}</td>
+                          <td className="left flags">
+                            {c.flags.length === 0 && c.eligible && <Chip kind="ok">Keine Auffälligkeiten</Chip>}
+                            {c.flags.map((f, i) => <Chip key={i} kind={f.kind}>{f.text}</Chip>)}
+                            <div className="row acts">
+                              <label className="mini"><input type="checkbox" checked={!!b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.checked ? 'fehlender Eignungsnachweise' : '' })} /> ausschließen</label>
+                              {needsAufk && (
+                                <select value={b.aufklaerung} onChange={(e) => setBew(c.offer.id, { aufklaerung: e.target.value as Bew['aufklaerung'] })} aria-label="Preisaufklärung">
+                                  <option value="">Preisaufklärung: offen</option><option value="angemessen">Preis aufgeklärt – angemessen</option><option value="unangemessen">Preis unangemessen – nicht werten</option>
+                                </select>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {b.ausschluss && (
+                          <tr><td colSpan={8} className="reason"><span>Aufgrund</span><input value={b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.value })} placeholder="… fehlender Referenzen in vergleichbaren Leistungen wurde das Angebot ausgeschlossen" /></td></tr>
+                        )}
+                        {b.aufklaerung && (
+                          <tr><td colSpan={8} className="reason"><span>Aufklärung</span><input value={b.aufklaerungNotiz} onChange={(e) => setBew(c.offer.id, { aufklaerungNotiz: e.target.value })} placeholder="Begründung des Bieters / Ergebnis kurz festhalten" /></td></tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-            <button className="btn" onClick={() => up((d) => d.criteria.push({ id: uid(), name: '', weight: 5 }))}><Icon name="plus" /> Kriterium</button>
+          </section>
+        );
+      })}
+
+      {win && (
+        <section className="card winner">
+          <div className="trophy"><Icon name="check" /></div>
+          <div className="winner-main">
+            <small>Vergabevorschlag {los.nr}{finalR && finalR > 1 ? ' · nach Nachverhandlung' : ''}</small>
+            <h3>{win.offer.firma}</h3>
+            <div className="winner-nums"><b>{fmtEur(win.net)}</b> netto · {fmtEur(win.gross)} brutto{win.dKosten != null && ` · ${fmtPct(win.dKosten)} zum Kostenvoranschlag`}</div>
           </div>
-          <div className="scroll">
-            <table className="matrix">
-              <thead>
-                <tr>
-                  <th className="left">Kriterium</th><th>Gewicht</th>
-                  {res.filter((r) => r.eligible).map((r) => <th key={r.bidder.id}>{r.bidder.name || 'Bieter'}</th>)}
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="left"><b>Preis</b><small className="muted block">Punkte = günstigster Preis ÷ Preis × 100</small></td>
-                  <td><b className={wPreis < 0 ? 'neg' : ''}>{fmtNum(wPreis, 0)} %</b></td>
-                  {res.filter((r) => r.eligible).map((r) => <td key={r.bidder.id}>{fmtNum(r.preisPunkte ?? 0, 1)}</td>)}
-                  <td />
-                </tr>
-                {s.criteria.map((c, i) => (
-                  <tr key={c.id}>
-                    <td className="left"><input className="plain" value={c.name} placeholder="Kriterium" onChange={(e) => up((d) => void (d.criteria[i].name = e.target.value))} /></td>
-                    <td><NumInput value={c.weight} decimals={0} suffix="%" className="sm" onChange={(v) => up((d) => void (d.criteria[i].weight = v ?? 0))} /></td>
-                    {res.filter((r) => r.eligible).map((r) => (
-                      <td key={r.bidder.id}>
-                        <NumInput value={s.scores[c.id]?.[r.bidder.id] ?? null} decimals={0} placeholder="0–10" className="sm"
-                          onChange={(v) => up((d) => void ((d.scores[c.id] ??= {})[r.bidder.id] = v == null ? null : Math.max(0, Math.min(10, v))))} />
-                      </td>
-                    ))}
-                    <td><button className="icon-btn" onClick={() => up((d) => void d.criteria.splice(i, 1))}><Icon name="trash" /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {wPreis < 0 && <p className="warnbox"><Icon name="alert" /> Die Gewichte der Kriterien ergeben mehr als 100 %.</p>}
+          <label className="field"><span className="field-label">Abweichend vergeben an</span>
+            <select value={s.zuschlag[los.id] ?? ''} onChange={(e) => up((d) => void (d.zuschlag[los.id] = e.target.value))}>
+              <option value="">Automatisch (günstigstes wertbares Angebot)</option>
+              {eligible.map((c) => <option key={c.offer.id} value={c.offer.id}>Nr. {c.offer.nr} · {c.offer.firma} ({c.offer.runde === 1 ? 'Haupt' : 'NV'})</option>)}
+            </select>
+          </label>
         </section>
       )}
 
-      <section className="card">
-        <h2>Wertungsübersicht</h2>
-        <p className="lead">Alle Bieter im Vergleich – sortiert nach {multi ? 'Gesamtpunkten' : 'Preis'}.</p>
-        <div className="scroll">
-          <table className="matrix rank">
-            <thead>
-              <tr>
-                <th>Rang</th><th className="left">Bieter</th><th className="r">Angebot netto</th>
-                <th className="r">zur Kostenschätzung</th><th className="r">zum günstigsten</th>{multi && <th className="r">Punkte</th>}
-                <th className="left">Prüfhinweise</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranked.map((r) => (
-                <tr key={r.bidder.id} className={r.bidder.excluded ? 'dim' : r.rank === 1 ? 'first' : ''}>
-                  <td>{r.rank ? <span className={`rankbadge ${r.rank === 1 ? 'one' : ''}`}>{r.rank}</span> : '–'}</td>
-                  <td className="left"><b>{r.bidder.name || 'Bieter'}</b></td>
-                  <td className="r">{fmtEur(r.net)}</td>
-                  <td className="r">{fmtPct(r.dKosten)}</td>
-                  <td className="r">{r.rank ? fmtPct(r.dMin) : '–'}</td>
-                  {multi && <td className="r"><b>{r.total == null ? '–' : fmtNum(r.total, 1)}</b></td>}
-                  <td className="left flags">
-                    {r.flags.length === 0 && r.eligible && <Chip kind="ok">Keine Auffälligkeiten</Chip>}
-                    {r.flags.map((f, i) => <Chip key={i} kind={f.kind}>{f.text}</Chip>)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {flagged.length > 0 && (
-        <section className="card attention">
-          <h2><Icon name="alert" /> Preisaufklärung erforderlich</h2>
-          <p className="lead">
-            Bei auffallend niedrigen Preisen muss der Preis aufgeklärt werden (schriftliche Anfrage beim Bieter; nur zum Angebotsinhalt, keine Verhandlung). Wird der Preis nicht plausibel erklärt, ist das Angebot auszuschließen. Tragen Sie hier das Ergebnis ein.
-          </p>
-          {flagged.map((r) => {
-            const i = s.bidders.findIndex((b) => b.id === r.bidder.id);
+      {detail.length > 0 && (
+        <section className="card">
+          <h2>Angaben für die Begründung im Vermerk</h2>
+          <p className="lead">Der Text wird automatisch aus Preisspiegel und diesen Angaben erzeugt (Auffälligkeiten, Rang, Summe). Ergänzen Sie nur, was nur Sie wissen.</p>
+          {detail.map((c) => {
+            const b = getBew(s, c.offer.id, los.id);
+            const a = auffaelligkeiten(s, los, cells, c);
+            const nv = c.offer.runde > hrl;
             return (
-              <div className="aufk" key={r.bidder.id}>
-                <b>{r.bidder.name}</b>
-                <div className="seg small">
-                  {([['', 'Offen'], ['angemessen', 'Angemessen'], ['unangemessen', 'Unangemessen – nicht werten']] as const).map(([v, l]) => (
-                    <button key={v} className={s.bidders[i].aufklaerung === v ? 'on' : ''} onClick={() => up((d) => void (d.bidders[i].aufklaerung = v))}>{l}</button>
-                  ))}
+              <div className="bewcard" key={c.offer.id}>
+                <h3>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</h3>
+                {!nv && (
+                  <div className="auff">
+                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Ø übrige ${fmtNum(x.avg)} €)`}>{x.oz}</span>)}</div>}
+                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Ø übrige ${fmtNum(x.avg)} €)`}>{x.oz}</span>)}</div>}
+                    {a.titel.length > 0 && <div><Chip kind="info">Titel mit niedrigem Preisniveau</Chip> {a.titel.slice(0, 4).map((x) => <span key={x.oz} className="oz" title={x.name}>{x.oz}</span>)}</div>}
+                    {a.guenstig.length + a.hoch.length + a.titel.length === 0 && <span className="muted">Keine Preisauffälligkeiten gegenüber den übrigen Angeboten erkannt{cells.filter((x) => x.offer.runde === c.offer.runde).length < 2 ? ' (nur ein Angebot in dieser Runde)' : ''}.</span>}
+                  </div>
+                )}
+                <div className="grid g2">
+                  {!nv && <label className="field wide"><span className="field-label">Qualifikation / Referenzen des Bieters</span><textarea rows={2} value={b.qualifikation} onChange={(e) => setBew(c.offer.id, { qualifikation: e.target.value })} placeholder="Die Qualifikation des Bieters ist bekannt, die Fachfirma hat bereits vergleichbare Leistungen erbracht …" /></label>}
+                  {!nv && <label className="field"><span className="field-label">Entfernung zur Baustelle</span><NumInput value={b.km} decimals={0} suffix="km" onChange={(v) => setBew(c.offer.id, { km: v })} /></label>}
+                  {!nv && <label className="field"><span className="field-label">&nbsp;</span><span className="mini big"><input type="checkbox" checked={b.auskoemm} onChange={(e) => setBew(c.offer.id, { auskoemm: e.target.checked })} /> Auskömmlichkeitserklärung empfohlen</span></label>}
+                  {!nv && <label className="field wide"><span className="field-label">Erläuterung der niedrigen Preise (optional)</span><textarea rows={2} value={b.erlaeuterung} onChange={(e) => setBew(c.offer.id, { erlaeuterung: e.target.value })} placeholder="z. B. Pflanzenlieferungen (Baumschul-Rabatte), Synergieeffekte durch benachbarte Baustelle …" /></label>}
+                  <label className="field wide"><span className="field-label">Zusätzliche Anmerkung (optional)</span><textarea rows={2} value={b.zusatz} onChange={(e) => setBew(c.offer.id, { zusatz: e.target.value })} /></label>
                 </div>
-                <input value={s.bidders[i].aufklaerungNotiz} placeholder="Begründung des Bieters / Ergebnis kurz festhalten" onChange={(e) => up((d) => void (d.bidders[i].aufklaerungNotiz = e.target.value))} />
+                <details className="det"><summary>Vorschau des erzeugten Textes</summary><pre className="prev">{bewText(s, los, cells, c, nv)}</pre></details>
               </div>
             );
           })}

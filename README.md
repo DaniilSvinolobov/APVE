@@ -1,23 +1,31 @@
 # Angebotsauswertung – Preisspiegel & Vergabeempfehlung
 
-Web-App (deutsch) für die Auswertung von Angeboten: Formalprüfung → Preisspiegel → Wertung → Vergabeempfehlung/Vergabevermerk.
+Web-App (deutsch) für die Auswertung von Angeboten mit mehreren Losen und Nachverhandlung:
+Unterlagen einlesen → Preisspiegel je Los → Wertung → Vergabevermerk (PDF).
 Alle Daten bleiben im Browser (localStorage), es gibt kein Backend.
 
 ```bash
 npm install
 npm run dev     # Entwicklung
-npm run build   # Produktions-Build nach dist/
+npm run build   # Produktions-Build nach dist/ (Vercel erkennt Vite automatisch)
 ```
 
-## Ablauf in der App
-1. **Vergabe** – Eckdaten, Verfahren, Kostenschätzung, Erfassungsart (LV-positionsweise oder nur Summen), Wertungskriterien
-2. **Bieter** – Formalprüfung als Haken-Matrix, Ausschluss mit Begründung
-3. **Preisspiegel** – EP je Position/Bieter (Excel-Einfügen), Nachlass, Skonto (nur Info), Rechenprüfung, Ausreißer-Markierung
-4. **Wertung** – Rangfolge, Abstand zur Kostenschätzung/zum günstigsten, Hinweise (auffallend niedrig → Preisaufklärung), optional gewichtete Kriterien
-5. **Empfehlung** – automatisch formulierter Vorschlag + Begründung, druckbarer Vergabevermerk (PDF), Excel-CSV-Export, JSON-Sicherung
+## Einlesen (Schritt 2)
+Ordner, ZIP-Dateien (auch verschachtelt) oder Einzeldateien ins Feld ziehen:
+- **Soll-LV:** GAEB X83 (DA XML), P83 (GAEB 2000) oder D83 (GAEB 90) – liefert Positionen, Texte, Mengen, Lose
+- **Angebote:** GAEB X84 / P84 / D84 je Bieterordner; Signaturbeleg, Eignungsfragebogen, Nachforderungen usw. werden erkannt
+- Zuordnung der Preise über die Ordnungszahl (OZ); Mengenabweichungen zwischen LV und Bieterdatei werden markiert
+  (z. B. korrigierte Stückzahl) und lassen sich per Klick ins LV übernehmen
+- PDF-Scans (z. B. gedrucktes LV) können nicht ausgewertet werden
 
-## Fachliche Logik (Orientierung an VOB/A)
-- Wertung: Nachlass ohne Bedingung wird eingerechnet, **Skonto nicht gewertet** (§ 16d VOB/A)
-- Auffallend niedrige Preise: Hinweis bei > 15 % (einstellbar) unter Kostenschätzung bzw. Nächstbieter → Aufklärung; „unangemessen" = nicht gewertet
-- Preispunkte (bei mehreren Kriterien): günstigster Preis ÷ Preis × 100
-- Die App ersetzt keine Rechtsprüfung; Schwellenwerte und Vorgaben des jeweiligen Auftraggebers bitte gegenprüfen.
+## Vergabevermerk (Schritt 5)
+Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,
+Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen), Arial 11 pt, Logo und
+„Seite x von y“ auf jeder Seite. Als PDF über „Drucken“ (Chrome/Edge) speichern. Texte sind anklickbar und editierbar.
+
+## Fachliche Logik
+- Nachlass ohne Bedingung wird eingerechnet, Skonto nicht gewertet
+- Rang je Los und Runde; maßgeblich ist die letzte Runde mit wertbaren Angeboten
+- Auffällige Einzelpreise/Titel (Abweichung vom Mittel der übrigen Angebote) fließen in die Begründung ein
+- Auffallend niedrige Gesamtpreise (Standard 15 % unter Kostenvoranschlag bzw. Nächstbieter) → Hinweis zur Aufklärung
+- Die App ersetzt keine Rechtsprüfung.

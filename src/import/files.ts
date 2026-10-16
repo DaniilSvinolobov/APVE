@@ -58,6 +58,8 @@ export interface LvFiles {
   schaetzName: string;
   /** x81/x83 mit Bieterpreisen: wurden übersprungen, gehören in „Angebote der Bieter“ */
   pricedSkipped: string[];
+  /** alle lesbaren LV-Dateien (81/82/83, alle Formate) – für den Abgleich untereinander */
+  docs: { name: string; doc: GaebDoc }[];
 }
 
 /** Eigenes LV (Phase 81/82/83) unter den Dateien finden. */
@@ -65,9 +67,16 @@ export function findLvFiles(files: RawFile[], DP?: typeof DOMParser): LvFiles {
   const pricedSkipped: string[] = [];
   const d81 = firstDoc(files, 81, DP, pricedSkipped), d82 = firstDoc(files, 82, DP, pricedSkipped), d83 = firstDoc(files, 83, DP, pricedSkipped);
   const soll = d83 ?? d81 ?? d82;
+  const docs: LvFiles['docs'] = [];
+  for (const f of files.filter((x) => LV_FILE.test(x.path)).sort(byRank)) {
+    try { const doc = parseGaeb(base(f.path), f.data, DP); if (!(MAYBE_BID.test(f.path) && isPriced(doc))) docs.push({ name: base(f.path), doc }); } catch { /* nicht lesbar */ }
+  }
   const s82 = d82 && d82.doc.positions.some((p) => p.ep != null) ? d82 : null;
-  return { soll: soll?.doc ?? null, sollName: soll?.name ?? '', schaetz: s82?.doc ?? null, schaetzName: s82?.name ?? '', pricedSkipped };
+  return { soll: soll?.doc ?? null, sollName: soll?.name ?? '', schaetz: s82?.doc ?? null, schaetzName: s82?.name ?? '', pricedSkipped, docs };
 }
+
+/** PDF des LV (Ausdruck der Positionen) – gehört nicht zu den Nachweisen, sondern wird gegen die GAEB-Datei geprüft. */
+export const isLvPdf = (path: string) => /\.pdf$/i.test(path) && (/(^|\/)Angebot\d+_L\.pdf$/i.test(path) || /(^|[^a-z0-9])LV($|[^a-z0-9])/i.test(base(path)) || /leistungsverzeichnis/i.test(path));
 
 export const isLvFile = (path: string) => LV_FILE.test(path);
 export const isBidFile = (path: string) => /\.[dpx]84$/i.test(path);

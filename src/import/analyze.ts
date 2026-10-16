@@ -2,7 +2,7 @@ import { parseGaeb, ozKey, type GaebDoc } from '../gaeb/gaeb';
 import type { Offer } from '../domain/types';
 import { uid } from '../domain/fmt';
 import { base, type RawFile } from './zip';
-import { hash, kategorie, rank, type BidGroup } from './files';
+import { hash, isLvPdf, kategorie, rank, type BidGroup } from './files';
 import type { DocFile } from './docStore';
 
 export const cleanFirma = (s: string) => {
@@ -76,7 +76,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
   };
   const docs: DocFile[] = g.files
     .filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.path) && f.data.length <= 9_000_000)
-    .filter((f) => !/(^|\/)(Angebot\d+_L|.*\bLV\b.*)\.pdf$/i.test(f.path) && !/leistungsverzeichnis/i.test(f.path))
+    .filter((f) => !isLvPdf(f.path))
     .filter((f, i, arr) => arr.findIndex((x) => x.data.length === f.data.length && base(x.path) === base(f.path)) === i)
     .map((f) => ({ name: base(f.path), path: f.path.slice(g.root.length ? g.root.length + 1 : 0), data: f.data, kat: kategorie(f.path), mime: /\.pdf$/i.test(f.path) ? 'application/pdf' : /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg' }));
   return { offer, doc, sig: sigFound, docs };

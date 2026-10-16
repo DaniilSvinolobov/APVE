@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { State } from '../domain/types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
 import { expandZips, type RawFile } from '../import/zip';
-import { groupBids, isLvFile } from '../import/files';
+import { groupBids, isLvFile, isLvPdf } from '../import/files';
+import { pruefePdf, refFromDoc, sortBefunde } from '../import/lvPruefung';
+import { base } from '../import/zip';
 import { analyzeGroup } from '../import/analyze';
 import { applyOffer } from '../import/apply';
 import { docStore } from '../import/docStore';
@@ -57,7 +59,15 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
     try {
       const files = await expandZips(raw);
       const groups = groupBids(files);
-      const parsed = groups.map((g, i) => analyzeGroup(g, s.offers.length + i + 1)).filter((x): x is NonNullable<typeof x> => !!x);
+      const withGroup = groups.map((g, i) => ({ g, p: analyzeGroup(g, s.offers.length + i + 1) })).filter((x): x is { g: typeof x.g; p: NonNullable<typeof x.p> } => !!x.p);
+      const parsed = withGroup.map((x) => x.p);
+      // LV als PDF im Angebot: mit den Preisen der GAEB-Datei des Bieters abgleichen
+      for (const { g, p } of withGroup) {
+        const pdfs = g.files.filter((f) => isLvPdf(f.path)).filter((f, i, a) => a.findIndex((x) => base(x.path) === base(f.path) && x.data.length === f.data.length) === i);
+        if (!pdfs.length) continue;
+        p.offer.lvPdf = [];
+        for (const f of pdfs) p.offer.lvPdf.push({ name: base(f.path), befunde: sortBefunde(await pruefePdf(f, refFromDoc(p.doc), true)) });
+      }
       if (!parsed.length) {
         setMsg({ ok: false, text: files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien ohne Preise (x81/x82/x83) – das eigene LV gehört in den Schritt „Vergabe“.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
       } else {
@@ -134,6 +144,12 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
               <details className="det"><summary><Chip kind="warn">{o.textErg.length} Bieter-Textergänzung(en)</Chip> – Hinweis: Eigene Texte des Bieters im LV prüfen (können Änderungen der Vergabeunterlagen sein)</summary>
                 <ul>{o.textErg.map((t, k) => <li key={k}><b>Pos. {t.oz}:</b> {t.text}</li>)}</ul></details>
             )}
+            {o.lvPdf?.map((l, k) => (
+              <details className="det" key={k} open={l.befunde.some((b) => b.kind !== 'info')}>
+                <summary><Chip kind={l.befunde.some((b) => b.kind !== 'info') ? 'warn' : 'ok'}>LV-PDF {l.befunde.some((b) => b.kind !== 'info') ? 'weicht ab' : 'stimmt überein'}</Chip> – {l.name} mit der GAEB-Preisdatei abgeglichen</summary>
+                {l.befunde.map((b, j) => <p key={j} className={b.kind === 'info' ? 'infobox' : 'warnbox slim'}><Icon name={b.kind === 'info' ? 'check' : 'alert'} /> {b.text}</p>)}
+              </details>
+            ))}
             <div className="files">{kats.map(([k, n]) => <Chip key={k} kind="info">{k}{n > 1 ? ` ×${n}` : ''}</Chip>)}</div>
           </section>
         );

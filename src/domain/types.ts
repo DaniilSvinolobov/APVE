@@ -1,3 +1,6 @@
+/** Ergebnis der LV-Prüfung (siehe gaeb/lvCheck.ts) */
+export interface LvBefund { kind: 'bad' | 'warn' | 'info'; text: string; quelle: 'gaeb' | 'pdf' }
+
 export interface Los {
   id: string;
   oz: string; // erste OZ-Ebene im LV, z. B. "01"
@@ -44,6 +47,7 @@ export interface Offer {
   dateien: { name: string; kat: string }[];
   warnungen: string[];
   quelle: string;
+  lvPdf?: { name: string; befunde: LvBefund[] }[]; // Abgleich des beigelegten LV-PDF mit der GAEB-Preisdatei
 }
 
 export interface Bew {
@@ -103,6 +107,7 @@ export interface State {
   logo: string; // data-URL
   schaetz: Record<string, number>; // LV-Schätzpreis (EP netto) je Position [OZ ohne Punkte], aus GAEB 82
   lvInfo: { lv: string; schaetz: string }; // Quelldateien des eigenen LV (Anzeige)
+  lvPruef?: LvBefund[]; // Plausibilitätsprüfung des eigenen LV (GAEB untereinander, PDF gegen GAEB)
 }
 
 export const PSTATUS: { v: PStatus; label: string; cell: string }[] = [

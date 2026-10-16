@@ -1,6 +1,10 @@
 import type { Offer, PStatus, State } from './types';
 import { docStore, type DocFile } from './importer';
 
+const CONSENT = 'apve-ki-consent';
+export const hasConsent = () => { try { return localStorage.getItem(CONSENT) === '1'; } catch { return false; } };
+export const setConsent = (v: boolean) => { try { v ? localStorage.setItem(CONSENT, '1') : localStorage.removeItem(CONSENT); } catch { /* ignore */ } };
+
 const CODE = 'apve-access-code';
 export const getCode = () => { try { return localStorage.getItem(CODE) ?? ''; } catch { return ''; } };
 export const setCode = (c: string) => { try { c ? localStorage.setItem(CODE, c) : localStorage.removeItem(CODE); } catch { /* ignore */ } };

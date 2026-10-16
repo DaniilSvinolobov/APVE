@@ -4,7 +4,7 @@ import { pruefStatus } from './calc';
 import { uid } from './fmt';
 import { Chip, Icon } from './ui';
 import { useState } from 'react';
-import { getCode, setCode } from './kiApply';
+import { getCode, hasConsent, setCode, setConsent } from './kiApply';
 import type { KiStatus } from './kiPruefung';
 
 type Up = (fn: (d: State) => void) => void;
@@ -13,6 +13,7 @@ type Up = (fn: (d: State) => void) => void;
 export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: Up; ki: { running: boolean; text: string; error: string }; runKi: (ids: string[]) => void; status: KiStatus | null }) {
   const [codeVal, setCodeVal] = useState('');
   const needCode = !!status?.code && !getCode();
+  const [consent, setConsentState] = useState(hasConsent());
   const set = (oi: number, id: string, st: PStatus | '') =>
     up((d) => { const o = d.offers[oi]; if (!o.pruef) o.pruef = {}; if (st) o.pruef[id] = { s: st, d: o.pruef[id]?.d ?? '', k: 'user' }; else delete o.pruef[id]; });
   return (
@@ -24,13 +25,22 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
         </div>
         <label className="mini big"><input type="checkbox" checked={s.project.vollstaendigkeit} onChange={(e) => up((d) => void (d.project.vollstaendigkeit = e.target.checked))} /> als Anlage drucken</label>
       </div>
-      {status?.enabled ? (
+      {status?.enabled && !consent ? (
+        <div className="kibox">
+          <b>Automatische Dokumentprüfung (optional)</b>
+          <p className="muted" style={{ margin: '6px 0 10px' }}>
+            Wenn Sie die Prüfung aktivieren, werden die <b>Formulare und Erklärungen</b> der Angebote (Angebotsschreiben, Eignungsfragebogen, Nachforderungen, Nachunternehmerverzeichnis) als PDF über den Server dieser Anwendung (Frankfurt) an die <b>Anthropic-API (USA)</b> übermittelt und dort mit KI ausgewertet. Die Dokumente können personenbezogene Daten enthalten (z. B. Namen, Unterschriften). Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise werden <b>nicht</b> übermittelt. Alles andere bleibt in Ihrem Browser. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>. Bitte nur aktivieren, wenn dies mit Ihren Vertraulichkeits- und Datenschutzvorgaben vereinbar ist.
+          </p>
+          <button className="btn primary" onClick={() => { setConsent(true); setConsentState(true); runKi(s.offers.map((o) => o.id)); }}>Verstanden – Prüfung aktivieren</button>
+        </div>
+      ) : status?.enabled ? (
         <div className="kibox">
           <div className="row">
             <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(s.offers.map((o) => o.id))}>
               <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : 'Dokumente automatisch prüfen (Claude)'}
             </button>
-            <span className="muted">Beim Einlesen läuft die Prüfung automatisch: Claude öffnet jedes PDF/Scan und beurteilt, ob es ausgefüllt und unterschrieben ist. Die Dokumente werden dazu an die Anthropic-API übermittelt.</span>
+            <span className="muted">Beim Einlesen läuft die Prüfung automatisch: Claude öffnet jedes Formular und beurteilt, ob es ausgefüllt und unterschrieben ist.</span>
+            <button className="link danger" onClick={() => { setConsent(false); setConsentState(false); }}>Prüfung deaktivieren</button>
           </div>
           {needCode && (
             <div className="keyform">

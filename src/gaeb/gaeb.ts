@@ -269,7 +269,7 @@ export function parseGaeb(name: string, data: Uint8Array, DOMParserCtor?: typeof
   else doc = parseX(data, DOMParserCtor ?? DOMParser);
   doc.phase = doc.phase || phase;
   // Summen je Los/Titel, falls nicht in der Datei vorhanden
-  if (doc.phase === 84 && !Object.keys(doc.totals).length) {
+  if (!Object.keys(doc.totals).length && doc.positions.some((p) => p.gp != null)) {
     for (const p of doc.positions) {
       const parts = p.oz.split('.');
       for (let i = 1; i <= parts.length - 1; i++) {

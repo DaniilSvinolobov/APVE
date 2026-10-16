@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { State } from './types';
-import { emptyState, demoState } from './demo';
-import { computeLos } from './calc';
-import { StepVergabe } from './StepVergabe';
-import { StepUnterlagen } from './StepUnterlagen';
-import { StepPreisspiegel } from './StepPreisspiegel';
-import { StepWertung } from './StepWertung';
-import { StepVermerk } from './StepVermerk';
-import { Icon } from './ui';
-import { docStore } from './importer';
+import type { State } from './domain/types';
+import { emptyState, demoState } from './domain/demo';
+import { computeLos } from './domain/calc';
+import { StepVergabe } from './steps/StepVergabe';
+import { StepUnterlagen } from './steps/StepUnterlagen';
+import { StepPreisspiegel } from './steps/StepPreisspiegel';
+import { StepWertung } from './steps/StepWertung';
+import { StepVermerk } from './steps/StepVermerk';
+import { Icon } from './components/ui';
+import { docStore } from './import/importer';
 
 const KEY = 'apve-state-v2';
 const STEPS = [

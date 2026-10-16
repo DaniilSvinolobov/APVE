@@ -1,9 +1,9 @@
 import { Fragment, useMemo, useState, type ClipboardEvent } from 'react';
-import type { State } from './types';
-import { computeLos, losPositions, zkey } from './calc';
-import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from './fmt';
-import { Chip, Icon, NumInput, Tabs } from './ui';
-import { downloadCsv } from './exportCsv';
+import type { State } from '../domain/types';
+import { computeLos, losPositions, zkey } from '../domain/calc';
+import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from '../domain/fmt';
+import { Chip, Icon, NumInput, Tabs } from '../components/ui';
+import { downloadCsv } from '../storage/exportCsv';
 
 type Up = (fn: (d: State) => void) => void;
 

@@ -18,11 +18,11 @@ npm run build
 Zusätzlich die betroffene Funktion im Browser prüfen (z. B. mit Playwright). Ergebnisse ehrlich berichten, auch wenn etwas nicht getestet werden konnte.
 
 ## Aufbau
-- `src/gaeb.ts` – Parser GAEB 90 (D8x), GAEB 2000 (P8x), GAEB DA XML (X8x)
-- `src/importer.ts` – Ordner/ZIP einlesen, Angebote und Soll-LV zuordnen (über Ordnungszahl)
-- `src/calc.ts` – Preisspiegel, Rang je Los und Runde, Auffälligkeiten, Rechenprüfung
-- `src/vermerk.ts` – Aufbau und Texte des Vergabevermerks; `src/StepVermerk.tsx` – Anzeige/Druck
-- `src/Step*.tsx`, `src/Vollstaendigkeit.tsx` – die fünf Schritte der Oberfläche
+- `src/gaeb/gaeb.ts` – Parser GAEB 90 (D8x), GAEB 2000 (P8x), GAEB DA XML (X8x)
+- `src/import/importer.ts` – Ordner/ZIP einlesen, Angebote und Soll-LV zuordnen (über Ordnungszahl)
+- `src/domain/calc.ts` – Preisspiegel, Rang je Los und Runde, Auffälligkeiten, Rechenprüfung
+- `src/vermerk/vermerk.ts` – Aufbau und Texte des Vergabevermerks; `src/steps/StepVermerk.tsx` – Anzeige/Druck
+- `src/steps/` (`Step*.tsx`, `Vollstaendigkeit.tsx`) – die fünf Schritte der Oberfläche
 - `api/pruefen.ts` – optionale Dokumentprüfung mit Claude (serverseitig, Key nur in `ANTHROPIC_API_KEY`)
 
 ## Fachliche Leitplanken

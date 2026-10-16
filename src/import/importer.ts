@@ -1,8 +1,8 @@
 import JSZip from 'jszip';
-import { isGaeb, parseGaeb, ozKey, type GaebDoc } from './gaeb';
-import type { Los, Offer, State } from './types';
-import { uid, round2 } from './fmt';
-import { losPositions } from './calc';
+import { isGaeb, parseGaeb, ozKey, type GaebDoc } from '../gaeb/gaeb';
+import type { Los, Offer, State } from '../domain/types';
+import { uid, round2 } from '../domain/fmt';
+import { losPositions } from '../domain/calc';
 
 export interface RawFile { path: string; data: Uint8Array }
 

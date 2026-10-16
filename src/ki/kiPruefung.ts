@@ -1,4 +1,4 @@
-import type { DocFile } from './importer';
+import type { DocFile } from '../import/importer';
 import type { KiDoc } from './kiApply';
 
 export interface KiStatus { enabled: boolean; code: boolean }

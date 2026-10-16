@@ -1,7 +1,7 @@
-import type { Los, State } from './types';
-import { auffaelligkeiten, computeLos, finalRound, getBew, offerBrutto, pruefStatus, zuschlagCell, type Cell } from './calc';
-import { PSTATUS } from './types';
-import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from './fmt';
+import type { Los, State } from '../domain/types';
+import { auffaelligkeiten, computeLos, finalRound, getBew, offerBrutto, pruefStatus, zuschlagCell, type Cell } from '../domain/calc';
+import { PSTATUS } from '../domain/types';
+import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
 
 export type Block =
   | { t: 'meta'; lines: { k?: string; v: string; bold?: boolean }[] }

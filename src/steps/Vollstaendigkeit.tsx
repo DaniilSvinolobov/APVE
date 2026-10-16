@@ -1,11 +1,11 @@
-import type { PStatus, State } from './types';
-import { PSTATUS } from './types';
-import { pruefStatus } from './calc';
-import { uid } from './fmt';
-import { Chip, Icon } from './ui';
+import type { PStatus, State } from '../domain/types';
+import { PSTATUS } from '../domain/types';
+import { pruefStatus } from '../domain/calc';
+import { uid } from '../domain/fmt';
+import { Chip, Icon } from '../components/ui';
 import { useState } from 'react';
-import { getCode, hasConsent, setCode, setConsent } from './kiApply';
-import type { KiStatus } from './kiPruefung';
+import { getCode, hasConsent, setCode, setConsent } from '../ki/kiApply';
+import type { KiStatus } from '../ki/kiPruefung';
 
 type Up = (fn: (d: State) => void) => void;
 

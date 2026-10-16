@@ -89,7 +89,7 @@ export const cleanFirma = (s: string) => {
 
 const decodeText = (b: Uint8Array) => new TextDecoder('utf-8').decode(b);
 
-export interface DocFile { name: string; path: string; data: Uint8Array; mime: string }
+export interface DocFile { name: string; path: string; data: Uint8Array; mime: string; kat: string }
 export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: DocFile[] }
 
 /** Originaldateien der Angebote (nur im Arbeitsspeicher, für die KI-Dokumentprüfung). */
@@ -153,7 +153,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser)
     .filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.path) && f.data.length <= 9_000_000)
     .filter((f) => !/(^|\/)(Angebot\d+_L|.*\bLV\b.*)\.pdf$/i.test(f.path) && !/leistungsverzeichnis/i.test(f.path))
     .filter((f, i, arr) => arr.findIndex((x) => x.data.length === f.data.length && base(x.path) === base(f.path)) === i)
-    .map((f) => ({ name: base(f.path), path: f.path.slice(g.root.length ? g.root.length + 1 : 0), data: f.data, mime: /\.pdf$/i.test(f.path) ? 'application/pdf' : /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg' }));
+    .map((f) => ({ name: base(f.path), path: f.path.slice(g.root.length ? g.root.length + 1 : 0), data: f.data, kat: kategorie(f.path), mime: /\.pdf$/i.test(f.path) ? 'application/pdf' : /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg' }));
   return { offer, doc, sig: sigFound, docs };
 }
 

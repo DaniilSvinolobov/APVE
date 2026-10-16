@@ -39,4 +39,9 @@ export function applyKi(d: State, offerId: string, results: KiDoc[]) {
   }
 }
 
-export function offerDocs(o: Offer): DocFile[] { return docStore.get(o.id) ?? []; }
+/**
+ * Datenminimierung: Nur Formulare/Erklärungen, die eine Prüfzeile belegen, werden an die KI übermittelt.
+ * Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise u. Ä. bleiben lokal.
+ */
+export const KI_KATEGORIEN = new Set(['Angebotsschreiben', 'Eignungsfragebogen', 'Nachforderung', 'Nachunternehmer']);
+export function offerDocs(o: Offer): DocFile[] { return (docStore.get(o.id) ?? []).filter((d) => KI_KATEGORIEN.has(d.kat)); }

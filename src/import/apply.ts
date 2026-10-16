@@ -4,11 +4,19 @@ import { uid } from '../domain/fmt';
 import { losPositions } from '../domain/calc';
 import type { ParsedBid } from './analyze';
 
-/** Lose aus den obersten Titeln des LV ableiten. */
-export function losFromTitles(titles: Record<string, string>): Los[] {
-  return Object.entries(titles)
-    .filter(([k]) => !k.includes('.'))
-    .sort(([a], [b]) => a.localeCompare(b))
+const LOS_TITEL = /^\s*LOS\s*\d+/i;
+
+/**
+ * Lose aus den obersten Titeln des LV ableiten – aber nur, wenn das LV sie ausdrücklich
+ * als „LOS …“ benennt. Sonst ist das gesamte LV ein einziges Los (oberste Titel sind dann
+ * nur Gliederung), Los.oz ist dann leer und umfasst alle Positionen.
+ */
+export function losFromTitles(titles: Record<string, string>, name = ''): Los[] {
+  const top = Object.entries(titles).filter(([k]) => !k.includes('.')).sort(([a], [b]) => a.localeCompare(b));
+  if (!top.some(([, t]) => LOS_TITEL.test(t))) {
+    return [{ id: uid(), oz: '', nr: 'LOS 1', name: titleCase(name.trim()), kosten: null, imVermerk: true, imBudget: true }];
+  }
+  return top
     .map(([oz, t]) => {
       const m = t.match(/^\s*(LOS\s*\d+)\s*[-–:]?\s*(.*)$/i);
       return { id: uid(), oz, nr: m ? m[1].replace(/\s+/, '').toUpperCase() : `LOS ${oz}`, name: titleCase(m ? m[2] || t : t), kosten: null, imVermerk: true, imBudget: true };
@@ -27,13 +35,17 @@ export function applyLv(d: State, doc: GaebDoc) {
     .filter((p) => p.menge != null || p.kurz)
     .map((p) => ({ oz: p.oz, kurz: p.kurz, menge: old.get(p.oz)?.menge ?? p.menge, mengeOrig: p.menge, einheit: p.einheit, bedarf: p.bedarf }));
   d.titles = doc.titles;
-  const lose = losFromTitles(doc.titles);
+  const lose = losFromTitles(doc.titles, doc.projekt || doc.bezeichnung);
+  if (lose.length === 1 && lose[0].oz === '') {
+    // frühere Aufteilung nach obersten Titeln (00, 01, …) verwerfen
+    d.lose = d.lose.filter((l) => l.oz === '' || !(l.oz in doc.titles));
+  }
   for (const l of lose) {
     const ex = d.lose.find((x) => x.oz === l.oz);
     if (ex) { ex.name = ex.name || l.name; }
     else d.lose.push(l);
   }
-  d.lose = d.lose.filter((l) => d.lv.some((p) => p.oz.startsWith(l.oz + '.')) || !lose.length);
+  d.lose = d.lose.filter((l) => !l.oz || d.lv.some((p) => p.oz.startsWith(l.oz + '.')) || !lose.length);
   if (!d.project.titel && doc.bezeichnung) d.project.titel = doc.bezeichnung;
   if (!d.project.auftraggeber && doc.auftraggeber) d.project.auftraggeber = doc.auftraggeber;
 }
@@ -50,7 +62,7 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
     const titles: Record<string, string> = {};
     for (const p of doc.positions) { const s = p.oz.split('.'); for (let i = 1; i < s.length; i++) { const k = s.slice(0, i).join('.'); titles[k] = doc.titles[k] ?? ''; } }
     d.titles = { ...titles, ...doc.titles };
-    for (const l of losFromTitles(Object.fromEntries(Object.entries(d.titles).filter(([k]) => !k.includes('.'))))) if (!d.lose.some((x) => x.oz === l.oz)) d.lose.push({ ...l, name: l.name || `Los ${l.oz}` });
+    for (const l of losFromTitles(Object.fromEntries(Object.entries(d.titles).filter(([k]) => !k.includes('.'))), doc.projekt || doc.bezeichnung)) if (!d.lose.some((x) => x.oz === l.oz)) d.lose.push({ ...l, name: l.name || `Los ${l.oz}` });
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
   const known = new Set(d.lv.map((p) => ozKey(p.oz)));
@@ -59,7 +71,7 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   const miss = d.lv.filter((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
   if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
   offer.lose = d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
-  const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => d.lose.find((l) => l.id === id)?.oz === p.oz.split('.')[0]));
+  const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => { const l = d.lose.find((x) => x.id === id); return !!l && (!l.oz || p.oz.startsWith(l.oz + '.')); }));
   autoPruef(d, offer, sigFound, preise);
   const eroeff = d.project.eroeffnung.slice(0, 10);
   if (eroeff && offer.datum && offer.datum > eroeff && offer.runde === 1) offer.runde = 2;

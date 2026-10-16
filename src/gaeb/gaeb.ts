@@ -210,8 +210,10 @@ function parseX(buf: Uint8Array, DOMParserCtor: typeof DOMParser): GaebDoc {
   const phase = Number(ns.match(/DA(\d\d)/)?.[1] ?? 83);
   const doc = empty('X', phase);
   const prj = kid(root, 'PrjInfo');
-  doc.projekt = txt(prj && kid(prj, 'LblPrj'));
-  doc.bezeichnung = txt(prj && kid(prj, 'NamePrj'));
+  // wie bei GAEB 90: bezeichnung = Titel der Maßnahme, projekt = Bezeichnung des LV (NamePrj ist nur die Projektnummer)
+  const boqInfo = kid(kid(kid(root, 'Award') ?? root, 'BoQ') ?? root, 'BoQInfo');
+  doc.bezeichnung = txt(prj && kid(prj, 'LblPrj')) || txt(prj && kid(prj, 'NamePrj'));
+  doc.projekt = txt(boqInfo && kid(boqInfo, 'LblBoQ'));
   doc.datum = txt(kid(kid(root, 'GAEBInfo') ?? root, 'Date'));
   const award = kid(root, 'Award');
   const adr = (parent: El | undefined) => { const c = parent && kid(parent, 'Address'); return c ? [txt(kid(c, 'Name1')), txt(kid(c, 'Name2'))].filter(Boolean).join(' ') : ''; };

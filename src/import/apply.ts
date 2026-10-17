@@ -279,7 +279,8 @@ export function removeSchaetz(d: State) {
   const name = d.lvInfo?.schaetz;
   d.schaetz = {};
   d.lvInfo = { ...d.lvInfo, schaetz: '' };
-  d.lvPruef = d.lvPruef?.filter((b) => !b.datei || b.datei !== name);
+  // beim PDF nur den Preis-Befund entfernen, der Abgleich mit dem LV bleibt
+  d.lvPruef = d.lvPruef?.filter((b) => !b.datei || b.datei !== name || (b.quelle === 'pdf' && !b.text.includes('LV-Schätzpreise aus dem PDF')));
 }
 
 /** Eigenes LV entfernen; Lose und Angebote bleiben, die Angebote werden beim nächsten LV neu zugeordnet. */

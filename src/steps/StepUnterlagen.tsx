@@ -114,46 +114,51 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
 
       {s.offers.map((o, i) => {
         const cells = s.lose.map((l) => computeLos(s, l).find((c) => c.offer.id === o.id)).filter(Boolean);
-        const kats = Object.entries(o.dateien.reduce<Record<string, number>>((a, d) => ({ ...a, [d.kat]: (a[d.kat] ?? 0) + 1 }), {}));
+        const kats = Object.entries(o.dateien.reduce<Record<string, number>>((a, d) => ({ ...a, [d.kat]: (a[d.kat] ?? 0) + 1 }), {})).sort(([a], [b]) => Number(a === 'Sonstiges') - Number(b === 'Sonstiges'));
         return (
           <section className="card offer" key={o.id}>
             <div className="offer-head">
-              <label className="nrbox">Angebot Nr.<input value={o.nr} onChange={(e) => setOffer(i, (x) => void (x.nr = Number(e.target.value) || 0))} /></label>
+              <input className="nrin" value={o.nr} title="Angebot Nr." aria-label="Angebot Nr." onChange={(e) => setOffer(i, (x) => void (x.nr = Number(e.target.value) || 0))} />
               <div className="grow">
                 <input className="firma" value={o.firma} onChange={(e) => setOffer(i, (x) => void (x.firma = e.target.value))} placeholder="Firmenname" />
-                <div className="row sub"><input className="ort" value={o.ort} onChange={(e) => setOffer(i, (x) => void (x.ort = e.target.value))} placeholder="Ort" /><span className="muted">Angebot vom {fmtDate(o.datum)} · Quelle: {o.quelle}</span></div>
+                <div className="offer-meta">
+                  <input className="ort" value={o.ort} style={{ width: `${(o.ort || 'Ort ergänzen').length + 3}ch` }} onChange={(e) => setOffer(i, (x) => void (x.ort = e.target.value))} placeholder="Ort ergänzen" />
+                  <span>Angebot vom {fmtDate(o.datum)}</span>
+                  <span className="src" title={o.quelle}>{o.quelle}</span>
+                </div>
+              </div>
+              <div className="offer-sum">
+                {cells.map((c) => c && o.lose.includes(c.los.id) && (
+                  <div key={c.los.id}><small>{c.los.nr} netto{c.nachlass ? ` · −${fmtNum(c.nachlass)} %` : ''}</small><b>{c.net != null ? fmtNum(c.net) + ' €' : '–'}</b></div>
+                ))}
               </div>
               <button className="icon-btn" title="Angebot entfernen" onClick={() => up((d) => void d.offers.splice(i, 1))}><Icon name="trash" /></button>
             </div>
-            <div className="offer-grid">
+            <div className="offer-opts">
               <div>
-                <span className="field-label">Runde</span>
+                <span className="opt-l">Runde</span>
                 <Seg small value={o.runde} onChange={(v) => setOffer(i, (x) => void (x.runde = v as 1 | 2 | 3))} options={[{ value: 1, label: 'Hauptangebot' }, { value: 2, label: 'Nachverhandlung' }]} />
               </div>
               <div>
-                <span className="field-label">Angebot gilt für</span>
-                <div className="row">{s.lose.map((l) => (
+                <span className="opt-l">Lose</span>
+                {s.lose.map((l) => (
                   <label key={l.id} className={`pill ${o.lose.includes(l.id) ? 'on' : ''}`}><input type="checkbox" checked={o.lose.includes(l.id)} onChange={(e) => setOffer(i, (x) => void (x.lose = e.target.checked ? [...x.lose, l.id] : x.lose.filter((id) => id !== l.id)))} />{l.nr}</label>
-                ))}</div>
+                ))}
               </div>
               <div>
-                <span className="field-label">Nachlass ohne Bedingung</span>
-                <div className="row">
-                  <span className="numwrap sm" style={{ width: 90 }}><input value={o.nachlass ?? ''} placeholder="0,00" onChange={(e) => setOffer(i, (x) => void (x.nachlass = Number(e.target.value.replace(',', '.')) || null))} /><span className="suffix">%</span></span>
-                  {o.nachlass ? <span className="muted">auf {o.nachlassLose.length ? o.nachlassLose.map((id) => s.lose.find((l) => l.id === id)?.nr).join('+') : 'alle Lose'}</span> : null}
-                  {o.nachlass ? s.lose.filter((l) => o.lose.includes(l.id)).map((l) => (
+                <span className="opt-l" title="Nachlass ohne Bedingung – wird in die Wertung eingerechnet (Skonto nicht)">Nachlass</span>
+                <span className="numwrap sm" style={{ width: 84 }}><input value={o.nachlass ?? ''} placeholder="0,00" onChange={(e) => setOffer(i, (x) => void (x.nachlass = Number(e.target.value.replace(',', '.')) || null))} /><span className="suffix">%</span></span>
+                {o.nachlass && s.lose.filter((l) => o.lose.includes(l.id)).length > 1 ? <>
+                  <span className="muted">auf</span>
+                  {s.lose.filter((l) => o.lose.includes(l.id)).map((l) => (
                     <label key={l.id} className={`pill ${o.nachlassLose.includes(l.id) ? 'on' : ''}`}><input type="checkbox" checked={o.nachlassLose.includes(l.id)} onChange={(e) => setOffer(i, (x) => void (x.nachlassLose = e.target.checked ? [...x.nachlassLose, l.id] : x.nachlassLose.filter((id) => id !== l.id)))} />{l.nr}</label>
-                  )) : null}
-                </div>
+                  ))}
+                  {!o.nachlassLose.length && <span className="muted">(alle Lose)</span>}
+                </> : null}
               </div>
             </div>
-            <div className="cellsum">
-              {cells.map((c) => c && (
-                <div key={c.los.id} className={o.lose.includes(c.los.id) ? '' : 'dim'}><small>{c.los.nr}</small><b>{c.net != null && o.lose.includes(c.los.id) ? fmtNum(c.net) + ' €' : '–'}</b><small>netto{c.nachlass ? ` (−${fmtNum(c.nachlass)} %)` : ''}</small></div>
-              ))}
-            </div>
             {o.check && (
-              <div className="row" style={{ margin: '4px 0 8px' }}>
+              <div className="row offer-check">
                 <span className="muted">Summe laut Bieterdatei: <b>{fmtNum(o.check.gaeb ?? o.check.positionen)} €</b></span>
                 {summenFlags(s, o).map((f, k) => <Chip key={k} kind={f.kind}>{f.text}</Chip>)}
               </div>
@@ -171,7 +176,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
                 {l.befunde.map((b, j) => <p key={j} className={b.kind === 'info' ? 'infobox' : 'warnbox slim'}><Icon name={b.kind === 'info' ? 'check' : 'alert'} /> {b.text}</p>)}
               </details>
             ))}
-            <div className="files">{kats.map(([k, n]) => <Chip key={k} kind="info">{k}{n > 1 ? ` ×${n}` : ''}</Chip>)}</div>
+            {kats.length > 0 && <p className="files"><span className="opt-l">Unterlagen</span>{kats.map(([k, n]) => `${k}${n > 1 ? ` (${n})` : ''}`).join(' · ')}</p>}
           </section>
         );
       })}

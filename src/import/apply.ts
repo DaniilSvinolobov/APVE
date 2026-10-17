@@ -3,6 +3,7 @@ import type { Los, Offer, State } from '../domain/types';
 import { uid } from '../domain/fmt';
 import { losPositions } from '../domain/calc';
 import type { ParsedBid } from './analyze';
+import { matchPositions, SICHER } from './ozMatch';
 
 const LOS_TITEL = /^\s*LOS\s*\d+/i;
 
@@ -37,7 +38,7 @@ export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, 
   const old = new Map(d.lv.map((p) => [p.oz, p]));
   d.lv = doc.positions
     .filter((p) => p.menge != null || p.kurz)
-    .map((p) => ({ oz: p.oz, kurz: p.kurz, menge: old.get(p.oz)?.menge ?? p.menge, mengeOrig: p.menge, einheit: p.einheit, bedarf: p.bedarf }));
+    .map((p) => ({ oz: p.oz, kurz: p.kurz, lang: p.lang ? p.lang.slice(0, 600) : undefined, menge: old.get(p.oz)?.menge ?? p.menge, mengeOrig: p.menge, einheit: p.einheit, bedarf: p.bedarf }));
   d.titles = doc.titles;
   const lose = losFromTitles(doc.titles, doc.projekt || doc.bezeichnung);
   if (lose.length === 1 && lose[0].oz === '') {
@@ -69,9 +70,10 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
     for (const l of losFromTitles(Object.fromEntries(Object.entries(d.titles).filter(([k]) => !k.includes('.'))), doc.projekt || doc.bezeichnung)) if (!d.lose.some((x) => x.oz === l.oz)) d.lose.push({ ...l, name: l.name || `Los ${l.oz}` });
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
+  mapToLv(d, offer, doc.positions);
   const known = new Set(d.lv.map((p) => ozKey(p.oz)));
   const extra = Object.keys(offer.prices).filter((k) => !known.has(k));
-  if (extra.length) offer.warnungen.push(`${extra.length} Position(en) der Bieterdatei kommen im Soll-LV nicht vor (z. B. ${extra.slice(0, 3).join(', ')}).`);
+  if (extra.length) offer.warnungen.push(`${extra.length} Position(en) der Bieterdatei kommen im Soll-LV nicht vor (z. B. ${extra.slice(0, 3).join(', ')}) – auch nicht nach Textabgleich.`);
   const miss = d.lv.filter((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
   if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
   offer.lose = d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
@@ -87,7 +89,26 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   d.offers.sort((a, b) => a.nr - b.nr);
 }
 
-
+/**
+ * Bieterpreise auf die OZ des Soll-LV umschreiben. Weicht die Nummerierung der Bieterdatei ab, wird
+ * über Kurz-/Langtext, Einheit und Menge zugeordnet (siehe ozMatch.ts) und im Angebot vermerkt.
+ */
+function mapToLv(d: State, offer: Offer, bid: GaebDoc['positions']) {
+  const matches = matchPositions(d.lv, bid).filter((m) => ozKey(m.bieter) !== ozKey(m.lv));
+  if (!matches.length) return;
+  const to = new Map(matches.map((m) => [ozKey(m.bieter), ozKey(m.lv)]));
+  const prices: Offer['prices'] = {};
+  for (const [k, v] of Object.entries(offer.prices)) if (to.has(k)) prices[to.get(k)!] = v;
+  // nicht zugeordnete Positionen behalten ihren Schlüssel, soweit er nicht schon durch eine Zuordnung belegt ist
+  for (const [k, v] of Object.entries(offer.prices)) if (!to.has(k) && !(k in prices)) prices[k] = v;
+  offer.prices = prices;
+  offer.textErg = offer.textErg.map((t) => { const lvOz = d.lv.find((p) => ozKey(p.oz) === to.get(ozKey(t.oz)))?.oz; return lvOz ? { ...t, oz: lvOz } : t; });
+  offer.ozZuordnung = matches.map((m) => ({ bieter: m.bieter, lv: m.lv, score: m.score }));
+  const fmt = (m: { bieter: string; lv: string }) => `${m.bieter} → ${m.lv}`;
+  offer.warnungen.push(`${matches.length} Position(en) der Bieterdatei haben eine andere Ordnungszahl als das Soll-LV und wurden über den Text zugeordnet (z. B. ${matches.slice(0, 3).map(fmt).join('; ')}).`);
+  const unsicher = matches.filter((m) => m.score < SICHER);
+  if (unsicher.length) offer.warnungen.push(`Davon ${unsicher.length} mit geringer Übereinstimmung – bitte prüfen: ${unsicher.slice(0, 5).map(fmt).join('; ')}${unsicher.length > 5 ? ' …' : ''}.`);
+}
 
 const SYN: Record<string, RegExp> = {
   '124': /eigenerkl|eignung/, '213': /angebotsschreiben/, '221': /zuschlagskalk/, '222': /endsumme/, '223': /aufgliederung/,

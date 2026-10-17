@@ -9,6 +9,7 @@ Dateien (Ordner/ZIP)
    │  import/files.ts     eigenes LV (81/82/83, ohne Preise) finden, Angebote (84, auch 81/83 mit Preisen) je Bieterordner gruppieren
    │  import/analyze.ts   ein Angebot lesen (gaeb/gaeb.ts), Firma/Datum/Unterlagen erkennen
    │  import/pdf.ts + gaeb/lvCheck.ts + import/lvPruefung.ts   LV prüfen (GAEB intern/untereinander, PDF gegen GAEB)
+   │  import/ozMatch.ts   Bieterpositionen mit abweichender OZ über Text/Einheit/Menge dem Soll-LV zuordnen
    │  import/apply.ts     LV (+ Schätzpreise aus 82) und Angebote in den State schreiben, Vollständigkeit vorbelegen
    ▼
 State  (domain/types.ts)  ── ein Objekt für das ganze Projekt, liegt im Browser (storage/projectStore.ts)

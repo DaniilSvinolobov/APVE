@@ -7,11 +7,12 @@ import { bieterAusPdf, pruefePdf, refFromDoc, sortBefunde } from '../import/lvPr
 import type { ParsedBid } from '../import/analyze';
 import { base } from '../import/zip';
 import { analyzeGroup } from '../import/analyze';
-import { applyOffer } from '../import/apply';
+import { applyOffer, summenCheck } from '../import/apply';
+import { pdfSummenCheck } from '../import/pdfSumme';
 import { docStore } from '../import/docStore';
 import { applyKi, getCode, hasConsent, offerDocs, setCode } from '../ki/kiApply';
 import { kiStatus, KiError, pruefeAngebot, type KiStatus } from '../ki/kiPruefung';
-import { computeLos } from '../domain/calc';
+import { computeLos, lvFremd, summenFlags } from '../domain/calc';
 import { fmtDate, fmtNum } from '../domain/fmt';
 import { DropZone } from '../components/DropZone';
 import { Chip, Icon, Seg } from '../components/ui';
@@ -77,6 +78,8 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         p.offer.lvPdf = [];
         for (const f of pdfs) p.offer.lvPdf.push({ name: base(f.path), befunde: sortBefunde(await pruefePdf(f, refFromDoc(p.doc), true)) });
       }
+      // Gegenprobe: Endsumme im PDF des Bieters
+      for (const { g, p } of withGroup) { const ck = summenCheck(p.doc); p.offer.check = { ...ck, pdf: await pdfSummenCheck(g.files, ck.gaeb ?? ck.positionen) }; }
       if (!parsed.length) {
         setMsg({ ok: false, text: hinweise.length ? hinweise.join(' ') : files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien ohne Preise (x81/x82/x83) – das eigene LV gehört in den Schritt „Vergabe“.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
       } else {
@@ -92,6 +95,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
   };
 
   const hasLv = s.lv.length > 0;
+  const lvFremdText = lvFremd(s, s.lose.flatMap((l) => computeLos(s, l)).filter((c) => c.offer.lose.includes(c.los.id)));
   const setOffer = (i: number, fn: (o: State['offers'][number]) => void) => up((d) => fn(d.offers[i]));
 
   return (
@@ -105,6 +109,8 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         {msg && <p className={msg.ok ? 'okbox' : 'warnbox'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
         <div className="status"><Chip kind={s.offers.length ? 'ok' : 'info'}>{s.offers.length} Angebot(e) geladen</Chip></div>
       </section>
+
+      {lvFremdText && <p className="warnbox"><Icon name="alert" /> {lvFremdText}</p>}
 
       {s.offers.map((o, i) => {
         const cells = s.lose.map((l) => computeLos(s, l).find((c) => c.offer.id === o.id)).filter(Boolean);
@@ -146,6 +152,12 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
                 <div key={c.los.id} className={o.lose.includes(c.los.id) ? '' : 'dim'}><small>{c.los.nr}</small><b>{c.net != null && o.lose.includes(c.los.id) ? fmtNum(c.net) + ' €' : '–'}</b><small>netto{c.nachlass ? ` (−${fmtNum(c.nachlass)} %)` : ''}</small></div>
               ))}
             </div>
+            {o.check && (
+              <div className="row" style={{ margin: '4px 0 8px' }}>
+                <span className="muted">Summe laut Bieterdatei: <b>{fmtNum(o.check.gaeb ?? o.check.positionen)} €</b></span>
+                {summenFlags(s, o).map((f, k) => <Chip key={k} kind={f.kind}>{f.text}</Chip>)}
+              </div>
+            )}
             {o.runde > 1 && o.lose.length > 1 && <p className="infobox"><Icon name="alert" /> Nachverhandlungen betreffen meist nur einzelne Lose – bitte oben die Lose abwählen, die nicht nachverhandelt wurden.</p>}
             {o.warnungen.map((w, k) => <p key={k} className="warnbox slim"><Icon name="alert" /> {w}</p>)}
             {o.nachforderung.length > 0 && <p className="infobox"><Icon name="file" /> Nachgereicht / nachgefordert: {o.nachforderung.join(', ')}</p>}

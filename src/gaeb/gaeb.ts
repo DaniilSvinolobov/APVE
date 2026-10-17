@@ -51,7 +51,9 @@ function decodeDos(b: Uint8Array): string {
 const decode = (b: Uint8Array, enc: string) => new TextDecoder(enc).decode(b);
 const num = (s: string | null | undefined) => {
   if (s == null || s.trim() === '') return null;
-  const n = Number(s.trim());
+  let t = s.trim();
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); // GAEB 2000: Dezimalkomma
+  const n = Number(t);
   return Number.isFinite(n) ? n : null;
 };
 const isoDate = (d: string) => {
@@ -114,8 +116,14 @@ function parseD(buf: Uint8Array): GaebDoc {
         break;
       }
       case '23': {
-        const m = l.match(/^23([\d ]{1,9}?)\s+([-+]?\d{10})\s+([-+]?\d{12})/);
-        if (m) doc.positions.push({ oz: dOz(m[1], mask), kurz: '', lang: '', menge: null, einheit: '', bedarf: false, ep: Number(m[2]) / 100, gp: Number(m[3]) / 100 });
+        // feste Spalten: OZ 3–11, EP 12–24, GP 25–36 (GP in Cent). EP mit 11 Stellen hat 3, sonst 2 Nachkommastellen;
+        // fehlt der EP (Pauschalposition), gilt der GP als EP (Menge 1) – eine abweichende LV-Menge fällt in der Rechenprüfung auf.
+        const gpRaw = l.slice(24, 36).trim();
+        if (!/^[-+]?\d+$/.test(gpRaw)) break;
+        const epRaw = l.slice(11, 24).trim();
+        const gp = Number(gpRaw) / 100;
+        const ep = /^[-+]?\d+$/.test(epRaw) ? Number(epRaw) / (epRaw.replace(/^[-+]/, '').length >= 11 ? 1000 : 100) : gp;
+        doc.positions.push({ oz: dOz(l.slice(2, 11), mask), kurz: '', lang: '', menge: null, einheit: '', bedarf: false, ep, gp });
         break;
       }
       case '25': if (cur) { cur.kurz = (cur.kurz + ' ' + l.slice(2, 72).trim()).trim(); } break;
@@ -172,19 +180,25 @@ export function rtfToText(rtf: string): string {
 function parseP(buf: Uint8Array, phaseHint: number): GaebDoc {
   const t = decode(buf, 'windows-1252').replace(/\r\n?/g, '\n');
   const doc = empty('P', phaseHint);
+  // Tag-Schreibweise variiert je Export (KURZTEXT / Kurztext, LVBEREICH / LVBereich)
   const tag = (s: string, k: string) => {
-    const m = s.match(new RegExp(`\\[${k}\\]([\\s\\S]*?)\\[end\\]`));
+    const m = s.match(new RegExp(`\\[${k}\\]([\\s\\S]*?)\\[end\\]`, 'i'));
     return m ? m[1].trim() : '';
   };
   doc.phase = Number(tag(t, 'DP')) || phaseHint;
   doc.bezeichnung = tag(t.slice(0, 4000), 'BEZ');
   doc.datum = isoDate(tag(t.slice(0, 2000), 'DATUM'));
-  const re = /#begin\[(LVBEREICH|POSITION)\]\n([\s\S]*?)(?=#begin\[(?:LVBEREICH|POSITION)\]|#end\[LV\]|$)/g;
+  doc.total.net = num(tag(t, 'Summe'));
+  doc.total.gross = num(tag(t, 'SummeBrutto'));
+  // OZ-Maske aus den LVGlied-Blöcken (Länge je Stufe), z. B. 2+2+4+1 → „1122PPPPI“; Zahlen mit Leerzeichen („00     1“) werden damit zerlegt
+  const laengen = [...t.matchAll(/#begin\[LVGlied\][\s\S]*?#end\[LVGlied\]/gi)].map((g) => ({ typ: tag(g[0], 'Typ'), n: Number(tag(g[0], 'Laenge')) || 0 }));
+  const mask = laengen.map((g, i) => (/^position$/i.test(g.typ) ? 'P' : /^index$/i.test(g.typ) ? 'I' : String(i + 1)).repeat(g.n)).join('');
+  const re = /#begin\[(LVBEREICH|POSITION)\]\n([\s\S]*?)(?=#begin\[(?:LVBEREICH|POSITION)\]|#end\[LV\]|$)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(t))) {
     const body = m[2];
-    const oz = chunkOz(tag(body, 'OZ'));
-    if (m[1] === 'LVBEREICH') { doc.titles[oz] = tag(body, 'BEZTX').replace(/\s+/g, ' '); continue; }
+    const oz = dOz(tag(body, 'OZ'), mask);
+    if (m[1].toUpperCase() === 'LVBEREICH') { doc.titles[oz] = tag(body, 'BEZTX').replace(/\s+/g, ' '); continue; }
     doc.positions.push({
       oz,
       kurz: rtfToText(tag(body, 'KURZTEXT')).replace(/\s+/g, ' '),

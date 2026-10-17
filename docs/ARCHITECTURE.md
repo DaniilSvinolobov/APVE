@@ -10,6 +10,7 @@ Dateien (Ordner/ZIP)
    │  import/analyze.ts   ein Angebot lesen (gaeb/gaeb.ts), Firma/Datum/Unterlagen erkennen
    │  import/pdf.ts + gaeb/lvCheck.ts + import/lvPruefung.ts   LV prüfen (GAEB intern/untereinander, PDF gegen GAEB)
    │  import/ozMatch.ts   Bieterpositionen mit abweichender OZ über Text/Einheit/Menge dem Soll-LV zuordnen
+   │  import/pdfSumme.ts  Gegenprobe: Endsumme im PDF des Bieters (lokal im Browser, Scans ohne Textebene nicht lesbar)
    │  import/apply.ts     LV (+ Schätzpreise aus 82) und Angebote in den State schreiben, Vollständigkeit vorbelegen
    ▼
 State  (domain/types.ts)  ── ein Objekt für das ganze Projekt, liegt im Browser (storage/projectStore.ts)

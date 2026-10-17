@@ -1,7 +1,7 @@
 import { ozKey, type GaebDoc } from '../gaeb/gaeb';
-import type { Los, Offer, State } from '../domain/types';
-import { uid } from '../domain/fmt';
-import { losPositions } from '../domain/calc';
+import type { BidPos, Los, Offer, State, ZusatzPos } from '../domain/types';
+import { fmtEur, round2, uid } from '../domain/fmt';
+import { losPositions, zusatzWert } from '../domain/calc';
 import type { ParsedBid } from './analyze';
 import { matchPositions, SICHER } from './ozMatch';
 
@@ -51,8 +51,22 @@ export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, 
     else d.lose.push(l);
   }
   d.lose = d.lose.filter((l) => !l.oz || d.lv.some((p) => p.oz.startsWith(l.oz + '.')) || !lose.length);
+  // bereits geladene Angebote gegen das neue LV neu zuordnen (nur wenn Lücken bestehen, damit Handeingaben nicht überschrieben werden)
+  for (const o of d.offers) {
+    o.warnungen = o.warnungen.filter((w) => !w.startsWith('Kein Soll-LV geladen'));
+    if (!o.bidPos || !hatLuecken(d, o)) continue;
+    zuordnen(d, o);
+    o.lose = o.lose.filter((id) => d.lose.some((l) => l.id === id));
+    if (!o.lose.length) o.lose = loseOf(d, o);
+  }
   if (!d.project.titel && doc.bezeichnung) d.project.titel = doc.bezeichnung;
   if (!d.project.auftraggeber && doc.auftraggeber) d.project.auftraggeber = doc.auftraggeber;
+}
+
+/** Endsumme laut GAEB-Datei (Kopfsumme, sonst Summe der Titelsummen) und Summe der Positionen. */
+export function summenCheck(doc: GaebDoc): { gaeb: number | null; positionen: number } {
+  const titelSumme = round2(Object.entries(doc.totals).filter(([k]) => !k.includes('.')).reduce((a, [, v]) => a + v, 0));
+  return { gaeb: doc.total.net || titelSumme || null, positionen: round2(doc.positions.reduce((a, p) => a + (p.gp ?? 0), 0)) };
 }
 
 /** Fügt ein analysiertes Angebot in den State ein. */
@@ -70,13 +84,10 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
     for (const l of losFromTitles(Object.fromEntries(Object.entries(d.titles).filter(([k]) => !k.includes('.'))), doc.projekt || doc.bezeichnung)) if (!d.lose.some((x) => x.oz === l.oz)) d.lose.push({ ...l, name: l.name || `Los ${l.oz}` });
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
-  mapToLv(d, offer, doc.positions);
-  const known = new Set(d.lv.map((p) => ozKey(p.oz)));
-  const extra = Object.keys(offer.prices).filter((k) => !known.has(k));
-  if (extra.length) offer.warnungen.push(`${extra.length} Position(en) der Bieterdatei kommen im Soll-LV nicht vor (z. B. ${extra.slice(0, 3).join(', ')}) – auch nicht nach Textabgleich.`);
-  const miss = d.lv.filter((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
-  if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
-  offer.lose = d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
+  offer.bidPos = doc.positions.map((p) => ({ oz: p.oz, kurz: p.kurz, lang: (p.lang ?? '').slice(0, 600), menge: p.menge, einheit: p.einheit, bedarf: p.bedarf, ep: p.ep, gp: p.gp }));
+  offer.check = { ...summenCheck(doc), pdf: offer.check?.pdf };
+  zuordnen(d, offer);
+  offer.lose = loseOf(d, offer);
   const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => { const l = d.lose.find((x) => x.id === id); return !!l && (!l.oz || p.oz.startsWith(l.oz + '.')); }));
   autoPruef(d, offer, sigFound, preise);
   const eroeff = d.project.eroeffnung.slice(0, 10);
@@ -89,13 +100,48 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   d.offers.sort((a, b) => a.nr - b.nr);
 }
 
+const ZUORD_WARN = /Ordnungszahl als das Soll-LV|geringer Übereinstimmung|nicht im Soll-LV|des Soll-LV sind in der Bieterdatei nicht bepreist/;
+
+const loseOf = (d: State, offer: Offer) => d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
+
+/** Gibt es Bieterpositionen ohne LV-Position oder LV-Positionen ohne Bieterpreis? */
+function hatLuecken(d: State, offer: Offer) {
+  const known = new Set(d.lv.map((p) => ozKey(p.oz)));
+  return Object.keys(offer.prices).some((k) => !known.has(k)) || (offer.zusatz?.length ?? 0) > 0 || d.lv.some((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
+}
+
+/**
+ * Bieterpreise dem Soll-LV zuordnen und die Hinweise dazu erzeugen. Kann jederzeit erneut laufen
+ * (z. B. wenn das LV erst nach den Angeboten geladen wird): Ausgangspunkt sind die gespeicherten Bieterpositionen.
+ * Positionen, die im Soll-LV nicht vorkommen, gehen nicht verloren: sie werden als Zusatzpositionen geführt und mitgewertet.
+ */
+export function zuordnen(d: State, offer: Offer) {
+  const bid = offer.bidPos ?? [];
+  offer.warnungen = offer.warnungen.filter((w) => !ZUORD_WARN.test(w));
+  offer.ozZuordnung = undefined;
+  offer.prices = Object.fromEntries(bid.map((p) => [ozKey(p.oz), { ep: p.ep, gp: p.gp }]));
+  const zugeordnet = mapToLv(d, offer, bid);
+  const known = new Set(d.lv.map((p) => ozKey(p.oz)));
+  const toKey = new Map(zugeordnet.map((m) => [ozKey(m.bieter), ozKey(m.lv)]));
+  const neu = bid.filter((p) => !known.has(toKey.get(ozKey(p.oz)) ?? ozKey(p.oz)));
+  offer.zusatz = neu.map((p): ZusatzPos => ({ oz: p.oz, kurz: p.kurz, einheit: p.einheit, menge: p.menge ?? (p.ep && p.gp != null ? Math.round((p.gp / p.ep) * 1000) / 1000 : null), ep: p.ep, gp: p.gp, bedarf: p.bedarf }));
+  for (const k of Object.keys(offer.prices)) if (!known.has(k)) delete offer.prices[k]; // nur LV-Schlüssel; Zusatzpositionen stehen in offer.zusatz
+  if (neu.length) {
+    const wert = round2(offer.zusatz.filter((z) => !z.bedarf).reduce((a, z) => a + zusatzWert(z), 0));
+    const liste = neu.slice(0, 5).map((p) => `${p.oz}${p.kurz ? ' ' + p.kurz.slice(0, 40) : ''}`).join('; ');
+    offer.warnungen.push(`${neu.length} Position(en) der Bieterdatei stehen nicht im Soll-LV (neu, Wert ${fmtEur(wert)}, in der Angebotssumme enthalten): ${liste}${neu.length > 5 ? ' …' : ''}.`);
+  }
+  const miss = d.lv.filter((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
+  if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
+}
+
 /**
  * Bieterpreise auf die OZ des Soll-LV umschreiben. Weicht die Nummerierung der Bieterdatei ab, wird
  * über Kurz-/Langtext, Einheit und Menge zugeordnet (siehe ozMatch.ts) und im Angebot vermerkt.
  */
-function mapToLv(d: State, offer: Offer, bid: GaebDoc['positions']) {
+function mapToLv(d: State, offer: Offer, bid: BidPos[]): { bieter: string; lv: string }[] {
   const matches = matchPositions(d.lv, bid).filter((m) => ozKey(m.bieter) !== ozKey(m.lv));
-  if (!matches.length) return;
+  if (!matches.length) return [];
   const to = new Map(matches.map((m) => [ozKey(m.bieter), ozKey(m.lv)]));
   const prices: Offer['prices'] = {};
   for (const [k, v] of Object.entries(offer.prices)) if (to.has(k)) prices[to.get(k)!] = v;
@@ -105,9 +151,12 @@ function mapToLv(d: State, offer: Offer, bid: GaebDoc['positions']) {
   offer.textErg = offer.textErg.map((t) => { const lvOz = d.lv.find((p) => ozKey(p.oz) === to.get(ozKey(t.oz)))?.oz; return lvOz ? { ...t, oz: lvOz } : t; });
   offer.ozZuordnung = matches.map((m) => ({ bieter: m.bieter, lv: m.lv, score: m.score }));
   const fmt = (m: { bieter: string; lv: string }) => `${m.bieter} → ${m.lv}`;
-  offer.warnungen.push(`${matches.length} Position(en) der Bieterdatei haben eine andere Ordnungszahl als das Soll-LV und wurden über den Text zugeordnet (z. B. ${matches.slice(0, 3).map(fmt).join('; ')}).`);
-  const unsicher = matches.filter((m) => m.score < SICHER);
+  // reine Schreibweise der OZ (führende Nullen) ist kein Hinweis wert; Zuordnung über Text/Menge schon
+  const ueber = matches.filter((m) => m.art !== 'oz');
+  if (ueber.length) offer.warnungen.push(`${ueber.length} Position(en) der Bieterdatei haben eine andere Ordnungszahl als das Soll-LV und wurden über Text bzw. Menge und Reihenfolge zugeordnet (z. B. ${ueber.slice(0, 3).map(fmt).join('; ')}).`);
+  const unsicher = ueber.filter((m) => m.score < SICHER);
   if (unsicher.length) offer.warnungen.push(`Davon ${unsicher.length} mit geringer Übereinstimmung – bitte prüfen: ${unsicher.slice(0, 5).map(fmt).join('; ')}${unsicher.length > 5 ? ' …' : ''}.`);
+  return matches;
 }
 
 const SYN: Record<string, RegExp> = {

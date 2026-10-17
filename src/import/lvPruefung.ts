@@ -1,5 +1,5 @@
 import type { GaebDoc } from '../gaeb/gaeb';
-import { parseLvPdf, pruefeLvDatei, vergleicheLv, vergleichePdf, type Befund, type RefPos } from '../gaeb/lvCheck';
+import { parseLvPdf, pdfLvSumme, pruefeLvDatei, vergleicheLv, vergleichePdf, type Befund, type PdfPos, type RefPos } from '../gaeb/lvCheck';
 import { base, type RawFile } from './zip';
 import { pdfLines } from './pdf';
 import { findLvFiles, type LvFiles, type PdfGroup } from './files';
@@ -21,14 +21,43 @@ export function pruefeEigenesLv(lv: LvFiles): Befund[] {
 
 /** Ein LV-PDF lesen und mit den Referenzpositionen vergleichen; meldet auch, wenn kein Text lesbar ist. */
 export async function pruefePdf(f: RawFile, ref: RefPos[], mitPreisen: boolean): Promise<Befund[]> {
+  return (await lesePdf(f, ref, mitPreisen)).befunde;
+}
+
+/** Wie `pruefePdf`, liefert zusätzlich die gelesenen Positionen und die Nettosumme des PDF. */
+export async function lesePdf(f: RawFile, ref: RefPos[], mitPreisen: boolean): Promise<{ befunde: Befund[]; pdf: PdfPos[]; summe: number | null }> {
   const name = base(f.path);
   try {
     const lines = await pdfLines(f.data);
-    if (lines.join('').length < 40) return [{ kind: 'warn', quelle: 'pdf', text: `${name}: Das PDF enthält keinen lesbaren Text (Scan?) – bitte manuell mit der GAEB-Datei vergleichen.` }];
-    return vergleichePdf(name, parseLvPdf(lines, ref), ref, mitPreisen);
+    if (lines.join('').length < 40) return { befunde: [{ kind: 'warn', quelle: 'pdf', text: `${name}: Das PDF enthält keinen lesbaren Text (Scan?) – bitte manuell mit der GAEB-Datei vergleichen.` }], pdf: [], summe: null };
+    const pdf = parseLvPdf(lines, ref);
+    return { befunde: vergleichePdf(name, pdf, ref, mitPreisen), pdf, summe: pdfLvSumme(lines) };
   } catch (e) {
-    return [{ kind: 'warn', quelle: 'pdf', text: `${name}: PDF konnte nicht gelesen werden (${(e as Error).message}).` }];
+    return { befunde: [{ kind: 'warn', quelle: 'pdf', text: `${name}: PDF konnte nicht gelesen werden (${(e as Error).message}).` }], pdf: [], summe: null };
   }
+}
+
+/**
+ * Eigenes LV als bepreistes PDF: Einheitspreise als LV-Schätzpreise nutzen, wenn mindestens die Hälfte der
+ * Positionen einen lesbaren EP hat (sonst ist es ein unbepreistes LV). Liefert null, wenn das PDF keine Preise trägt.
+ */
+export function schaetzAusPdf(name: string, pdf: PdfPos[], ref: RefPos[], summe: number | null): { doc: GaebDoc; befund: Befund } | null {
+  const by = new Map(pdf.filter((p) => p.ep != null).map((p) => [ozNorm(p.oz), p]));
+  const real = ref.filter((p) => !p.bedarf);
+  const n = real.filter((p) => by.has(ozNorm(p.oz))).length;
+  if (!n || n * 2 < real.length) return null;
+  const doc: GaebDoc = {
+    format: 'X', phase: 82, projekt: '', bezeichnung: '', auftraggeber: '', bieter: '', datum: '', titles: {}, totals: {}, total: { net: null, gross: null },
+    positions: ref.map((r) => {
+      const q = by.get(ozNorm(r.oz));
+      return { oz: r.oz, kurz: r.kurz ?? '', lang: '', menge: r.menge, einheit: r.einheit, bedarf: !!r.bedarf, ep: q?.ep ?? null, gp: q?.gp ?? null };
+    }),
+  };
+  const gelesen = r2(real.reduce((a, p) => a + (by.get(ozNorm(p.oz))?.gp ?? 0), 0));
+  const eur = (v: number) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €`;
+  const passt = summe == null || Math.abs(gelesen - summe) <= 0.05;
+  const text = `${name}: LV-Schätzpreise aus dem PDF gelesen (${n} von ${real.length} Positionen, ${eur(gelesen)} netto). ${summe == null ? 'Keine Nettosumme im PDF gefunden – bitte stichprobenartig mit dem PDF vergleichen.' : passt ? `Die Summe stimmt mit der Summe im PDF (${eur(summe)}) überein.` : `ACHTUNG: Die Summe weicht von der Summe im PDF (${eur(summe)}) ab – bitte prüfen.`}`;
+  return { doc, befund: { kind: passt ? 'info' : 'bad', quelle: 'pdf', text } };
 }
 
 export const refFromDoc = (doc: GaebDoc): RefPos[] => doc.positions.map((p) => ({ oz: p.oz, menge: p.menge, einheit: p.einheit, ep: p.ep, gp: p.gp, kurz: p.kurz, bedarf: p.bedarf }));

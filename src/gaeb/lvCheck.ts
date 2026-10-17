@@ -78,6 +78,8 @@ export interface PdfPos { oz: string; menge: number | null; einheit: string; ep:
 export interface RefPos { oz: string; menge: number | null; einheit: string; ep?: number | null; gp?: number | null; kurz?: string; bedarf?: boolean }
 
 const NUM = String.raw`\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?`;
+/** Preis mit Vorzeichen (Gutschriften, z. B. Schrotterlös). */
+const SNUM = String.raw`-?(?:${NUM})`;
 const deNum = (s: string) => Number(s.replace(/\./g, '').replace(',', '.'));
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const OZ_START = /^(\d{1,2}(?:\.\d{1,4}){1,4})(?=\s|$)/;
@@ -90,34 +92,44 @@ const OZ_START = /^(\d{1,2}(?:\.\d{1,4}){1,4})(?=\s|$)/;
 export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
   const refBy = new Map(ref.map((p) => [ozNorm(p.oz), p]));
   const tops = new Set(ref.map((p) => ozNorm(p.oz).split('.')[0]));
-  const blocks: { oz: string; text: string; known: boolean }[] = [];
+  // Titel (Lose, Abschnitte): jede Vorstufe einer Positions-OZ – deren Überschriften und Titelsummen sind keine Positionen
+  const titel = new Set(ref.flatMap((p) => ozNorm(p.oz).split('.').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('.'))));
+  const blocks: { oz: string; text: string; known: boolean; titel?: boolean }[] = [];
   for (const line of lines) {
     const m = line.trim().match(OZ_START);
     const isDate = !!m && /^\d{1,2}\.\d{1,2}\.(19|20)?\d{2}$/.test(m[1]);
     if (m && refBy.has(ozNorm(m[1]))) blocks.push({ oz: m[1], text: line.trim().slice(m[1].length), known: true });
+    else if (m && !isDate && titel.has(ozNorm(m[1]))) blocks.push({ oz: m[1], text: '', known: false, titel: true });
     // OZ-artige Zeile, die das GAEB nicht kennt (aber in einem bekannten Titel liegt) – nur melden, nicht auswerten
     else if (m && !isDate && /^\d{2}\./.test(m[1]) && tops.has(ozNorm(m[1]).split('.')[0]) && /\s\S/.test(line.trim().slice(m[1].length))) blocks.push({ oz: m[1], text: '', known: false });
     else if (blocks.length && !/^(Übertrag|Summe|Seite)\b/i.test(line.trim())) blocks[blocks.length - 1].text += ' ' + line.trim();
   }
   const out: PdfPos[] = [];
   for (const b of blocks) {
+    if (b.titel) continue;
     if (!b.known) { out.push({ oz: b.oz, menge: null, einheit: '', ep: null, gp: null }); continue; }
     const r = refBy.get(ozNorm(b.oz))!;
     const unit = r.einheit ? esc(r.einheit) : '[^\\s\\d]{1,6}';
     const text = b.text.replace(/ /g, ' ');
     // Menge Einheit [EP GP] – das letzte Vorkommen im Block gilt (Texte nennen oft Maße wie „3 cm“)
-    const priced = [...text.matchAll(new RegExp(String.raw`(${NUM})\s*${unit}(?=\s)\s+(${NUM})\s+(${NUM})`, 'gi'))].pop();
+    const priced = [...text.matchAll(new RegExp(String.raw`(${NUM})\s*${unit}(?=\s)\s+(${SNUM})\s+(${SNUM})`, 'gi'))].pop();
     const plain = [...text.matchAll(new RegExp(String.raw`(${NUM})\s*${unit}(?=\s|$)`, 'gi'))].pop();
     // Fallback ohne passende Einheit im Text: letztes Zahlentripel Menge · EP · GP, das rechnerisch aufgeht
-    const nums = [...text.matchAll(new RegExp(String.raw`(?<![\d.,])(${NUM})(?![\d.,])`, 'g'))].map((m) => deNum(m[1]));
+    const nums = [...text.matchAll(new RegExp(String.raw`(?<![\d.,-])(${SNUM})(?![\d.,])`, 'g'))].map((m) => deNum(m[1]));
     let tri: [number, number, number] | null = null;
-    for (let i = nums.length - 3; i >= 0 && !tri; i--) if (Math.abs(r2(nums[i] * nums[i + 1]) - nums[i + 2]) <= 0.01 && nums[i + 1] > 0) tri = [nums[i], nums[i + 1], nums[i + 2]];
+    for (let i = nums.length - 3; i >= 0 && !tri; i--) if (Math.abs(r2(nums[i] * nums[i + 1]) - nums[i + 2]) <= 0.01 && nums[i + 1] !== 0) tri = [nums[i], nums[i + 1], nums[i + 2]];
     if (!priced && tri) { out.push({ oz: b.oz, menge: tri[0], einheit: r.einheit, ep: tri[1], gp: tri[2] }); continue; }
     if (priced) out.push({ oz: b.oz, menge: deNum(priced[1]), einheit: r.einheit, ep: deNum(priced[2]), gp: deNum(priced[3]) });
     else if (plain) out.push({ oz: b.oz, menge: deNum(plain[1]), einheit: r.einheit, ep: null, gp: null });
     else out.push({ oz: b.oz, menge: null, einheit: '', ep: null, gp: null });
   }
   return out;
+}
+
+/** Nettosumme eines LV-PDF: „Summe“ bzw. „Summe netto“ (vor der MwSt.), sonst „Gesamtsumme (netto)“. */
+export function pdfLvSumme(lines: string[]): number | null {
+  for (let i = lines.length - 1; i >= 0; i--) { const m = lines[i].trim().match(/^(?:Summe(?:\s*\(?\s*netto\s*\)?)?|Gesamtsumme\s*\(?\s*netto\s*\)?)\s*(?:EUR|€)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})$/i); if (m) return deNum(m[1]); }
+  return pdfNettoSumme(lines);
 }
 
 /** „Gesamtsumme (netto)“ eines Angebots-PDF, sofern vorhanden. */

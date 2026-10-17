@@ -7,6 +7,7 @@ import { downloadCsv } from '../storage/exportCsv';
 
 type Up = (fn: (d: State) => void) => void;
 type RK = 'avg' | 'min' | 'sch';
+type BK = 'min' | 'sch';
 
 export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
@@ -14,7 +15,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const [runde, setRunde] = useState<number | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [onlyAuff, setOnlyAuff] = useState(false);
-  const [basis, setBasis] = useState<'min' | 'schaetz'>('min');
+  const [basis, setBasis] = useState<'min' | 'schaetz' | 'beide'>('min');
 
   const cellsAll = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
   if (!los) return <section className="card"><h2>Preisspiegel</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden (Schritt 2).</p></section>;
@@ -31,7 +32,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const epOf = (c: (typeof cells)[number], oz: string) => c.offer.prices[zkey(oz)]?.ep ?? null;
   const peerStats = (oz: string) => {
     const v = cells.filter((c) => c.complete && !c.excluded).map((c) => epOf(c, oz)).filter((x): x is number => x != null && x > 0);
-    return { low: v.length > 1 ? Math.min(...v) : null, n: v.length };
+    return { low: v.length > 1 ? Math.min(...v) : null, high: v.length > 1 ? Math.max(...v) : null, n: v.length };
   };
   const isOut = (c: (typeof cells)[number], oz: string) => {
     const me = epOf(c, oz);
@@ -42,10 +43,11 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   };
   const titelSum = (c: (typeof cells)[number], ps: typeof pos) => round2(ps.filter((p) => !p.bedarf).reduce((a, p) => a + (p.menge ?? 0) * (epOf(c, p.oz) ?? 0), 0));
 
-  /* Vergleichswerte: Mittelwert und Günstigst über die gewerteten Bieter, LV-Schätzpreis aus GAEB 82 */
+  /* Vergleichswerte: Mittelwert und Günstigst über die gewerteten Bieter, LV-Schätzpreis = eigenes LV (GAEB 82 oder Handeingabe) */
   const valid = cells.filter((c) => c.complete && !c.excluded);
   const hasSch = Object.keys(s.schaetz ?? {}).length > 0;
-  const useBasis = basis === 'schaetz' && hasSch ? 'schaetz' : 'min';
+  const bases: BK[] = basis === 'beide' ? ['min', 'sch'] : basis === 'schaetz' ? ['sch'] : ['min'];
+  const mw = 1 + s.project.mwst / 100;
   const avgOf = (v: number[]) => (v.length ? round2(v.reduce((a, b) => a + b, 0) / v.length) : null);
   const minOf = (v: number[]) => (v.length ? Math.min(...v) : null);
   const refEp = (oz: string) => {
@@ -55,8 +57,13 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const refSum = (sums: number[], sch: number | null) => { const v = sums.filter((x) => x > 0); return { avg: avgOf(v), min: minOf(v), sch }; };
   const gpOf = (p: (typeof pos)[number], ep: number | null) => (ep == null ? null : round2((p.menge ?? 0) * ep));
   const pct = (v: number | null, ref: number | null) => (v == null || ref == null || ref <= 0 || v <= 0 ? null : (v / ref - 1) * 100);
-  const Pct = ({ v, to }: { v: number | null; to: number | null }) => { const d = pct(v, to); return d == null || Math.abs(d) < 0.05 ? null : <small className="pct">{fmtPct(d)}</small>; };
-  const refHead: [RK, string][] = [['avg', 'Ø Bieter'], ['min', 'Günstigst'], ...(hasSch ? ([['sch', 'LV-Schätzpreis']] as [RK, string][]) : [])];
+  /** Abweichung zum Günstigsten und/oder zum LV-Schätzpreis (je nach Auswahl); bei beiden mit Kürzel G/LV. */
+  const Pct = ({ v, to, skip }: { v: number | null; to: Partial<Record<BK, number | null>>; skip?: RK }) => {
+    const items = bases.filter((k) => k !== skip).map((k) => [k, pct(v, to[k] ?? null)] as const).filter((x): x is readonly [BK, number] => x[1] != null && Math.abs(x[1]) >= 0.05);
+    return items.length ? <>{items.map(([k, d]) => <small key={k} className="pct">{bases.length > 1 ? (k === 'min' ? 'G ' : 'LV ') : ''}{fmtPct(d)}</small>)}</> : null;
+  };
+  const refHead: [RK, string][] = [['avg', 'Ø Bieter'], ['min', 'Günstigst'], ['sch', 'LV-Schätzpreis']];
+  const bLabel: Record<BK, string> = { min: 'zum Günstigsten', sch: 'zum LV-Schätzpreis' };
 
   const refTotNum = (k: RK, f: (c: (typeof cells)[number]) => number | null): number | null => {
     if (k === 'sch') { const n = schaetzSumme(s, los); return n; }
@@ -75,14 +82,24 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   };
 
   const setEp = (offerId: string, oz: string, v: number | null) => up((d) => { const o = d.offers.find((x) => x.id === offerId)!; o.prices[zkey(oz)] = { ep: v, gp: null }; });
+  const setSch = (oz: string, v: number | null) => up((d) => { d.schaetz = d.schaetz ?? {}; if (v == null) delete d.schaetz[zkey(oz)]; else d.schaetz[zkey(oz)] = v; });
+  const totNet = { min: refTotNum('min', (c) => c.net), sch: refTotNum('sch', (c) => c.net) };
+  const nlBetrag = (c: (typeof cells)[number]) => (c.sumNet != null && c.net != null ? round2(c.sumNet - c.net) : null);
+  const skontoOf = (c: (typeof cells)[number]) => (c.offer.skonto && c.gross != null ? round2((c.gross * c.offer.skonto) / 100) : null);
+  const hasSkonto = cells.some((c) => c.offer.skonto);
+  const schFehlt = pos.filter((p) => !p.bedarf && s.schaetz?.[zkey(p.oz)] == null).length;
   const exportCsv = () => {
     const head = ['Pos.', 'Leistung', 'Menge', 'Einheit', ...cells.flatMap((c) => [`Nr.${c.offer.nr} ${c.offer.firma} EP`, `GP`]), ...refHead.flatMap(([, l]) => [`${l} EP`, `${l} GP`])];
     const rows = pos.map((p) => { const r = refEp(p.oz); return [p.oz, p.kurz, p.menge ?? '', p.einheit, ...cells.flatMap((c) => { const ep = epOf(c, p.oz); return [ep ?? '', gpOf(p, ep) ?? '']; }), ...refHead.flatMap(([k]) => [r[k] ?? '', gpOf(p, r[k]) ?? ''])]; });
     for (const r of zList) rows.push([`neu: ${r.oz}`, r.kurz, r.menge ?? '', r.einheit, ...cells.flatMap((c) => { const z = r.per.get(c.offer.id); return z ? [z.ep ?? '', zusatzWert(z)] : ['', '']; }), ...refHead.flatMap(() => ['', ''])]);
     const blank = refHead.flatMap(() => ['', '']);
-    const tot = (f: (c: (typeof cells)[number]) => number | null) => { const v = cells.filter((c) => c.complete && !c.excluded).map(f).filter((x): x is number => x != null); return [avgOf(v) ?? '', minOf(v) ?? '', ...(hasSch ? [schaetzSumme(s, los) ?? ''] : [])]; };
+    const tot = (f: (c: (typeof cells)[number]) => number | null) => refHead.map(([k]) => refTotNum(k, f) ?? '');
     const fill = (vals: (number | string)[]) => refHead.flatMap((_, i) => ['', vals[i] ?? '']);
-    rows.push([], ['', 'Summe netto', '', '', ...cells.flatMap((c) => ['', c.sumNet ?? '']), ...fill(tot((c) => c.sumNet))], ['', 'Nachlass %', '', '', ...cells.flatMap((c) => ['', c.nachlass]), ...blank], ['', 'Angebotssumme netto', '', '', ...cells.flatMap((c) => ['', c.net ?? '']), ...fill(tot((c) => c.net))], ['', 'Angebotssumme brutto', '', '', ...cells.flatMap((c) => ['', c.gross ?? '']), ...fill(tot((c) => c.net).map((v) => (v === '' ? v : round2(Number(v) * (1 + s.project.mwst / 100)))))]);
+    const netRef = tot((c) => c.net);
+    const pr = (v: number | null) => (v == null ? '' : round2(v));
+    rows.push([], ['', 'Summe netto', '', '', ...cells.flatMap((c) => ['', c.sumNet ?? '']), ...fill(tot((c) => c.sumNet))], ['', 'Nachlass %', '', '', ...cells.flatMap((c) => ['', c.nachlass]), ...blank], ['', 'Nachlass €', '', '', ...cells.flatMap((c) => ['', nlBetrag(c) ?? '']), ...blank], ['', 'Gesamt netto', '', '', ...cells.flatMap((c) => ['', c.net ?? '']), ...fill(netRef)], ['', `zzgl. MwSt. (${s.project.mwst} %)`, '', '', ...cells.flatMap((c) => ['', c.net == null ? '' : round2(c.net * (mw - 1))]), ...fill(netRef.map((v) => (v === '' ? v : round2(Number(v) * (mw - 1)))))], ['', 'Gesamt brutto', '', '', ...cells.flatMap((c) => ['', c.gross ?? '']), ...fill(netRef.map((v) => (v === '' ? v : round2(Number(v) * mw))))]);
+    for (const k of ['min', 'sch'] as BK[]) rows.push(['', `% ${bLabel[k]}`, '', '', ...cells.flatMap((c) => ['', pr(pct(c.net, totNet[k]))]), ...fill(netRef.map((v) => pr(pct(v === '' ? null : Number(v), totNet[k]))))]);
+    if (hasSkonto) rows.push(['', 'Skonto % (informativ)', '', '', ...cells.flatMap((c) => ['', c.offer.skonto ?? '']), ...blank], ['', 'Gesamt brutto abzgl. Skonto (informativ)', '', '', ...cells.flatMap((c) => { const sk = skontoOf(c); return ['', c.gross == null ? '' : round2(c.gross - (sk ?? 0))]; }), ...blank]);
     downloadCsv(`Preisspiegel_${los.nr}_Runde${rd}.csv`, [head, ...rows]);
   };
 
@@ -124,7 +141,9 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
               {hasLv && <><button className="btn small" onClick={() => setOpen(open.size ? new Set() : new Set(groups.keys()))}>{open.size ? 'Alle Titel schließen' : 'Alle Titel öffnen'}</button>
               <label className="mini"><input type="checkbox" checked={onlyAuff} onChange={(e) => setOnlyAuff(e.target.checked)} /> nur Titel mit Preisauffälligkeiten</label></>}
               <span className="field-label" style={{ marginLeft: 8 }}>Abweichung in % zu:</span>
-              <Seg small value={useBasis} onChange={setBasis} options={[{ value: 'min', label: 'Günstigstem' }, ...(hasSch ? [{ value: 'schaetz' as const, label: 'LV-Schätzpreis' }] : [])]} />
+              <Seg small value={basis} onChange={setBasis} options={[{ value: 'min', label: 'Günstigstem' }, { value: 'schaetz', label: 'LV-Schätzpreis' }, { value: 'beide', label: 'beiden' }]} />
+              {hasLv && hasSch && schFehlt > 0 && <Chip kind="warn">{schFehlt} Position(en) ohne LV-Schätzpreis – Summe und Abweichung zum LV nur bedingt aussagekräftig</Chip>}
+              {hasLv && !hasSch && <Chip kind="info">Keine LV-Schätzpreise geladen – X82 im Schritt „Vergabe“ laden oder EP in der Spalte „LV-Schätzpreis“ eintragen</Chip>}
               {cells.some((c) => c.zusatz.length) && <Chip kind="info">Neue Positionen gegenüber dem LV (unten markiert) sind in den Summen enthalten</Chip>}
               {cells.some((c) => c.mengeAbw.length) && <Chip kind="warn">Mengen im LV weichen von der Bieterdatei ab – siehe markierte Positionen</Chip>}
             </div>
@@ -134,7 +153,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                 <thead>
                   <tr>
                     {hasLv ? <><th className="sticky c0 left">Pos.</th><th className="sticky c1 left">Leistung</th><th>Menge</th><th>Einh.</th></> : <th className="left">Position</th>}
-                    {hasLv && refHead.map(([k, l]) => <th key={k} colSpan={2} className="bh ref g0"><span className="bnr">{k === 'sch' ? 'GAEB 82' : 'gewertete Bieter'}</span>{l}</th>)}
+                    {hasLv && refHead.map(([k, l]) => <th key={k} colSpan={2} className="bh ref g0"><span className="bnr">{k === 'sch' ? 'eigenes LV' : 'gewertete Bieter'}</span>{l}</th>)}
                     {cells.map((c) => <th key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`bh g0 ${c.excluded ? 'dim' : ''}`}><span className="bnr">Nr. {c.offer.nr}</span>{c.offer.firma}</th>)}
                   </tr>
                   {hasLv && <tr className="sub"><th className="sticky c0" /><th className="sticky c1" /><th /><th />{refHead.map(([k]) => <Fragment key={k}><th className="ref g0 r">EP €</th><th className="ref r">GP €</th></Fragment>)}{cells.map((c) => <Fragment key={c.offer.id}><th className="g0 r">EP €</th><th className="r">GP €</th></Fragment>)}</tr>}
@@ -147,21 +166,22 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                     const isOpen = open.has(k) || onlyAuff;
                     const sums = cells.map((c) => titelSum(c, ps));
                     const min = Math.min(...sums.filter((x) => x > 0));
+                    const vs = sums.filter((x, i) => x > 0 && valid.includes(cells[i]));
+                    const max = vs.length > 1 ? Math.max(...vs) : null;
                     const tr = refSum(sums.filter((_, i) => valid.includes(cells[i])), schaetzSumme(s, los, k));
-                    const tBase = useBasis === 'schaetz' ? tr.sch : tr.min;
                     return (
                       <Fragment key={k}>
                         <tr className="titel" onClick={() => setOpen((o) => { const n = new Set(o); n.has(k) ? n.delete(k) : n.add(k); return n; })}>
                           <td className="sticky c0 left"><Icon name={isOpen ? 'down' : 'right'} /> {k}</td>
                           <td className="sticky c1 left"><b>{s.titles[k] || `Titel ${k}`}</b><small className="muted"> · {ps.length} Pos.</small></td><td /><td />
-                          {refHead.map(([rk]) => <Fragment key={rk}><td className="ref g0" /><td className="gp strong ref">{tr[rk] != null ? fmtNum(tr[rk]!) : ''}</td></Fragment>)}
-                          {cells.map((c, i) => <Fragment key={c.offer.id}><td className="g0" /><td className={`gp strong ${sums[i] > 0 && sums[i] === min ? 'low' : ''}`}>{fmtNum(sums[i])}<Pct v={sums[i]} to={tBase} /></td></Fragment>)}
+                          {refHead.map(([rk]) => <Fragment key={rk}><td className="ref g0" /><td className="gp strong ref">{tr[rk] != null ? fmtNum(tr[rk]!) : ''}<Pct v={tr[rk]} to={tr} skip={rk} /></td></Fragment>)}
+                          {cells.map((c, i) => <Fragment key={c.offer.id}><td className="g0" /><td className={`gp strong ${sums[i] > 0 && sums[i] === min ? 'low' : sums[i] === max && !c.excluded ? 'high' : ''}`}>{fmtNum(sums[i])}<Pct v={sums[i]} to={tr} /></td></Fragment>)}
                         </tr>
                         {isOpen && ps.map((p) => {
                           const st = peerStats(p.oz);
                           const abw = cells.map((c) => c.mengeAbw.find((m) => m.oz === p.oz));
                           const rp = refEp(p.oz);
-                          const base = gpOf(p, useBasis === 'schaetz' ? rp.sch : rp.min);
+                          const base = { min: gpOf(p, rp.min), sch: gpOf(p, rp.sch) };
                           return (
                             <tr key={p.oz} className={p.bedarf ? 'bedarf' : ''}>
                               <td className="sticky c0 left">{p.oz}</td>
@@ -171,11 +191,16 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                                 {p.menge !== p.mengeOrig && <small className="muted block">LV-Original: {p.mengeOrig}</small>}
                               </td>
                               <td>{p.einheit}</td>
-                              {refHead.map(([rk]) => <Fragment key={rk}><td className="ref gp g0">{rp[rk] != null ? fmtNum(rp[rk]!) : ''}</td><td className="ref gp">{rp[rk] != null ? fmtNum(gpOf(p, rp[rk])!) : ''}</td></Fragment>)}
+                              {refHead.map(([rk]) => <Fragment key={rk}>
+                                <td className="ref gp g0">{rk === 'sch'
+                                  ? <input className="epin" inputMode="decimal" defaultValue={rp.sch == null ? '' : fmtNum(rp.sch)} key={`sch${p.oz}${rp.sch}`} aria-label={`LV-Schätzpreis ${p.oz}`} onFocus={(e) => e.currentTarget.select()} onBlur={(e) => { const v = parseNum(e.target.value); if (v !== rp.sch) setSch(p.oz, v); }} />
+                                  : rp[rk] != null ? fmtNum(rp[rk]!) : ''}</td>
+                                <td className="ref gp">{rp[rk] != null ? fmtNum(gpOf(p, rp[rk])!) : ''}<Pct v={gpOf(p, rp[rk])} to={base} skip={rk} /></td>
+                              </Fragment>)}
                               {cells.map((c, ci) => {
                                 const ep = epOf(c, p.oz);
                                 const gp = ep == null ? null : round2((p.menge ?? 0) * ep);
-                                const cls = [c.excluded ? 'dim' : '', ep != null && st.low != null && ep === st.low && ep > 0 && !c.excluded ? 'low' : '', isOut(c, p.oz) ? 'out' : ''].join(' ');
+                                const cls = [c.excluded ? 'dim' : '', ep != null && st.low != null && ep === st.low && ep > 0 && !c.excluded ? 'low' : ep != null && st.high != null && ep === st.high && !c.excluded ? 'high' : '', isOut(c, p.oz) ? 'out' : ''].join(' ');
                                 return (
                                   <Fragment key={c.offer.id}>
                                     <td className={`g0 ${cls} ${abw[ci] ? 'mabw' : ''}`}>
@@ -218,23 +243,31 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                 </tbody>
                 <tfoot>
                   <FootRow ncol={ncol} hasLv={hasLv} label="Summe netto (ohne Bedarfspositionen)">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="gp strong ref g0">{refTot(rk, (c) => c.sumNet) ?? ''}</td>)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp strong g0">{fmtNum(c.sumNet ?? 0)}</td>)}</FootRow>
-                  <FootRow ncol={ncol} hasLv={hasLv} label="Nachlass ohne Bedingung">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="g0">{c.nachlass ? <b>{fmtNum(c.nachlass)} %</b> : <span className="muted">–</span>}</td>)}</FootRow>
+                  <FootRow ncol={ncol} hasLv={hasLv} label="Nachlass ohne Bedingung">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp g0">{c.nachlass ? <><b>{fmtNum(c.nachlass)} %</b> · −{fmtNum(nlBetrag(c) ?? 0)}</> : <span className="muted">–</span>}</td>)}</FootRow>
                   <tr className="total">
-                    <td className={hasLv ? 'sticky c0' : ''} />{hasLv ? <td className="sticky c1 left"><b>Angebotssumme netto</b></td> : <td className="left"><b>Angebotssumme netto</b></td>}{hasLv && <><td /><td /></>}
-                    {hasLv && refHead.map(([rk]) => { const n = refTotNum(rk, (c) => c.net); return <td key={rk} colSpan={2} className="ref g0"><div className="big">{fmtEur(n)}</div><small className="muted">brutto {fmtEur(n == null ? null : round2(n * (1 + s.project.mwst / 100)))}</small></td>; })}
+                    <td className={hasLv ? 'sticky c0' : ''} />{hasLv ? <td className="sticky c1 left"><b>Gesamt netto</b></td> : <td className="left"><b>Gesamt netto</b></td>}{hasLv && <><td /><td /></>}
+                    {hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0"><div className="big">{fmtEur(refTotNum(rk, (c) => c.net))}</div></td>)}
                     {cells.map((c) => (
                       <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`g0 ${c.excluded ? 'dim' : ''}`}>
-                        <div className="big">{fmtEur(c.net)}</div><small className="muted">brutto {fmtEur(c.gross)}</small>
-                        <div>{c.rank && <Chip kind={c.rank === 1 ? 'ok' : 'info'}>Rang {c.rank}</Chip>} {c.dMin != null && c.rank !== 1 && c.rank && <Chip kind="info">{fmtPct(c.dMin)}</Chip>} {c.dKosten != null && <Chip kind="info" title="zum Kostenvoranschlag">KV {fmtPct(c.dKosten)}</Chip>}</div>
+                        <div className="big">{fmtEur(c.net)}</div>
+                        <div>{c.rank && <Chip kind={c.rank === 1 ? 'ok' : 'info'}>Rang {c.rank}</Chip>} {c.dKosten != null && <Chip kind="info" title="zum Kostenvoranschlag">KV {fmtPct(c.dKosten)}</Chip>}</div>
                       </td>
                     ))}
                   </tr>
+                  <FootRow ncol={ncol} hasLv={hasLv} label={`zzgl. MwSt. (${fmtNum(s.project.mwst, 1)} %)`}>{hasLv && refHead.map(([rk]) => { const n = refTotNum(rk, (c) => c.net); return <td key={rk} colSpan={2} className="gp ref g0">{n == null ? '' : fmtNum(round2(n * (mw - 1)))}</td>; })}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp g0">{c.net == null ? '' : fmtNum(round2(c.net * (mw - 1)))}</td>)}</FootRow>
+                  <FootRow ncol={ncol} hasLv={hasLv} label="Gesamt brutto">{hasLv && refHead.map(([rk]) => { const n = refTotNum(rk, (c) => c.net); return <td key={rk} colSpan={2} className="gp strong ref g0">{n == null ? '' : fmtNum(round2(n * mw))}</td>; })}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp strong g0">{c.gross == null ? '' : fmtNum(c.gross)}</td>)}</FootRow>
+                  {(['min', 'sch'] as BK[]).filter((k) => k === 'min' || hasSch).map((k) => (
+                    <FootRow key={k} ncol={ncol} hasLv={hasLv} label={`Abweichung ${bLabel[k]}`}>{hasLv && refHead.map(([rk]) => { const d = rk === k ? null : pct(refTotNum(rk, (c) => c.net), totNet[k]); return <td key={rk} colSpan={2} className="gp ref g0">{rk === k ? 'Basis' : d == null ? '' : fmtPct(d)}</td>; })}{cells.map((c) => { const d = pct(c.net, totNet[k]); return <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`gp strong g0 ${c.excluded ? 'dim' : ''}`}>{d == null ? '–' : Math.abs(d) < 0.05 ? '±0,0 %' : fmtPct(d)}</td>; })}</FootRow>
+                  ))}
+                  {hasSkonto && <FootRow ncol={ncol} hasLv={hasLv} label="Skonto (informativ, nicht gewertet)">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp g0">{c.offer.skonto ? <>{fmtNum(c.offer.skonto)} % · ({fmtNum(skontoOf(c) ?? 0)})</> : <span className="muted">–</span>}</td>)}</FootRow>}
+                  {hasSkonto && <FootRow ncol={ncol} hasLv={hasLv} label="Gesamt brutto abzgl. Skonto (informativ)">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp g0">{c.gross == null ? '' : `(${fmtNum(round2(c.gross - (skontoOf(c) ?? 0)))})`}</td>)}</FootRow>}
                   <FootRow ncol={ncol} hasLv={hasLv} label="Hinweise">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="flags g0">{c.flags.map((f, i) => <Chip key={i} kind={f.kind}>{f.text}</Chip>)}</td>)}</FootRow>
                 </tfoot>
               </table>
             </div>
             <div className="legend">
               <span><i className="sw low" /> günstigster EP der Position</span>
+              <span><i className="sw high" /> höchster EP der Position</span>
               <span><i className="sw out" /> Ausreißer (&gt; {s.project.abweichung} % vom Mittel der übrigen)</span>
               <span><i className="sw mabw" /> Menge laut Bieter weicht vom LV ab</span>
               <span><i className="sw neu" /> neue Position (nicht im LV), in der Summe enthalten</span>

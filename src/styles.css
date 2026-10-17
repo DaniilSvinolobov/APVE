@@ -118,6 +118,7 @@ tr:hover .pos-tools,.pos-tools:focus-within{opacity:1}
 .preis tbody tr:not(.titel):hover td{background:#fafbfe}
 /* Markierungen – je Bedeutung eine eigene Farbe (siehe Legende) */
 td.low{background:var(--ok-l)!important;color:#067a53!important}
+td.high,td.high input.epin{color:#7c3aed!important;font-style:italic}
 td.out .pct{color:var(--warn);font-weight:700}
 td.out .pct::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#f59e0b;margin-right:4px;vertical-align:1px}
 td.mabw{box-shadow:inset 3px 0 0 #3b82f6}
@@ -136,6 +137,7 @@ tr.total .sticky{background:var(--brand-l)}
 .legend span{display:inline-flex;align-items:center}
 .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;flex:none}
 .sw.low{background:var(--ok-l);border:1px solid #9ad9bf}
+.sw.high{background:#f3edff;border:1px solid #c4b5fd}
 .sw.out{width:7px;height:7px;border-radius:50%;background:#f59e0b;margin:0 8px 0 3px}
 .sw.mabw{width:3px;border-radius:1px;background:#3b82f6;margin:0 9px 0 4px}
 .sw.neu{background:#ede5ff;border:1px solid #c4b5fd}

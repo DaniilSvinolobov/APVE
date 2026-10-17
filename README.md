@@ -19,7 +19,8 @@ npm run build   # Produktions-Build nach dist/ (Vercel erkennt Vite automatisch)
 **Eigenes LV (Schritt 1, ganz oben):** GAEB-Dateien (X8x, P8x, D8x), die App erkennt die Rolle selbst.
 Maßnahme, Auftraggeber und Lose werden daraus vorbelegt:
 - **X83 / X81:** Positionen, Texte, Mengen, Lose (bevorzugt 83, sonst 81)
-- **X82 (Kostenanschlag):** LV-Schätzpreise je Position → Spalte „LV-Schätzpreis“ im Preisspiegel; der Kostenvoranschlag je Los wird daraus vorbelegt (manuelle Eingabe hat Vorrang)
+- **X82 (Kostenanschlag):** LV-Schätzpreise je Position (eigenes LV) → Spalte „LV-Schätzpreis“ im Preisspiegel; Zuordnung zum LV über die OZ (auch bei abweichender Nullauffüllung), sonst über Text/Menge. Fehlende Schätzpreise lassen sich in der Spalte direkt eintragen. Der Kostenvoranschlag je Los wird daraus vorbelegt (manuelle Eingabe hat Vorrang)
+- **Preisspiegel:** Abweichung in % zum Günstigsten, zum LV-Schätzpreis oder zu beiden (je Position, Titel und Gesamt); Fußzeilen Nachlass (% und €), Gesamt netto, MwSt., Gesamt brutto, Abweichung zum Günstigsten/LV-Schätzpreis, Skonto informativ; höchster EP je Position violett
 - Eine x81/x83-Datei **mit Preisen** ist kein LV, sondern ein Angebot und wird hier abgewiesen.
 - **LV-Prüfung** (Kasten „Prüfung des LV“): doppelte OZ, Positionen ohne Menge/Einheit/Kurztext, leere Titel, Rechen- und Summenprüfung bei Preisen; mehrere Dateien desselben LV (z. B. X83 ↔ D83, X82) werden auf Positionen, Mengen, Einheiten und Texte verglichen.
 - **LV als PDF** zusätzlich ablegen: Text wird lokal im Browser gelesen (pdf.js) und je Ordnungszahl mit Menge und Einheit der GAEB-Datei verglichen (fehlende/zusätzliche Positionen, abweichende Mengen). Scans ohne Text können nicht gelesen werden und werden als Hinweis gemeldet.

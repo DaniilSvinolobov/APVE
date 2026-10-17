@@ -1,5 +1,5 @@
 import { ozKey, type GaebDoc } from '../gaeb/gaeb';
-import type { BidPos, Los, Offer, State, ZusatzPos } from '../domain/types';
+import type { BidPos, Los, LvPos, Offer, State, ZusatzPos } from '../domain/types';
 import { fmtEur, round2, uid } from '../domain/fmt';
 import { losPositions, zusatzWert } from '../domain/calc';
 import type { ParsedBid } from './analyze';
@@ -24,6 +24,19 @@ export function losFromTitles(titles: Record<string, string>, name = ''): Los[] 
     });
 }
 
+/**
+ * LV-Schätzpreise (EP) auf die OZ des Soll-LV legen. Die X82 stammt oft aus einem anderen Export als die X83
+ * (andere OZ-Nullauffüllung, GAEB 90 ↔ XML) – Zuordnung daher wie bei den Bietern über OZ, sonst Text/Menge.
+ */
+export function schaetzPreise(lv: LvPos[], src: GaebDoc): Record<string, number> {
+  const priced = src.positions.filter((p) => p.ep != null);
+  const out: Record<string, number> = {};
+  if (!priced.length) return out;
+  const to = new Map(matchPositions(lv, priced).map((m) => [ozKey(m.bieter), ozKey(m.lv)]));
+  for (const p of priced) { const k = to.get(ozKey(p.oz)); if (k && !(k in out)) out[k] = p.ep!; }
+  return out;
+}
+
 const titleCase = (s: string) => {
   const t = s.trim();
   if (t !== t.toUpperCase()) return t;
@@ -32,13 +45,12 @@ const titleCase = (s: string) => {
 
 /** Eigenes LV laden; `schaetz` (GAEB 82) liefert die LV-Schätzpreise je Position. */
 export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, names = { lv: '', schaetz: '' }) {
-  d.schaetz = {};
-  for (const p of (schaetz ?? doc).positions) if (p.ep != null) d.schaetz[ozKey(p.oz)] = p.ep;
-  d.lvInfo = { lv: names.lv, schaetz: Object.keys(d.schaetz).length ? (schaetz ? names.schaetz : names.lv) : '' };
   const old = new Map(d.lv.map((p) => [p.oz, p]));
   d.lv = doc.positions
     .filter((p) => p.menge != null || p.kurz)
     .map((p) => ({ oz: p.oz, kurz: p.kurz, lang: p.lang ? p.lang.slice(0, 600) : undefined, menge: old.get(p.oz)?.menge ?? p.menge, mengeOrig: p.menge, einheit: p.einheit, bedarf: p.bedarf }));
+  d.schaetz = schaetzPreise(d.lv, schaetz ?? doc);
+  d.lvInfo = { lv: names.lv, schaetz: Object.keys(d.schaetz).length ? (schaetz ? names.schaetz : names.lv) : '' };
   d.titles = doc.titles;
   const lose = losFromTitles(doc.titles, doc.projekt || doc.bezeichnung);
   if (lose.length === 1 && lose[0].oz === '') {

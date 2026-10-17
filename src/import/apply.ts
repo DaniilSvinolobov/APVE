@@ -1,8 +1,8 @@
 import { ozKey, type GaebDoc } from '../gaeb/gaeb';
-import type { BidPos, Los, LvPos, Offer, State, ZusatzPos } from '../domain/types';
+import type { BidPos, Los, LvBefund, LvPos, Offer, State, ZusatzPos } from '../domain/types';
 import { fmtEur, round2, uid } from '../domain/fmt';
 import { losPositions, zusatzWert } from '../domain/calc';
-import type { ParsedBid } from './analyze';
+import { nachName, type ParsedBid } from './analyze';
 import { matchPositions, SICHER } from './ozMatch';
 
 const LOS_TITEL = /^\s*LOS\s*\d+/i;
@@ -49,8 +49,16 @@ export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, 
   d.lv = doc.positions
     .filter((p) => p.menge != null || p.kurz)
     .map((p) => ({ oz: p.oz, kurz: p.kurz, lang: p.lang ? p.lang.slice(0, 600) : undefined, menge: old.get(p.oz)?.menge ?? p.menge, mengeOrig: p.menge, einheit: p.einheit, bedarf: p.bedarf }));
+  const alt = { preise: d.schaetz ?? {}, name: d.lvInfo?.schaetz ?? '', lv: d.lvInfo?.lv ?? '' };
   d.schaetz = schaetzPreise(d.lv, schaetz ?? doc);
-  d.lvInfo = { lv: names.lv, schaetz: Object.keys(d.schaetz).length ? (schaetz ? names.schaetz : names.lv) : '' };
+  let schaetzName = schaetz ? names.schaetz : names.lv;
+  if (!schaetz && !Object.keys(d.schaetz).length && alt.name && alt.name !== alt.lv) {
+    // neues LV ohne Preise: Schätzpreise aus der bereits geladenen X82 behalten, soweit die Positionen noch existieren
+    const keys = new Set(d.lv.map((p) => ozKey(p.oz)));
+    d.schaetz = Object.fromEntries(Object.entries(alt.preise).filter(([k]) => keys.has(k)));
+    schaetzName = alt.name;
+  }
+  d.lvInfo = { ...d.lvInfo, lv: names.lv, schaetz: Object.keys(d.schaetz).length ? schaetzName : '' };
   d.titles = doc.titles;
   const lose = losFromTitles(doc.titles, doc.projekt || doc.bezeichnung);
   if (lose.length === 1 && lose[0].oz === '') {
@@ -176,27 +184,48 @@ const SYN: Record<string, RegExp> = {
   '233': /nachunternehmer/, '234': /arbeitsgemeinschaft|bietergemeinschaft/, '235': /kapazit/, '248': /holzprodukt/,
 };
 
+const matches = (label: string, list: string[]) => {
+  const num = label.match(/\b(\d{3})\b/)?.[1];
+  if (num) return list.some((n) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(n) || (SYN[num]?.test(n) ?? false));
+  const words = label.toLowerCase().split(/[^a-zäöüß]+/).filter((w) => w.length >= 9);
+  return words.length > 0 && list.some((n) => words.some((w) => n.includes(w)));
+};
+
+/** Unterlage wurde nachgereicht (von Hand markiert oder aus einem Ordner „Nachforderung“). */
+export const istNach = (x: Offer['dateien'][number]) => x.nach != null || x.kat === 'Nachforderung';
+
+/** Prüfzeilen, die nicht aus den Unterlagen-Dateien folgen (Unterschrift, Preise, Frist). */
+const SONDERZEILE = /unterschrieben|signiert|preise vollständig|gaeb|fristgerecht/;
+
 /** Vollständigkeitsprüfung aus vorhandenen Dateien vorbelegen. */
 function autoPruef(d: State, offer: Offer, sigFound: boolean, preise: boolean) {
-  const names = offer.dateien.filter((x) => x.kat !== 'Nachforderung').map((x) => x.name.toLowerCase());
-  const nach = offer.nachforderung.map((n) => n.toLowerCase());
-  const matches = (label: string, list: string[]) => {
-    const num = label.match(/\b(\d{3})\b/)?.[1];
-    if (num) return list.some((n) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(n) || (SYN[num]?.test(n) ?? false));
-    const words = label.toLowerCase().split(/[^a-zäöüß]+/).filter((w) => w.length >= 9);
-    return words.length > 0 && list.some((n) => words.some((w) => n.includes(w)));
-  };
-  const set = (id: string, s: 'ok' | 'nach', date = '') => { offer.pruef[id] = { s, d: date, k: 'auto' }; };
+  const set = (id: string) => { offer.pruef[id] = { s: 'ok', d: '', k: 'auto' }; };
   for (const u of d.unterlagen) {
     const l = u.label.toLowerCase();
-    if (/unterschrieben|signiert/.test(l)) { if (sigFound) set(u.id, 'ok'); }
+    if (/unterschrieben|signiert/.test(l)) { if (sigFound) set(u.id); }
     else if (/preise vollständig|gaeb/.test(l)) {
       if (offer.preisQuelle === 'pdf') offer.pruef[u.id] = { s: 'pdf', d: '', n: 'Die GAEB-Datei des Bieters enthält keine Preise; das bepreiste LV liegt nur als PDF vor. Die Preise wurden aus dem PDF gelesen und sind zu prüfen.', k: 'auto' };
-      else if (preise) set(u.id, 'ok');
+      else if (preise) set(u.id);
     }
-    else if (/fristgerecht/.test(l)) { /* nur manuell */ }
-    else if (matches(u.label, nach)) set(u.id, 'nach');
-    else if (matches(u.label, names)) set(u.id, 'ok');
+  }
+  pruefNachDateien(d, offer);
+}
+
+/**
+ * Prüfzeilen aus den Unterlagen des Angebots vorbelegen (vorhanden / nachgereicht). Läuft erneut, wenn Dateien
+ * hinzukommen oder entfernt werden; nur automatisch gesetzte Einträge ändern sich, Eingaben von Hand und KI bleiben.
+ */
+export function pruefNachDateien(d: State, offer: Offer) {
+  const names = offer.dateien.filter((x) => !istNach(x)).map((x) => x.name.toLowerCase());
+  const nach = offer.nachforderung.map((n) => n.toLowerCase());
+  const datum = (label: string) => offer.dateien.find((x) => istNach(x) && x.nach && matches(label, [nachName(x.name).toLowerCase()]))?.nach ?? '';
+  const frei = (id: string) => !offer.pruef[id] || offer.pruef[id].k === 'auto';
+  const setNach = (id: string, label: string) => { offer.pruef[id] = { s: 'nach', d: datum(label) || (offer.pruef[id]?.s === 'nach' ? offer.pruef[id].d : ''), k: 'auto' }; };
+  for (const u of d.unterlagen) {
+    if (SONDERZEILE.test(u.label.toLowerCase()) || !frei(u.id)) continue;
+    if (matches(u.label, nach)) setNach(u.id, u.label);
+    else if (matches(u.label, names)) offer.pruef[u.id] = { s: 'ok', d: '', k: 'auto' };
+    else delete offer.pruef[u.id];
   }
   // nachgereichte Unterlagen ohne passende Zeile → neue Prüfzeile
   for (const n of offer.nachforderung) {
@@ -205,7 +234,62 @@ function autoPruef(d: State, offer: Offer, sigFound: boolean, preise: boolean) {
     if (!label) continue;
     const row = d.unterlagen.find((u) => u.label === label) ?? { id: uid(), label };
     if (!d.unterlagen.includes(row)) d.unterlagen.push(row);
-    set(row.id, 'nach');
+    if (frei(row.id)) setNach(row.id, n);
   }
 }
 
+/** Datei als nachgereicht markieren (`nach` = Datum, '' = unbekannt) oder die Markierung aufheben. */
+export function setNachgereicht(d: State, offer: Offer, name: string, nach: string | null) {
+  const f = offer.dateien.find((x) => x.name === name);
+  if (!f) return;
+  const n = nachName(name);
+  if (nach == null) delete f.nach; else f.nach = nach;
+  if (istNach(f)) { if (!offer.nachforderung.includes(n)) offer.nachforderung.push(n); }
+  else if (!offer.dateien.some((x) => istNach(x) && nachName(x.name) === n)) offer.nachforderung = offer.nachforderung.filter((x) => x !== n);
+  pruefNachDateien(d, offer);
+}
+
+/** Unterlagen zu einem Angebot hinzufügen (gleichnamige Dateien werden ersetzt); `nach` ≠ null = nachgereicht am. */
+export function addDateien(d: State, offer: Offer, files: { name: string; kat: string }[], nach: string | null) {
+  for (const f of files) {
+    offer.dateien = offer.dateien.filter((x) => x.name !== f.name);
+    offer.dateien.push({ ...f });
+    setNachgereicht(d, offer, f.name, nach);
+  }
+}
+
+/** Eine Unterlage aus dem Angebot entfernen, samt der Befunde, die sich auf sie beziehen. */
+export function removeDatei(d: State, offer: Offer, name: string) {
+  const n = nachName(name);
+  offer.dateien = offer.dateien.filter((x) => x.name !== name);
+  if (!offer.dateien.some((x) => istNach(x) && nachName(x.name) === n)) offer.nachforderung = offer.nachforderung.filter((x) => x !== n);
+  offer.lvPdf = offer.lvPdf?.filter((l) => l.name !== name);
+  offer.kiDocs = offer.kiDocs?.filter((k) => k.datei.split('/').pop() !== name);
+  if (offer.check?.pdf?.datei === name) offer.check = { ...offer.check, pdf: undefined };
+  pruefNachDateien(d, offer);
+}
+
+/** LV-Schätzpreise (GAEB 82) zum geladenen LV ergänzen bzw. ersetzen. */
+export function applySchaetz(d: State, doc: GaebDoc, name: string) {
+  d.schaetz = schaetzPreise(d.lv, doc);
+  d.lvInfo = { ...d.lvInfo, schaetz: Object.keys(d.schaetz).length ? name : '' };
+}
+
+export function removeSchaetz(d: State) {
+  const name = d.lvInfo?.schaetz;
+  d.schaetz = {};
+  d.lvInfo = { ...d.lvInfo, schaetz: '' };
+  d.lvPruef = d.lvPruef?.filter((b) => !b.datei || b.datei !== name);
+}
+
+/** Eigenes LV entfernen; Lose und Angebote bleiben, die Angebote werden beim nächsten LV neu zugeordnet. */
+export function removeLv(d: State) {
+  d.lv = [];
+  d.titles = {};
+  d.schaetz = {};
+  d.lvInfo = { lv: '', schaetz: '', pdfs: [] };
+  d.lvPruef = [];
+}
+
+/** Befunde eines LV-PDF erkennen (ältere Befunde tragen den Dateinamen nur im Text). */
+export const vonPdf = (b: LvBefund, name: string) => b.quelle === 'pdf' && (b.datei ? b.datei === name : b.text.startsWith(name));

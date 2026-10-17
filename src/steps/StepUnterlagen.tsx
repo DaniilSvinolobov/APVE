@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { State } from '../domain/types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
+import { OfferDateien } from './OfferDateien';
 import { expandZips, type RawFile } from '../import/zip';
 import { groupBids, groupPdfBids, isLvFile, isLvPdf } from '../import/files';
 import { bieterAusPdf, pruefePdf, refFromDoc, sortBefunde } from '../import/lvPruefung';
@@ -114,7 +115,6 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
 
       {s.offers.map((o, i) => {
         const cells = s.lose.map((l) => computeLos(s, l).find((c) => c.offer.id === o.id)).filter(Boolean);
-        const kats = Object.entries(o.dateien.reduce<Record<string, number>>((a, d) => ({ ...a, [d.kat]: (a[d.kat] ?? 0) + 1 }), {})).sort(([a], [b]) => Number(a === 'Sonstiges') - Number(b === 'Sonstiges'));
         return (
           <section className="card offer" key={o.id}>
             <div className="offer-head">
@@ -176,7 +176,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
                 {l.befunde.map((b, j) => <p key={j} className={b.kind === 'info' ? 'infobox' : 'warnbox slim'}><Icon name={b.kind === 'info' ? 'check' : 'alert'} /> {b.text}</p>)}
               </details>
             ))}
-            {kats.length > 0 && <p className="files"><span className="opt-l">Unterlagen</span>{kats.map(([k, n]) => `${k}${n > 1 ? ` (${n})` : ''}`).join(' · ')}</p>}
+            <OfferDateien o={o} up={up} onAdded={(id) => setTimeout(() => runKi([id]), 50)} />
           </section>
         );
       })}

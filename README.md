@@ -23,6 +23,7 @@ Maßnahme, Auftraggeber und Lose werden daraus vorbelegt:
 - **Preisspiegel:** Abweichung in % zum Günstigsten, zum LV-Schätzpreis oder zu beiden (je Position, Titel und Gesamt); Fußzeilen Nachlass (% und €), Gesamt netto, MwSt., Gesamt brutto, Abweichung zum Günstigsten/LV-Schätzpreis, Skonto informativ; höchster EP je Position violett
 - Eine x81/x83-Datei **mit Preisen** ist kein LV, sondern ein Angebot und wird hier abgewiesen.
 - **LV-Prüfung** (Kasten „Prüfung des LV“): doppelte OZ, Positionen ohne Menge/Einheit/Kurztext, leere Titel, Rechen- und Summenprüfung bei Preisen; mehrere Dateien desselben LV (z. B. X83 ↔ D83, X82) werden auf Positionen, Mengen, Einheiten und Texte verglichen.
+- **Geladene Dateien** stehen als Liste unter dem Ablagefeld und lassen sich einzeln entfernen. Weitere Dateien einfach dazulegen: eine X82 allein ergänzt die Schätzpreise zum geladenen LV, ein PDF wird zusätzlich abgeglichen, eine neue X81/X83 ersetzt das LV (Schätzpreise einer separaten X82 bleiben erhalten).
 - **LV als PDF** zusätzlich ablegen: Text wird lokal im Browser gelesen (pdf.js) und je Ordnungszahl mit Menge und Einheit der GAEB-Datei verglichen (fehlende/zusätzliche Positionen, abweichende Mengen). Scans ohne Text können nicht gelesen werden und werden als Hinweis gemeldet.
 
 **Angebote der Bieter (Schritt 2):** Ordner oder ZIP-Dateien (auch verschachtelt)
@@ -33,6 +34,7 @@ Maßnahme, Auftraggeber und Lose werden daraus vorbelegt:
 - Liegt im Angebot das **LV als PDF** (Dateiname enthält „LV“/„Leistungsverzeichnis“ oder `AngebotN_L.pdf`), wird es mit den Preisen der GAEB-Datei abgeglichen (Einheitspreis, Gesamtbetrag, Menge × EP); das Ergebnis steht am Angebot
 - **Preise nur im PDF:** Enthält der Bieterordner nur ein unbepreistes GAEB-LV (x81/x83) und das bepreiste LV als PDF, erkennt die App das, liest EP/GP aus dem PDF (je OZ, anhand des eigenen LV), markiert das Angebot („Preise aus PDF“) und setzt in der Vollständigkeitsprüfung bei „Preise vollständig (GAEB-Angebotsdatei)“ den Status „Nur als PDF (GAEB ohne Preise)“. Im Vermerk (4.4) steht ein entsprechender Satz. Die Zahlen stammen aus der PDF-Texterkennung und sind stichprobenartig zu prüfen; nicht lesbare Positionen werden als „nicht bepreist“ gemeldet.
 - PDF-Scans ohne Text können nicht ausgewertet werden
+- **Unterlagen je Angebot** (aufklappbar an der Angebotskarte): alle eingelesenen Dateien mit Kategorie; einzelne Dateien entfernen, Dateien (auch ZIP) ergänzen, als **nachgereicht** markieren und das Eingangsdatum setzen. Nachgereichte Unterlagen werden in der Vollständigkeitsprüfung als „nachgereicht“ mit Datum eingetragen (fehlt eine passende Zeile, entsteht eine neue); Einträge von Hand oder durch die KI bleiben dabei unverändert. Neue Preisdateien (X84) gehören nicht hierher, sondern als neues Angebot (Nachverhandlung) in das Ablagefeld oben.
 
 ## Dokumentprüfung mit Claude (Schritt 2, optional)
 Beim Einlesen öffnet Claude jedes PDF/jeden Scan eines Angebots und beurteilt: ausgefüllt / teilweise / leer,

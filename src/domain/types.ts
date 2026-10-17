@@ -1,5 +1,5 @@
 /** Ergebnis der LV-Prüfung (siehe gaeb/lvCheck.ts) */
-export interface LvBefund { kind: 'bad' | 'warn' | 'info'; text: string; quelle: 'gaeb' | 'pdf' }
+export interface LvBefund { kind: 'bad' | 'warn' | 'info'; text: string; quelle: 'gaeb' | 'pdf'; datei?: string }
 
 export interface Los {
   id: string;
@@ -58,7 +58,7 @@ export interface Offer {
   kiDocs?: { datei: string; art: string; inhalt: string; unterschrift: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI)
   textErg: { oz: string; text: string }[];
   nachforderung: string[];
-  dateien: { name: string; kat: string }[];
+  dateien: { name: string; kat: string; nach?: string }[]; // nach = nachgereicht am (ISO-Datum, '' = unbekannt)
   warnungen: string[];
   bidPos?: BidPos[];
   zusatz?: ZusatzPos[]; // Positionen, die im Soll-LV nicht vorkommen (neu), in der Summe enthalten
@@ -125,7 +125,7 @@ export interface State {
   anlagen: Anlage[];
   logo: string; // data-URL
   schaetz: Record<string, number>; // LV-Schätzpreis (EP netto) je Position [OZ ohne Punkte], aus GAEB 82
-  lvInfo: { lv: string; schaetz: string }; // Quelldateien des eigenen LV (Anzeige)
+  lvInfo: { lv: string; schaetz: string; pdfs?: string[] }; // Quelldateien des eigenen LV (Anzeige)
   lvPruef?: LvBefund[]; // Plausibilitätsprüfung des eigenen LV (GAEB untereinander, PDF gegen GAEB)
 }
 

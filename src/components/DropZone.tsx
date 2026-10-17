@@ -16,14 +16,14 @@ async function readEntry(entry: FileSystemEntry, path: string, out: RawFile[]) {
   }
 }
 
-async function collect(dt: DataTransfer): Promise<RawFile[]> {
+export async function collect(dt: DataTransfer): Promise<RawFile[]> {
   const out: RawFile[] = [];
   const entries = Array.from(dt.items).map((i) => i.webkitGetAsEntry?.()).filter(Boolean) as FileSystemEntry[];
   if (entries.length) { for (const e of entries) await readEntry(e, '', out); return out; }
   for (const f of Array.from(dt.files)) out.push({ path: f.name, data: new Uint8Array(await f.arrayBuffer()) });
   return out;
 }
-async function fromInput(list: FileList): Promise<RawFile[]> {
+export async function fromInput(list: FileList): Promise<RawFile[]> {
   const out: RawFile[] = [];
   for (const f of Array.from(list)) out.push({ path: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, data: new Uint8Array(await f.arrayBuffer()) });
   return out;

@@ -27,7 +27,7 @@ Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
 | `import/` | Einlesen und Zuordnen, siehe Datenfluss; `docStore.ts` hält Originaldateien nur im Arbeitsspeicher | nein |
 | `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Aufruf von `api/pruefen.ts`) | nein |
 | `vermerk/` | Aufbau und Texte des Vergabevermerks | nein |
-| `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken | ja |
+| `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen | ja |
 | `components/` | wiederverwendbare UI-Bausteine (`ui.tsx`, `DropZone.tsx`) | ja |
 | `storage/` | Browser-Speicher (`projectStore.ts`), Export CSV/JSON (`exportCsv.ts`) | nein |
 

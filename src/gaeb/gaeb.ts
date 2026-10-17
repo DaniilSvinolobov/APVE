@@ -114,8 +114,14 @@ function parseD(buf: Uint8Array): GaebDoc {
         break;
       }
       case '23': {
-        const m = l.match(/^23([\d ]{1,9}?)\s+([-+]?\d{10})\s+([-+]?\d{12})/);
-        if (m) doc.positions.push({ oz: dOz(m[1], mask), kurz: '', lang: '', menge: null, einheit: '', bedarf: false, ep: Number(m[2]) / 100, gp: Number(m[3]) / 100 });
+        // feste Spalten: OZ 3–11, EP 12–24, GP 25–36 (GP in Cent). EP mit 11 Stellen hat 3, sonst 2 Nachkommastellen;
+        // fehlt der EP (Pauschalposition), gilt der GP als EP (Menge 1) – eine abweichende LV-Menge fällt in der Rechenprüfung auf.
+        const gpRaw = l.slice(24, 36).trim();
+        if (!/^[-+]?\d+$/.test(gpRaw)) break;
+        const epRaw = l.slice(11, 24).trim();
+        const gp = Number(gpRaw) / 100;
+        const ep = /^[-+]?\d+$/.test(epRaw) ? Number(epRaw) / (epRaw.replace(/^[-+]/, '').length >= 11 ? 1000 : 100) : gp;
+        doc.positions.push({ oz: dOz(l.slice(2, 11), mask), kurz: '', lang: '', menge: null, einheit: '', bedarf: false, ep, gp });
         break;
       }
       case '25': if (cur) { cur.kurz = (cur.kurz + ' ' + l.slice(2, 72).trim()).trim(); } break;

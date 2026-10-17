@@ -169,6 +169,15 @@ export function computeLos(s: State, los: Los): Cell[] {
   return cells.sort((a, b) => a.offer.runde - b.offer.runde || (a.rankAll ?? 99) - (b.rankAll ?? 99) || a.offer.nr - b.offer.nr);
 }
 
+/** Passt das geladene LV zu den Angeboten? Weichen bei mindestens der Hälfte Mengen ab, fehlen Preise oder gibt es neue Positionen, wurde vermutlich nach einer anderen LV-Fassung kalkuliert. */
+export function lvFremd(s: State, cells: Cell[]): string | null {
+  if (!s.lv.length) return null;
+  const abw = cells.filter((c) => c.mengeAbw.length + c.zusatz.length + c.missing >= 3);
+  if (!abw.length || abw.length * 2 < cells.length) return null;
+  const max = (f: (c: Cell) => number) => Math.max(...cells.map(f));
+  return `Die Angebote passen nicht zum geladenen LV${s.lvInfo?.lv ? ` (${s.lvInfo.lv}, ${s.lv.length} Positionen)` : ''}: bei ${abw.length} von ${cells.length} Angeboten weichen Mengen ab (${max((c) => c.mengeAbw.length)} Pos.), stehen neue Positionen (${max((c) => c.zusatz.length)}) oder fehlen Preise (${max((c) => c.missing)}). Vermutlich haben die Bieter nach einer anderen LV-Fassung kalkuliert – bitte im Schritt „Vergabe“ das aktuelle LV laden. Die Summen sind so nicht belastbar.`;
+}
+
 /** Gegenprobe der Angebotssumme: Wertungssumme gegen Endsumme der GAEB-Datei und gegen die Endsumme im PDF des Bieters. */
 export function summenFlags(s: State, o: Offer): Flag[] {
   const ck = o.check;

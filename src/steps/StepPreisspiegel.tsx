@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ClipboardEvent } from 'react';
 import type { State } from '../domain/types';
-import { computeLos, losPositions, schaetzSumme, titelKey, zkey, zusatzWert } from '../domain/calc';
+import { computeLos, losPositions, lvFremd, schaetzSumme, titelKey, zkey, zusatzWert } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from '../domain/fmt';
 import { Chip, Icon, NumInput, Seg, Tabs } from '../components/ui';
 import { downloadCsv } from '../storage/exportCsv';
@@ -97,9 +97,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   }
   const zList = [...zRows.values()];
   const zSum = (c: (typeof cells)[number]) => round2(c.zusatz.filter((z) => !z.bedarf).reduce((a, z) => a + zusatzWert(z), 0));
-  /* Passt das geladene LV zu den Angeboten? Weichen bei der Hälfte der Angebote Mengen ab, fehlen Preise oder gibt es neue Positionen, wurde vermutlich nach einer anderen LV-Fassung kalkuliert. */
-  const lvAbw = cells.filter((c) => c.mengeAbw.length + c.zusatz.length + c.missing >= 3);
-  const lvFremd = hasLv && lvAbw.length > 0 && lvAbw.length * 2 >= cells.length;
+  const lvFremdText = lvFremd(s, cells);
   const visibleGroups = [...groups.entries()].filter(([, ps]) => !onlyAuff || ps.some((p) => cells.some((c) => isOut(c, p.oz))));
   const visibleOz = visibleGroups.flatMap(([k, ps]) => (open.has(k) || onlyAuff ? ps.map((p) => p.oz) : []));
   const ncol = hasLv ? 4 : 1;
@@ -130,9 +128,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
               {cells.some((c) => c.zusatz.length) && <Chip kind="info">Neue Positionen gegenüber dem LV (unten markiert) sind in den Summen enthalten</Chip>}
               {cells.some((c) => c.mengeAbw.length) && <Chip kind="warn">Mengen im LV weichen von der Bieterdatei ab – siehe markierte Positionen</Chip>}
             </div>
-            {lvFremd && (
-              <p className="warnbox"><Icon name="alert" /> Die Angebote passen nicht zum geladenen LV{s.lvInfo?.lv ? ` (${s.lvInfo.lv}, ${s.lv.length} Positionen)` : ''}: bei {lvAbw.length} von {cells.length} Angeboten weichen Mengen ab ({Math.max(...cells.map((c) => c.mengeAbw.length))} Pos.), stehen neue Positionen ({Math.max(...cells.map((c) => c.zusatz.length))}) oder fehlen Preise ({Math.max(...cells.map((c) => c.missing))}). Vermutlich haben die Bieter nach einer anderen LV-Fassung kalkuliert – bitte im Schritt „Vergabe“ das aktuelle LV laden. Die Summen sind so nicht belastbar.</p>
-            )}
+            {lvFremdText && <p className="warnbox"><Icon name="alert" /> {lvFremdText}</p>}
             <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>
               <table className="preis" style={{ minWidth: 560 + (cells.length + refHead.length) * 250 }}>
                 <thead>

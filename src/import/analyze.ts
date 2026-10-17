@@ -16,6 +16,9 @@ const decodeText = (b: Uint8Array) => new TextDecoder('utf-8').decode(b);
 
 const is84 = (path: string) => /\.[dpx]84$/i.test(path);
 
+/** Bezeichnung einer nachgereichten Unterlage aus dem Dateinamen (ohne Endung und angehängten Firmennamen). */
+export const nachName = (name: string) => base(name).replace(/\.[a-z0-9]+$/i, '').replace(/\s*-\s*[^-]+$/, '');
+
 export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: DocFile[] }
 
 /** `pre`: Preise stammen nicht aus einer GAEB-Datei, sondern aus dem LV-PDF (Dokument bereits aufgebaut). */
@@ -62,7 +65,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
     .map((f) => ({ name: base(f.path), kat: kategorie(f.path) }));
   const nachforderung = g.files
     .filter((f) => /nachforderung/i.test(f.path) && !/\.zip$/i.test(f.path))
-    .map((f) => base(f.path).replace(/\.[a-z0-9]+$/i, '').replace(/\s*-\s*[^-]+$/, ''));
+    .map((f) => nachName(f.path));
   const has = (k: string) => dateien.some((d) => d.kat === k);
   const sigFound = has('Signatur') || !!sig;
   const sigNr = grab(/Vergabenummer:\s*(.+)/);
@@ -76,10 +79,15 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
     textErg: doc.positions.filter((p) => p.bieterText).map((p) => ({ oz: p.oz, text: p.bieterText! })),
     nachforderung, dateien, warnungen, quelle: base(used.path),
   };
-  const docs: DocFile[] = g.files
+  const docs = docFiles(g.files, g.root);
+  return { offer, doc, sig: sigFound, docs };
+}
+
+/** Dokumente für die (optionale) KI-Prüfung: PDF und Bilder, ohne LV-PDF, ohne Duplikate. */
+export function docFiles(files: RawFile[], root: string): DocFile[] {
+  return files
     .filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.path) && f.data.length <= 9_000_000)
     .filter((f) => !isLvPdf(f.path))
     .filter((f, i, arr) => arr.findIndex((x) => x.data.length === f.data.length && base(x.path) === base(f.path)) === i)
-    .map((f) => ({ name: base(f.path), path: f.path.slice(g.root.length ? g.root.length + 1 : 0), data: f.data, kat: kategorie(f.path), mime: /\.pdf$/i.test(f.path) ? 'application/pdf' : /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg' }));
-  return { offer, doc, sig: sigFound, docs };
+    .map((f) => ({ name: base(f.path), path: f.path.slice(root.length ? root.length + 1 : 0), data: f.data, kat: kategorie(f.path), mime: /\.pdf$/i.test(f.path) ? 'application/pdf' : /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg' }));
 }

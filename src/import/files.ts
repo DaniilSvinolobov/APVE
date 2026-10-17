@@ -58,6 +58,8 @@ export interface LvFiles {
   schaetzName: string;
   /** x81/x83 mit Bieterpreisen: wurden übersprungen, gehören in „Angebote der Bieter“ */
   pricedSkipped: string[];
+  /** nur ein Kostenanschlag (82) dabei, kein 81/83 – ergänzt bei geladenem LV nur die Schätzpreise */
+  nur82: boolean;
   /** alle lesbaren LV-Dateien (81/82/83, alle Formate) – für den Abgleich untereinander */
   docs: { name: string; doc: GaebDoc }[];
 }
@@ -72,7 +74,7 @@ export function findLvFiles(files: RawFile[], DP?: typeof DOMParser): LvFiles {
     try { const doc = parseGaeb(base(f.path), f.data, DP); if (!(MAYBE_BID.test(f.path) && isPriced(doc))) docs.push({ name: base(f.path), doc }); } catch { /* nicht lesbar */ }
   }
   const s82 = d82 && d82.doc.positions.some((p) => p.ep != null) ? d82 : null;
-  return { soll: soll?.doc ?? null, sollName: soll?.name ?? '', schaetz: s82?.doc ?? null, schaetzName: s82?.name ?? '', pricedSkipped, docs };
+  return { soll: soll?.doc ?? null, sollName: soll?.name ?? '', schaetz: s82?.doc ?? null, schaetzName: s82?.name ?? '', nur82: !d81 && !d83 && !!d82, pricedSkipped, docs };
 }
 
 /** PDF des LV (Ausdruck der Positionen) – gehört nicht zu den Nachweisen, sondern wird gegen die GAEB-Datei geprüft. */

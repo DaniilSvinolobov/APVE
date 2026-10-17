@@ -14,6 +14,7 @@ export interface Los {
 export interface LvPos {
   oz: string;
   kurz: string;
+  lang?: string; // Langtext (gekürzt), nur für den Textabgleich mit Bieterdateien
   menge: number | null;
   mengeOrig: number | null;
   einheit: string;
@@ -46,6 +47,7 @@ export interface Offer {
   nachforderung: string[];
   dateien: { name: string; kat: string }[];
   warnungen: string[];
+  ozZuordnung?: { bieter: string; lv: string; score: number }[]; // Positionen, die über den Text statt über die OZ dem Soll-LV zugeordnet wurden
   quelle: string;
   preisQuelle?: 'gaeb' | 'pdf'; // pdf = GAEB-Datei des Bieters ohne Preise, Preise aus dem bepreisten LV-PDF gelesen
   lvPdf?: { name: string; befunde: LvBefund[] }[]; // Abgleich des beigelegten LV-PDF mit der GAEB-Preisdatei

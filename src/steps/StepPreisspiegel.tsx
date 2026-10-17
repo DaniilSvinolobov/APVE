@@ -112,6 +112,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
               <label className="mini"><input type="checkbox" checked={onlyAuff} onChange={(e) => setOnlyAuff(e.target.checked)} /> nur Titel mit Preisauffälligkeiten</label></>}
               <span className="field-label" style={{ marginLeft: 8 }}>Abweichung in % zu:</span>
               <Seg small value={useBasis} onChange={setBasis} options={[{ value: 'min', label: 'Günstigstem' }, ...(hasSch ? [{ value: 'schaetz' as const, label: 'LV-Schätzpreis' }] : [])]} />
+              {cells.filter((c) => (c.offer.ungedeckt ?? 0) > 0.005).map((c) => <Chip key={c.offer.id} kind="warn">Nr. {c.offer.nr}: Positionen im Wert von {fmtEur(c.offer.ungedeckt)} aus der Bieterdatei fehlen in der Wertung (nicht im LV zugeordnet)</Chip>)}
               {cells.some((c) => c.mengeAbw.length) && <Chip kind="warn">Mengen im LV weichen von der Bieterdatei ab – siehe markierte Positionen</Chip>}
             </div>
             <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>

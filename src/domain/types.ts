@@ -21,6 +21,9 @@ export interface LvPos {
   bedarf: boolean;
 }
 
+/** Position aus der Bieterdatei, wie eingelesen – erlaubt erneutes Zuordnen, wenn das Soll-LV später geladen oder ersetzt wird. */
+export interface BidPos { oz: string; kurz: string; lang: string; menge: number | null; einheit: string; bedarf: boolean; ep: number | null; gp: number | null }
+
 export interface PriceEntry {
   ep: number | null;
   gp: number | null; // Gesamtpreis laut Bieterdatei
@@ -47,6 +50,9 @@ export interface Offer {
   nachforderung: string[];
   dateien: { name: string; kat: string }[];
   warnungen: string[];
+  bidPos?: BidPos[];
+  dateiSumme?: number | null; // Nettosumme laut Bieterdatei (Dateisumme, sonst Summe der Gesamtpreise)
+  ungedeckt?: number; // Wert (Gesamtpreise) der Bieterpositionen, die keiner LV-Position zugeordnet werden konnten und in der Wertung fehlen
   ozZuordnung?: { bieter: string; lv: string; score: number }[]; // Positionen, die über den Text statt über die OZ dem Soll-LV zugeordnet wurden
   quelle: string;
   preisQuelle?: 'gaeb' | 'pdf'; // pdf = GAEB-Datei des Bieters ohne Preise, Preise aus dem bepreisten LV-PDF gelesen

@@ -1,6 +1,6 @@
 import { ozKey, type GaebDoc } from '../gaeb/gaeb';
-import type { Los, Offer, State } from '../domain/types';
-import { uid } from '../domain/fmt';
+import type { BidPos, Los, Offer, State } from '../domain/types';
+import { fmtEur, round2, uid } from '../domain/fmt';
 import { losPositions } from '../domain/calc';
 import type { ParsedBid } from './analyze';
 import { matchPositions, SICHER } from './ozMatch';
@@ -51,6 +51,14 @@ export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, 
     else d.lose.push(l);
   }
   d.lose = d.lose.filter((l) => !l.oz || d.lv.some((p) => p.oz.startsWith(l.oz + '.')) || !lose.length);
+  // bereits geladene Angebote gegen das neue LV neu zuordnen (nur wenn Lücken bestehen, damit Handeingaben nicht überschrieben werden)
+  for (const o of d.offers) {
+    o.warnungen = o.warnungen.filter((w) => !w.startsWith('Kein Soll-LV geladen'));
+    if (!o.bidPos || !hatLuecken(d, o)) continue;
+    zuordnen(d, o);
+    o.lose = o.lose.filter((id) => d.lose.some((l) => l.id === id));
+    if (!o.lose.length) o.lose = loseOf(d, o);
+  }
   if (!d.project.titel && doc.bezeichnung) d.project.titel = doc.bezeichnung;
   if (!d.project.auftraggeber && doc.auftraggeber) d.project.auftraggeber = doc.auftraggeber;
 }
@@ -70,13 +78,11 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
     for (const l of losFromTitles(Object.fromEntries(Object.entries(d.titles).filter(([k]) => !k.includes('.'))), doc.projekt || doc.bezeichnung)) if (!d.lose.some((x) => x.oz === l.oz)) d.lose.push({ ...l, name: l.name || `Los ${l.oz}` });
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
-  mapToLv(d, offer, doc.positions);
-  const known = new Set(d.lv.map((p) => ozKey(p.oz)));
-  const extra = Object.keys(offer.prices).filter((k) => !known.has(k));
-  if (extra.length) offer.warnungen.push(`${extra.length} Position(en) der Bieterdatei kommen im Soll-LV nicht vor (z. B. ${extra.slice(0, 3).join(', ')}) – auch nicht nach Textabgleich.`);
-  const miss = d.lv.filter((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
-  if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
-  offer.lose = d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
+  offer.bidPos = doc.positions.map((p) => ({ oz: p.oz, kurz: p.kurz, lang: (p.lang ?? '').slice(0, 600), menge: p.menge, einheit: p.einheit, bedarf: p.bedarf, ep: p.ep, gp: p.gp }));
+  const gpSumme = round2(doc.positions.reduce((a, p) => a + (p.gp ?? 0), 0));
+  offer.dateiSumme = doc.total.net || gpSumme || null;
+  zuordnen(d, offer);
+  offer.lose = loseOf(d, offer);
   const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => { const l = d.lose.find((x) => x.id === id); return !!l && (!l.oz || p.oz.startsWith(l.oz + '.')); }));
   autoPruef(d, offer, sigFound, preise);
   const eroeff = d.project.eroeffnung.slice(0, 10);
@@ -89,13 +95,45 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   d.offers.sort((a, b) => a.nr - b.nr);
 }
 
+const ZUORD_WARN = /Ordnungszahl als das Soll-LV|geringer Übereinstimmung|im Soll-LV nicht vor|des Soll-LV sind in der Bieterdatei nicht bepreist|fehlen in der Wertung/;
+
+const loseOf = (d: State, offer: Offer) => d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
+
+/** Gibt es Bieterpreise ohne LV-Position oder LV-Positionen ohne Bieterpreis? */
+function hatLuecken(d: State, offer: Offer) {
+  const known = new Set(d.lv.map((p) => ozKey(p.oz)));
+  return Object.keys(offer.prices).some((k) => !known.has(k)) || d.lv.some((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
+}
+
+/**
+ * Bieterpreise dem Soll-LV zuordnen und die Hinweise dazu erzeugen. Kann jederzeit erneut laufen
+ * (z. B. wenn das LV erst nach den Angeboten geladen wird): Ausgangspunkt sind die gespeicherten Bieterpositionen.
+ */
+export function zuordnen(d: State, offer: Offer) {
+  const bid = offer.bidPos ?? [];
+  offer.warnungen = offer.warnungen.filter((w) => !ZUORD_WARN.test(w));
+  offer.ozZuordnung = undefined;
+  offer.prices = Object.fromEntries(bid.map((p) => [ozKey(p.oz), { ep: p.ep, gp: p.gp }]));
+  const zugeordnet = mapToLv(d, offer, bid);
+  const known = new Set(d.lv.map((p) => ozKey(p.oz)));
+  const extra = Object.keys(offer.prices).filter((k) => !known.has(k));
+  const wert = (p: BidPos) => p.gp ?? (p.ep != null && p.menge != null ? round2(p.ep * p.menge) : 0);
+  const toKey = new Map(zugeordnet.map((m) => [ozKey(m.bieter), ozKey(m.lv)]));
+  const ungedeckt = round2(bid.filter((p) => !known.has(toKey.get(ozKey(p.oz)) ?? ozKey(p.oz))).reduce((a, p) => a + wert(p), 0));
+  offer.ungedeckt = ungedeckt;
+  if (extra.length) offer.warnungen.push(`${extra.length} Position(en) der Bieterdatei kommen im Soll-LV nicht vor (z. B. ${extra.slice(0, 3).join(', ')}) – auch nicht nach Textabgleich.`);
+  if (ungedeckt > 0.005) offer.warnungen.push(`Bieterpositionen im Wert von ${fmtEur(ungedeckt)} (Summe laut Bieterdatei: ${fmtEur(offer.dateiSumme)}) ließen sich keiner LV-Position zuordnen und fehlen in der Wertung.`);
+  const miss = d.lv.filter((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
+  if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
+}
+
 /**
  * Bieterpreise auf die OZ des Soll-LV umschreiben. Weicht die Nummerierung der Bieterdatei ab, wird
  * über Kurz-/Langtext, Einheit und Menge zugeordnet (siehe ozMatch.ts) und im Angebot vermerkt.
  */
-function mapToLv(d: State, offer: Offer, bid: GaebDoc['positions']) {
+function mapToLv(d: State, offer: Offer, bid: BidPos[]): { bieter: string; lv: string }[] {
   const matches = matchPositions(d.lv, bid).filter((m) => ozKey(m.bieter) !== ozKey(m.lv));
-  if (!matches.length) return;
+  if (!matches.length) return [];
   const to = new Map(matches.map((m) => [ozKey(m.bieter), ozKey(m.lv)]));
   const prices: Offer['prices'] = {};
   for (const [k, v] of Object.entries(offer.prices)) if (to.has(k)) prices[to.get(k)!] = v;
@@ -110,6 +148,7 @@ function mapToLv(d: State, offer: Offer, bid: GaebDoc['positions']) {
   if (ueber.length) offer.warnungen.push(`${ueber.length} Position(en) der Bieterdatei haben eine andere Ordnungszahl als das Soll-LV und wurden über Text bzw. Menge und Reihenfolge zugeordnet (z. B. ${ueber.slice(0, 3).map(fmt).join('; ')}).`);
   const unsicher = ueber.filter((m) => m.score < SICHER);
   if (unsicher.length) offer.warnungen.push(`Davon ${unsicher.length} mit geringer Übereinstimmung – bitte prüfen: ${unsicher.slice(0, 5).map(fmt).join('; ')}${unsicher.length > 5 ? ' …' : ''}.`);
+  return matches;
 }
 
 const SYN: Record<string, RegExp> = {

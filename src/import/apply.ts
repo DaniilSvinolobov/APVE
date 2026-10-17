@@ -63,6 +63,12 @@ export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, 
   if (!d.project.auftraggeber && doc.auftraggeber) d.project.auftraggeber = doc.auftraggeber;
 }
 
+/** Endsumme laut GAEB-Datei (Kopfsumme, sonst Summe der Titelsummen) und Summe der Positionen. */
+export function summenCheck(doc: GaebDoc): { gaeb: number | null; positionen: number } {
+  const titelSumme = round2(Object.entries(doc.totals).filter(([k]) => !k.includes('.')).reduce((a, [, v]) => a + v, 0));
+  return { gaeb: doc.total.net || titelSumme || null, positionen: round2(doc.positions.reduce((a, p) => a + (p.gp ?? 0), 0)) };
+}
+
 /** Fügt ein analysiertes Angebot in den State ein. */
 export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   const { offer, doc } = parsed;
@@ -79,8 +85,7 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
   offer.bidPos = doc.positions.map((p) => ({ oz: p.oz, kurz: p.kurz, lang: (p.lang ?? '').slice(0, 600), menge: p.menge, einheit: p.einheit, bedarf: p.bedarf, ep: p.ep, gp: p.gp }));
-  const titelSumme = round2(Object.entries(doc.totals).filter(([k]) => !k.includes('.')).reduce((a, [, v]) => a + v, 0));
-  offer.check = { gaeb: doc.total.net || titelSumme || null, positionen: round2(doc.positions.reduce((a, p) => a + (p.gp ?? 0), 0)) };
+  offer.check = { ...summenCheck(doc), pdf: offer.check?.pdf };
   zuordnen(d, offer);
   offer.lose = loseOf(d, offer);
   const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => { const l = d.lose.find((x) => x.id === id); return !!l && (!l.oz || p.oz.startsWith(l.oz + '.')); }));

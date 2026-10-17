@@ -7,7 +7,7 @@ import { bieterAusPdf, pruefePdf, refFromDoc, sortBefunde } from '../import/lvPr
 import type { ParsedBid } from '../import/analyze';
 import { base } from '../import/zip';
 import { analyzeGroup } from '../import/analyze';
-import { applyOffer } from '../import/apply';
+import { applyOffer, summenCheck } from '../import/apply';
 import { pdfSummenCheck } from '../import/pdfSumme';
 import { docStore } from '../import/docStore';
 import { applyKi, getCode, hasConsent, offerDocs, setCode } from '../ki/kiApply';
@@ -79,7 +79,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         for (const f of pdfs) p.offer.lvPdf.push({ name: base(f.path), befunde: sortBefunde(await pruefePdf(f, refFromDoc(p.doc), true)) });
       }
       // Gegenprobe: Endsumme im PDF des Bieters
-      for (const { g, p } of withGroup) if (p.offer.check) p.offer.check.pdf = await pdfSummenCheck(g.files, p.offer.check.gaeb ?? p.offer.check.positionen);
+      for (const { g, p } of withGroup) { const ck = summenCheck(p.doc); p.offer.check = { ...ck, pdf: await pdfSummenCheck(g.files, ck.gaeb ?? ck.positionen) }; }
       if (!parsed.length) {
         setMsg({ ok: false, text: hinweise.length ? hinweise.join(' ') : files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien ohne Preise (x81/x82/x83) – das eigene LV gehört in den Schritt „Vergabe“.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
       } else {

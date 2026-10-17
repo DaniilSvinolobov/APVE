@@ -51,12 +51,15 @@ const textSim = (a: Side, b: Side) => {
   return Math.max(strict, dice(a.all, b.all), 0.9 * overlap(a.all, b.all));
 };
 
+/** OZ ohne führende Nullen je Ebene: „01.0001“ (Bieter, GAEB 90) und „01.1“ (LV) sind dieselbe Position. */
+const normOz = (oz: string) => oz.split('.').map((x) => x.replace(/^0+(?=\d)/, '')).join('.');
+
 const closeMenge = (a: number | null, b: number | null) => a != null && b != null && a > 0 && b > 0 && Math.abs(a - b) <= Math.max(0.015 * b, 0.005);
 
 /**
  * Ordnet Bieterpositionen den Positionen des Soll-LV zu. Bieter nummerieren ihre Leistungsverzeichnisse
  * mitunter anders (andere OZ-Maske, Umnummerierung); eine fehlende OZ heißt dann nicht, dass die Position fehlt.
- * 1. gleiche OZ und nicht widersprüchlicher Text → Treffer
+ * 1. gleiche OZ (auch bei abweichender Nullauffüllung) und nicht widersprüchlicher Text → Treffer
  * 2. Rest: Text (Kurz-/Langtext) vergleichen, Einheit, Menge und Reihenfolge stützen; je Paar höchster Wert zuerst
  */
 export function matchPositions(lv: LvPos[], bid: GaebPos[]): OzMatch[] {
@@ -67,8 +70,9 @@ export function matchPositions(lv: LvPos[], bid: GaebPos[]): OzMatch[] {
   const usedL = new Set<number>(), usedB = new Set<number>();
 
   const byKey = new Map(L.map((l) => [ozKey(l.oz), l]));
+  const byNorm = new Map(L.map((l) => [normOz(l.oz), l]));
   for (const b of B) {
-    const l = byKey.get(ozKey(b.oz));
+    const l = byKey.get(ozKey(b.oz)) ?? byNorm.get(normOz(b.oz));
     if (!l || usedL.has(l.idx)) continue;
     const s = textSim(b, l);
     if (s >= 0.35 || !b.hasText || !l.hasText) {

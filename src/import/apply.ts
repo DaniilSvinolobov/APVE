@@ -105,8 +105,10 @@ function mapToLv(d: State, offer: Offer, bid: GaebDoc['positions']) {
   offer.textErg = offer.textErg.map((t) => { const lvOz = d.lv.find((p) => ozKey(p.oz) === to.get(ozKey(t.oz)))?.oz; return lvOz ? { ...t, oz: lvOz } : t; });
   offer.ozZuordnung = matches.map((m) => ({ bieter: m.bieter, lv: m.lv, score: m.score }));
   const fmt = (m: { bieter: string; lv: string }) => `${m.bieter} → ${m.lv}`;
-  offer.warnungen.push(`${matches.length} Position(en) der Bieterdatei haben eine andere Ordnungszahl als das Soll-LV und wurden über Text bzw. Menge und Reihenfolge zugeordnet (z. B. ${matches.slice(0, 3).map(fmt).join('; ')}).`);
-  const unsicher = matches.filter((m) => m.score < SICHER);
+  // reine Schreibweise der OZ (führende Nullen) ist kein Hinweis wert; Zuordnung über Text/Menge schon
+  const ueber = matches.filter((m) => m.art !== 'oz');
+  if (ueber.length) offer.warnungen.push(`${ueber.length} Position(en) der Bieterdatei haben eine andere Ordnungszahl als das Soll-LV und wurden über Text bzw. Menge und Reihenfolge zugeordnet (z. B. ${ueber.slice(0, 3).map(fmt).join('; ')}).`);
+  const unsicher = ueber.filter((m) => m.score < SICHER);
   if (unsicher.length) offer.warnungen.push(`Davon ${unsicher.length} mit geringer Übereinstimmung – bitte prüfen: ${unsicher.slice(0, 5).map(fmt).join('; ')}${unsicher.length > 5 ? ' …' : ''}.`);
 }
 

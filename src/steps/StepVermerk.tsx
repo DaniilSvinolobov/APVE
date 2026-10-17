@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { State } from '../domain/types';
 import { buildVermerk, anlagenList, footerText, type Block } from '../vermerk/vermerk';
 import { computeLos, getBew, pruefStatus } from '../domain/calc';
-import { fmtEur, uid } from '../domain/fmt';
+import { uid } from '../domain/fmt';
 import { downloadJson } from '../storage/exportCsv';
 import { Icon } from '../components/ui';
 
@@ -42,7 +42,6 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
     for (const c of cells) {
       if (getBew(s, c.offer.id, l.id).ausschluss === 'fehlender Eignungsnachweise') open.push(`${l.nr}, Nr. ${c.offer.nr}: Ausschlussgrund bitte konkretisieren`);
       if (c.flags.some((f) => f.text.includes('Aufklärung prüfen'))) open.push(`${l.nr}, Nr. ${c.offer.nr}: Preisaufklärung offen`);
-      if ((c.offer.ungedeckt ?? 0) > 0.005) open.push(`${l.nr}, Nr. ${c.offer.nr}: Bieterpositionen im Wert von ${fmtEur(c.offer.ungedeckt)} fehlen in der Wertung (keiner LV-Position zugeordnet)`);
       if (c.mengeAbw.length) open.push(`${l.nr}, Nr. ${c.offer.nr}: Menge weicht vom LV ab (Preisspiegel prüfen)`);
       if (c.rechenDiff != null && Math.abs(c.rechenDiff) > 0.01 && !c.mengeAbw.length) open.push(`${l.nr}, Nr. ${c.offer.nr}: Rechenabweichung`);
     }

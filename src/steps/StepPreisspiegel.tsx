@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ClipboardEvent } from 'react';
 import type { State } from '../domain/types';
-import { computeLos, losPositions, schaetzSumme, titelKey, zkey } from '../domain/calc';
+import { computeLos, losPositions, schaetzSumme, titelKey, zkey, zusatzWert } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from '../domain/fmt';
 import { Chip, Icon, NumInput, Seg, Tabs } from '../components/ui';
 import { downloadCsv } from '../storage/exportCsv';
@@ -78,6 +78,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const exportCsv = () => {
     const head = ['Pos.', 'Leistung', 'Menge', 'Einheit', ...cells.flatMap((c) => [`Nr.${c.offer.nr} ${c.offer.firma} EP`, `GP`]), ...refHead.flatMap(([, l]) => [`${l} EP`, `${l} GP`])];
     const rows = pos.map((p) => { const r = refEp(p.oz); return [p.oz, p.kurz, p.menge ?? '', p.einheit, ...cells.flatMap((c) => { const ep = epOf(c, p.oz); return [ep ?? '', gpOf(p, ep) ?? '']; }), ...refHead.flatMap(([k]) => [r[k] ?? '', gpOf(p, r[k]) ?? ''])]; });
+    for (const r of zList) rows.push([`neu: ${r.oz}`, r.kurz, r.menge ?? '', r.einheit, ...cells.flatMap((c) => { const z = r.per.get(c.offer.id); return z ? [z.ep ?? '', zusatzWert(z)] : ['', '']; }), ...refHead.flatMap(() => ['', ''])]);
     const blank = refHead.flatMap(() => ['', '']);
     const tot = (f: (c: (typeof cells)[number]) => number | null) => { const v = cells.filter((c) => c.complete && !c.excluded).map(f).filter((x): x is number => x != null); return [avgOf(v) ?? '', minOf(v) ?? '', ...(hasSch ? [schaetzSumme(s, los) ?? ''] : [])]; };
     const fill = (vals: (number | string)[]) => refHead.flatMap((_, i) => ['', vals[i] ?? '']);
@@ -85,6 +86,17 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
     downloadCsv(`Preisspiegel_${los.nr}_Runde${rd}.csv`, [head, ...rows]);
   };
 
+  /* Positionen der Bieter, die im Soll-LV nicht stehen: eine Zeile je Position, gleiche Texte verschiedener Bieter stehen in einer Zeile */
+  const normTxt = (t: string) => t.toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim();
+  const zRows = new Map<string, { oz: string; kurz: string; einheit: string; menge: number | null; per: Map<string, (typeof cells)[number]['zusatz'][number]> }>();
+  for (const c of cells) for (const z of c.zusatz) {
+    const k = z.kurz && normTxt(z.kurz) ? `${normTxt(z.kurz)}|${z.einheit}` : `${c.offer.id}|${z.oz}`;
+    const row = zRows.get(k) ?? { oz: z.oz, kurz: z.kurz, einheit: z.einheit, menge: z.menge, per: new Map() };
+    row.per.set(c.offer.id, z);
+    zRows.set(k, row);
+  }
+  const zList = [...zRows.values()];
+  const zSum = (c: (typeof cells)[number]) => round2(c.zusatz.filter((z) => !z.bedarf).reduce((a, z) => a + zusatzWert(z), 0));
   const visibleGroups = [...groups.entries()].filter(([, ps]) => !onlyAuff || ps.some((p) => cells.some((c) => isOut(c, p.oz))));
   const visibleOz = visibleGroups.flatMap(([k, ps]) => (open.has(k) || onlyAuff ? ps.map((p) => p.oz) : []));
   const ncol = hasLv ? 4 : 1;
@@ -112,7 +124,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
               <label className="mini"><input type="checkbox" checked={onlyAuff} onChange={(e) => setOnlyAuff(e.target.checked)} /> nur Titel mit Preisauffälligkeiten</label></>}
               <span className="field-label" style={{ marginLeft: 8 }}>Abweichung in % zu:</span>
               <Seg small value={useBasis} onChange={setBasis} options={[{ value: 'min', label: 'Günstigstem' }, ...(hasSch ? [{ value: 'schaetz' as const, label: 'LV-Schätzpreis' }] : [])]} />
-              {cells.filter((c) => (c.offer.ungedeckt ?? 0) > 0.005).map((c) => <Chip key={c.offer.id} kind="warn">Nr. {c.offer.nr}: Positionen im Wert von {fmtEur(c.offer.ungedeckt)} aus der Bieterdatei fehlen in der Wertung (nicht im LV zugeordnet)</Chip>)}
+              {cells.some((c) => c.zusatz.length) && <Chip kind="info">Neue Positionen gegenüber dem LV (unten markiert) sind in den Summen enthalten</Chip>}
               {cells.some((c) => c.mengeAbw.length) && <Chip kind="warn">Mengen im LV weichen von der Bieterdatei ab – siehe markierte Positionen</Chip>}
             </div>
             <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>
@@ -181,6 +193,26 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                       </Fragment>
                     );
                   })}
+                  {hasLv && zList.length > 0 && (
+                    <>
+                      <tr className="titel neu-kopf">
+                        <td className="sticky c0 left">neu</td>
+                        <td className="sticky c1 left"><b>Zusätzliche Positionen (nicht im LV)</b><small className="muted"> · {zList.length} Pos., in den Summen enthalten</small></td><td /><td />
+                        {refHead.map(([rk]) => <Fragment key={rk}><td className="ref" /><td className="ref" /></Fragment>)}
+                        {cells.map((c) => <Fragment key={c.offer.id}><td /><td className="gp strong">{c.zusatz.length ? fmtNum(zSum(c)) : ''}</td></Fragment>)}
+                      </tr>
+                      {zList.map((r, i) => (
+                        <tr key={i} className="neu">
+                          <td className="sticky c0 left">{r.oz}</td>
+                          <td className="sticky c1 left" title={r.kurz}><span className="kurz">{r.kurz || '(ohne Text in der Bieterdatei)'}</span> <small className="neu-tag">neu</small></td>
+                          <td>{r.menge ?? ''}</td>
+                          <td>{r.einheit}</td>
+                          {refHead.map(([rk]) => <Fragment key={rk}><td className="ref" /><td className="ref" /></Fragment>)}
+                          {cells.map((c) => { const z = r.per.get(c.offer.id); return <Fragment key={c.offer.id}><td className={`gp ${c.excluded ? 'dim' : ''}`}>{z?.ep != null ? fmtNum(z.ep) : z ? '' : '–'}</td><td className={`gp ${c.excluded ? 'dim' : ''}`}>{z ? fmtNum(zusatzWert(z)) : ''}</td></Fragment>; })}
+                        </tr>
+                      ))}
+                    </>
+                  )}
                 </tbody>
                 <tfoot>
                   <FootRow ncol={ncol} hasLv={hasLv} label="Summe netto (ohne Bedarfspositionen)">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="gp strong ref">{refTot(rk, (c) => c.sumNet) ?? ''}</td>)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp strong">{fmtNum(c.sumNet ?? 0)}</td>)}</FootRow>
@@ -203,6 +235,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
               <span><i className="sw low" /> günstigster EP der Position</span>
               <span><i className="sw out" /> Ausreißer (&gt; {s.project.abweichung} % vom Mittel der übrigen)</span>
               <span><i className="sw mabw" /> Menge laut Bieter weicht vom LV ab</span>
+              <span><i className="sw neu" /> neue Position (nicht im LV), in der Summe enthalten</span>
             </div>
           </>
         )}

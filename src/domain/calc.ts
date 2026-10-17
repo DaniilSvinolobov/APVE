@@ -1,5 +1,5 @@
-import type { Los, Offer, State } from './types';
-import { round2 } from './fmt';
+import type { Los, Offer, State, ZusatzPos } from './types';
+import { fmtEur, round2 } from './fmt';
 
 export const zkey = (oz: string) => oz.replace(/\./g, '');
 export const bewKey = (offerId: string, losId: string) => `${offerId}|${losId}`;
@@ -12,6 +12,26 @@ export const getBew = (s: State, offerId: string, losId: string) => ({ ...emptyB
 export const titelKey = (oz: string) => oz.split('.').slice(0, -1).join('.') || oz;
 
 export const losPositions = (s: State, los: Los) => s.lv.filter((p) => !los.oz || p.oz.startsWith(los.oz + '.'));
+/** Wert einer Zusatzposition: Gesamtpreis laut Bieter, sonst Menge × EP. */
+export const zusatzWert = (z: ZusatzPos) => z.gp ?? (z.ep != null && z.menge != null ? round2(z.ep * z.menge) : 0);
+
+/** Zusatzposition(en) des Bieters (nicht im Soll-LV) in diesem Los: nach OZ-Präfix, nicht zuordenbare im ersten Los des Angebots. */
+export function zusatzOf(s: State, los: Los, o: Offer): ZusatzPos[] {
+  const z = o.zusatz ?? [];
+  if (!z.length || !los.oz) return z;
+  const own = z.filter((p) => p.oz.startsWith(los.oz + '.'));
+  const orphans = z.filter((p) => !s.lose.some((l) => l.oz && p.oz.startsWith(l.oz + '.')));
+  return o.lose[0] === los.id ? [...own, ...orphans] : own;
+}
+
+/** Gesamtsumme netto (vor Nachlass) eines Angebots über das ganze LV inkl. Zusatzpositionen, ohne Bedarfspositionen. */
+export function offerWertung(s: State, o: Offer): number {
+  let acc = 0;
+  for (const p of s.lv) { const ep = o.prices[zkey(p.oz)]?.ep; if (!p.bedarf && ep != null) acc += round2((p.menge ?? 0) * ep); }
+  for (const z of o.zusatz ?? []) if (!z.bedarf) acc += zusatzWert(z);
+  return round2(acc);
+}
+
 export const offerLabel = (o: Offer) => `Nr. ${o.nr}`;
 
 /** LV-Schätzpreis (netto) eines Loses: Menge × geschätzter EP; null ohne Schätzpreise. */
@@ -49,6 +69,7 @@ export interface Cell {
   fileSum: number | null; // Summe der Bieter-GP laut Datei
   rechenDiff: number | null; // Datei − Berechnung (mit aktueller LV-Menge)
   mengeAbw: { oz: string; kurz: string; lv: number | null; bieter: number }[];
+  zusatz: ZusatzPos[]; // Positionen des Bieters, die im Soll-LV nicht stehen (in sumNet enthalten)
   excluded: boolean;
   eligible: boolean;
   rankAll: number | null; // Submissionsrang inkl. ausgeschlossener
@@ -80,6 +101,11 @@ export function computeLos(s: State, los: Los): Cell[] {
           if (pe.gp != null && pe.ep !== 0 && Math.abs(pe.gp - round2((p.menge ?? 0) * pe.ep)) > 0.005)
             mengeAbw.push({ oz: p.oz, kurz: p.kurz, lv: p.menge, bieter: Math.round((pe.gp / pe.ep) * 1000) / 1000 });
         }
+        for (const z of zusatzOf(s, los, o)) {
+          if (z.bedarf) continue;
+          acc += zusatzWert(z);
+          if (z.gp != null) { facc += z.gp; anyFile = true; }
+        }
         sum = round2(acc);
         fileSum = anyFile ? round2(facc) : null;
       } else {
@@ -94,7 +120,7 @@ export function computeLos(s: State, los: Los): Cell[] {
       const complete = sum != null && missing === 0 && sum !== 0;
       return {
         offer: o, los, covered: true, complete, sumNet: sum, nachlass: nl, net, gross: net == null ? null : round2(net * mw),
-        missing, zero, fileSum, rechenDiff: fileSum != null && sum != null ? round2(fileSum - sum) : null, mengeAbw,
+        missing, zero, fileSum, rechenDiff: fileSum != null && sum != null ? round2(fileSum - sum) : null, mengeAbw, zusatz: hasLv ? zusatzOf(s, los, o) : [],
         excluded, eligible: complete && !excluded, rankAll: null, rank: null, dMin: null, dKosten: null, flags: [],
       };
     });
@@ -126,6 +152,8 @@ export function computeLos(s: State, los: Los): Cell[] {
       if (c.zero > 0) c.flags.push({ kind: 'info', text: `${c.zero}× Preis 0,00 €` });
       if (c.rechenDiff != null && Math.abs(c.rechenDiff) > 0.01) c.flags.push({ kind: 'warn', text: `Rechenabweichung ${c.rechenDiff > 0 ? '+' : ''}${c.rechenDiff.toFixed(2).replace('.', ',')} € ggü. Bieterdatei` });
       if (c.mengeAbw.length) c.flags.push({ kind: 'warn', text: `Menge weicht ab (${c.mengeAbw.length} Pos.)` });
+      if (c.zusatz.length) c.flags.push({ kind: 'info', text: `${c.zusatz.length} neue Position(en) ggü. LV – in der Summe enthalten` });
+      if (hasLv && c.offer.check && c.offer.lose[0] === los.id) c.flags.push(...summenFlags(s, c.offer));
       if (c.eligible && c.net != null) {
         const next = el.find((x) => x !== c && x.net! > c.net!)?.net;
         const ref = kosten ? (s.project.kostenBasis === 'brutto' ? c.gross! : c.net) : null;
@@ -139,6 +167,27 @@ export function computeLos(s: State, los: Los): Cell[] {
     }
   }
   return cells.sort((a, b) => a.offer.runde - b.offer.runde || (a.rankAll ?? 99) - (b.rankAll ?? 99) || a.offer.nr - b.offer.nr);
+}
+
+/** Gegenprobe der Angebotssumme: Wertungssumme gegen Endsumme der GAEB-Datei und gegen die Endsumme im PDF des Bieters. */
+export function summenFlags(s: State, o: Offer): Flag[] {
+  const ck = o.check;
+  if (!ck) return [];
+  const out: Flag[] = [];
+  const w = offerWertung(s, o);
+  const gleich = (a: number, b: number) => Math.abs(a - b) <= 0.01;
+  const ref = ck.gaeb ?? ck.positionen;
+  const quelle = ck.gaeb != null ? 'Bieterdatei (GAEB)' : 'Summe der Positionen in der Bieterdatei';
+  if (ref > 0) out.push(gleich(w, ref) ? { kind: 'ok', text: `Summe stimmt mit ${quelle} überein` } : { kind: 'bad', text: `Summe ${fmtEur(w)} weicht von ${quelle} ${fmtEur(ref)} ab (${w - ref > 0 ? '+' : ''}${fmtEur(round2(w - ref))})` });
+  if (ck.gaeb != null && !gleich(ck.gaeb, ck.positionen)) out.push({ kind: 'warn', text: `GAEB-Datei in sich widersprüchlich: Endsumme ${fmtEur(ck.gaeb)}, Summe der Positionen ${fmtEur(ck.positionen)}` });
+  const pdf = ck.pdf;
+  if (pdf) {
+    if (!pdf.lesbar) out.push({ kind: 'info', text: `PDF „${pdf.datei}“ ohne lesbaren Text (Scan) – Endsumme dort nicht automatisch prüfbar` });
+    else if (pdf.betrag != null && !gleich(pdf.betrag, ref)) out.push({ kind: 'bad', text: `PDF „${pdf.datei}“ nennt Endsumme ${fmtEur(pdf.betrag)}, GAEB ${fmtEur(ref)}` });
+    else if (pdf.gefunden || pdf.betrag != null) out.push({ kind: 'ok', text: 'Endsumme im PDF bestätigt' });
+    else out.push({ kind: 'info', text: `Endsumme nicht im PDF „${pdf.datei}“ gefunden` });
+  }
+  return out;
 }
 
 /** Maßgebliche Runde = letzte Runde mit wertbaren Angeboten. */

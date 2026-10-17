@@ -1,7 +1,7 @@
 import { ozKey, type GaebDoc } from '../gaeb/gaeb';
-import type { BidPos, Los, Offer, State } from '../domain/types';
+import type { BidPos, Los, Offer, State, ZusatzPos } from '../domain/types';
 import { fmtEur, round2, uid } from '../domain/fmt';
-import { losPositions } from '../domain/calc';
+import { losPositions, zusatzWert } from '../domain/calc';
 import type { ParsedBid } from './analyze';
 import { matchPositions, SICHER } from './ozMatch';
 
@@ -79,8 +79,8 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
   offer.bidPos = doc.positions.map((p) => ({ oz: p.oz, kurz: p.kurz, lang: (p.lang ?? '').slice(0, 600), menge: p.menge, einheit: p.einheit, bedarf: p.bedarf, ep: p.ep, gp: p.gp }));
-  const gpSumme = round2(doc.positions.reduce((a, p) => a + (p.gp ?? 0), 0));
-  offer.dateiSumme = doc.total.net || gpSumme || null;
+  const titelSumme = round2(Object.entries(doc.totals).filter(([k]) => !k.includes('.')).reduce((a, [, v]) => a + v, 0));
+  offer.check = { gaeb: doc.total.net || titelSumme || null, positionen: round2(doc.positions.reduce((a, p) => a + (p.gp ?? 0), 0)) };
   zuordnen(d, offer);
   offer.lose = loseOf(d, offer);
   const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => { const l = d.lose.find((x) => x.id === id); return !!l && (!l.oz || p.oz.startsWith(l.oz + '.')); }));
@@ -95,19 +95,20 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   d.offers.sort((a, b) => a.nr - b.nr);
 }
 
-const ZUORD_WARN = /Ordnungszahl als das Soll-LV|geringer Übereinstimmung|im Soll-LV nicht vor|des Soll-LV sind in der Bieterdatei nicht bepreist|fehlen in der Wertung/;
+const ZUORD_WARN = /Ordnungszahl als das Soll-LV|geringer Übereinstimmung|nicht im Soll-LV|des Soll-LV sind in der Bieterdatei nicht bepreist/;
 
 const loseOf = (d: State, offer: Offer) => d.lose.filter((l) => losPositions(d, l).some((p) => (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0)).map((l) => l.id);
 
-/** Gibt es Bieterpreise ohne LV-Position oder LV-Positionen ohne Bieterpreis? */
+/** Gibt es Bieterpositionen ohne LV-Position oder LV-Positionen ohne Bieterpreis? */
 function hatLuecken(d: State, offer: Offer) {
   const known = new Set(d.lv.map((p) => ozKey(p.oz)));
-  return Object.keys(offer.prices).some((k) => !known.has(k)) || d.lv.some((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
+  return Object.keys(offer.prices).some((k) => !known.has(k)) || (offer.zusatz?.length ?? 0) > 0 || d.lv.some((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
 }
 
 /**
  * Bieterpreise dem Soll-LV zuordnen und die Hinweise dazu erzeugen. Kann jederzeit erneut laufen
  * (z. B. wenn das LV erst nach den Angeboten geladen wird): Ausgangspunkt sind die gespeicherten Bieterpositionen.
+ * Positionen, die im Soll-LV nicht vorkommen, gehen nicht verloren: sie werden als Zusatzpositionen geführt und mitgewertet.
  */
 export function zuordnen(d: State, offer: Offer) {
   const bid = offer.bidPos ?? [];
@@ -116,13 +117,15 @@ export function zuordnen(d: State, offer: Offer) {
   offer.prices = Object.fromEntries(bid.map((p) => [ozKey(p.oz), { ep: p.ep, gp: p.gp }]));
   const zugeordnet = mapToLv(d, offer, bid);
   const known = new Set(d.lv.map((p) => ozKey(p.oz)));
-  const extra = Object.keys(offer.prices).filter((k) => !known.has(k));
-  const wert = (p: BidPos) => p.gp ?? (p.ep != null && p.menge != null ? round2(p.ep * p.menge) : 0);
   const toKey = new Map(zugeordnet.map((m) => [ozKey(m.bieter), ozKey(m.lv)]));
-  const ungedeckt = round2(bid.filter((p) => !known.has(toKey.get(ozKey(p.oz)) ?? ozKey(p.oz))).reduce((a, p) => a + wert(p), 0));
-  offer.ungedeckt = ungedeckt;
-  if (extra.length) offer.warnungen.push(`${extra.length} Position(en) der Bieterdatei kommen im Soll-LV nicht vor (z. B. ${extra.slice(0, 3).join(', ')}) – auch nicht nach Textabgleich.`);
-  if (ungedeckt > 0.005) offer.warnungen.push(`Bieterpositionen im Wert von ${fmtEur(ungedeckt)} (Summe laut Bieterdatei: ${fmtEur(offer.dateiSumme)}) ließen sich keiner LV-Position zuordnen und fehlen in der Wertung.`);
+  const neu = bid.filter((p) => !known.has(toKey.get(ozKey(p.oz)) ?? ozKey(p.oz)));
+  offer.zusatz = neu.map((p): ZusatzPos => ({ oz: p.oz, kurz: p.kurz, einheit: p.einheit, menge: p.menge ?? (p.ep && p.gp != null ? Math.round((p.gp / p.ep) * 1000) / 1000 : null), ep: p.ep, gp: p.gp, bedarf: p.bedarf }));
+  for (const k of Object.keys(offer.prices)) if (!known.has(k)) delete offer.prices[k]; // nur LV-Schlüssel; Zusatzpositionen stehen in offer.zusatz
+  if (neu.length) {
+    const wert = round2(offer.zusatz.filter((z) => !z.bedarf).reduce((a, z) => a + zusatzWert(z), 0));
+    const liste = neu.slice(0, 5).map((p) => `${p.oz}${p.kurz ? ' ' + p.kurz.slice(0, 40) : ''}`).join('; ');
+    offer.warnungen.push(`${neu.length} Position(en) der Bieterdatei stehen nicht im Soll-LV (neu, Wert ${fmtEur(wert)}, in der Angebotssumme enthalten): ${liste}${neu.length > 5 ? ' …' : ''}.`);
+  }
   const miss = d.lv.filter((p) => !p.bedarf && offer.prices[ozKey(p.oz)]?.ep == null);
   if (miss.length) offer.warnungen.push(`${miss.length} Position(en) des Soll-LV sind in der Bieterdatei nicht bepreist.`);
 }

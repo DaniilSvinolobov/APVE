@@ -51,7 +51,9 @@ function decodeDos(b: Uint8Array): string {
 const decode = (b: Uint8Array, enc: string) => new TextDecoder(enc).decode(b);
 const num = (s: string | null | undefined) => {
   if (s == null || s.trim() === '') return null;
-  const n = Number(s.trim());
+  let t = s.trim();
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); // GAEB 2000: Dezimalkomma
+  const n = Number(t);
   return Number.isFinite(n) ? n : null;
 };
 const isoDate = (d: string) => {
@@ -178,19 +180,25 @@ export function rtfToText(rtf: string): string {
 function parseP(buf: Uint8Array, phaseHint: number): GaebDoc {
   const t = decode(buf, 'windows-1252').replace(/\r\n?/g, '\n');
   const doc = empty('P', phaseHint);
+  // Tag-Schreibweise variiert je Export (KURZTEXT / Kurztext, LVBEREICH / LVBereich)
   const tag = (s: string, k: string) => {
-    const m = s.match(new RegExp(`\\[${k}\\]([\\s\\S]*?)\\[end\\]`));
+    const m = s.match(new RegExp(`\\[${k}\\]([\\s\\S]*?)\\[end\\]`, 'i'));
     return m ? m[1].trim() : '';
   };
   doc.phase = Number(tag(t, 'DP')) || phaseHint;
   doc.bezeichnung = tag(t.slice(0, 4000), 'BEZ');
   doc.datum = isoDate(tag(t.slice(0, 2000), 'DATUM'));
-  const re = /#begin\[(LVBEREICH|POSITION)\]\n([\s\S]*?)(?=#begin\[(?:LVBEREICH|POSITION)\]|#end\[LV\]|$)/g;
+  doc.total.net = num(tag(t, 'Summe'));
+  doc.total.gross = num(tag(t, 'SummeBrutto'));
+  // OZ-Maske aus den LVGlied-Blöcken (Länge je Stufe), z. B. 2+2+4+1 → „1122PPPPI“; Zahlen mit Leerzeichen („00     1“) werden damit zerlegt
+  const laengen = [...t.matchAll(/#begin\[LVGlied\][\s\S]*?#end\[LVGlied\]/gi)].map((g) => ({ typ: tag(g[0], 'Typ'), n: Number(tag(g[0], 'Laenge')) || 0 }));
+  const mask = laengen.map((g, i) => (/^position$/i.test(g.typ) ? 'P' : /^index$/i.test(g.typ) ? 'I' : String(i + 1)).repeat(g.n)).join('');
+  const re = /#begin\[(LVBEREICH|POSITION)\]\n([\s\S]*?)(?=#begin\[(?:LVBEREICH|POSITION)\]|#end\[LV\]|$)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(t))) {
     const body = m[2];
-    const oz = chunkOz(tag(body, 'OZ'));
-    if (m[1] === 'LVBEREICH') { doc.titles[oz] = tag(body, 'BEZTX').replace(/\s+/g, ' '); continue; }
+    const oz = dOz(tag(body, 'OZ'), mask);
+    if (m[1].toUpperCase() === 'LVBEREICH') { doc.titles[oz] = tag(body, 'BEZTX').replace(/\s+/g, ' '); continue; }
     doc.positions.push({
       oz,
       kurz: rtfToText(tag(body, 'KURZTEXT')).replace(/\s+/g, ' '),

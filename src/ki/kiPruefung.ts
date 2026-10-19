@@ -14,7 +14,7 @@ export async function kiStatus(): Promise<KiStatus> {
 
 const MAX_RAW = 3_000_000; // Vercel begrenzt Request-Bodies auf 4,5 MB (Base64 + 33 %)
 
-function b64(data: Uint8Array): string {
+export function b64(data: Uint8Array): string {
   let s = '';
   for (let i = 0; i < data.length; i += 0x8000) s += String.fromCharCode(...data.subarray(i, i + 0x8000));
   return btoa(s);

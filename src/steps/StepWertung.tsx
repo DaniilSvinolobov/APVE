@@ -5,12 +5,14 @@ import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
 import { bewText } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
 import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
+import { EignungEinwilligung, EignungKi, useEignung } from './EignungKi';
 
 type Up = (fn: (d: State) => void) => void;
 
 export function StepWertung({ s, up }: { s: State; up: Up }) {
   const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
   useGeo();
+  const eig = useEignung();
   const los = s.lose.find((l) => l.id === losId) ?? s.lose[0];
   const cells = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
   if (!los) return <section className="card"><h2>Wertung</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden.</p></section>;
@@ -113,6 +115,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         <section className="card">
           <h2>Angaben für die Begründung im Vermerk</h2>
           <p className="lead">Der Text entsteht automatisch – ergänzen Sie nur, was nur Sie wissen.</p>
+          <EignungEinwilligung ctx={eig} />
           {detail.map((c) => {
             const b = getBew(s, c.offer.id, los.id);
             const a = auffaelligkeiten(s, los, cells, c);
@@ -130,6 +133,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                   </div>
                 )}
                 <div className="grid g2">
+                  {!nv && <div className="wide"><EignungKi s={s} up={up} o={c.offer} b={b} setBew={(patch) => setBew(c.offer.id, patch)} ctx={eig} /></div>}
                   {!nv && <label className="field wide"><span className="field-label">Qualifikation / Referenzen des Bieters</span><textarea rows={2} value={b.qualifikation} onChange={(e) => setBew(c.offer.id, { qualifikation: e.target.value })} placeholder="Die Qualifikation des Bieters ist bekannt, die Fachfirma hat bereits vergleichbare Leistungen erbracht …" /></label>}
                   {!nv && (
                     <label className="field"><span className="field-label">Entfernung zur Baustelle</span>

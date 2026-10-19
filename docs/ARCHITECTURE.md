@@ -27,7 +27,7 @@ Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
 | `domain/` | `types` (State & Co.), `calc` (Wertung, Rang), `fmt` (deutsche Zahlen/Datum), `demo` (Beispiel-/Leerprojekt) | nein |
 | `gaeb/` | Parser GAEB 90 / 2000 / DA XML | nein |
 | `import/` | Einlesen und Zuordnen, siehe Datenfluss; `docStore.ts` hält Originaldateien nur im Arbeitsspeicher | nein |
-| `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Aufruf von `api/pruefen.ts`) | nein |
+| `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Aufruf von `api/pruefen.ts`) und Eignungsprüfung (`kiEignung.ts` → `api/eignung.ts`: Referenzen, Recherche) | nein |
 | `vermerk/` | Aufbau und Texte des Vergabevermerks | nein |
 | `geo/` | geschätzte Entfernung Bieter → Baustelle (`entfernung.ts`, Hook `useGeo` lädt die PLZ-Tabelle `plzDaten.ts` als eigenen Chunk nach) | Hook |
 | `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen | ja |

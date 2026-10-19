@@ -65,8 +65,17 @@ Vercel-Function an die Anthropic-API übermittelt. Pro Anfrage max. ca. 3 MB (Ve
 - Die Claude-Dokumentprüfung ist optional und erst nach ausdrücklicher Aktivierung im Browser aktiv. Übermittelt werden nur Formulare und
   Erklärungen (Angebotsschreiben, Eignungsfragebogen, Nachforderungen, Nachunternehmerverzeichnis) – keine Meisterbriefe, Referenzen,
   Versicherungs- oder Präqualifikationsnachweise.
+- Die Eignungsprüfung mit Claude (Schritt 4) hat zwei eigene Einwilligungen: **Referenzen auswerten** übermittelt die
+  Referenzunterlagen des Bieters (auch nachgereichte) und die Losbezeichnungen; **Im Internet recherchieren** übermittelt nur
+  Firmenname, Ort und Losbezeichnungen – Claude sucht damit über die Websuche von Anthropic. Beides läuft nur auf Knopfdruck je Bieter.
 - `public/datenschutz.html` und `public/impressum.html` sind **Entwürfe** mit gelb markierten Platzhaltern; vor dem produktiven Einsatz
   ergänzen und rechtlich prüfen lassen (AVV mit Vercel und Anthropic, Drittlandübertragung, Verarbeitungsverzeichnis, Vertraulichkeit im Vergabeverfahren).
+
+## Eignung mit KI (Schritt 4, optional)
+- `api/eignung.ts` mit `art: 'referenzen'` (Referenzlisten → Projekte, Vergleichbarkeit mit den Losen, Hinweise, Fazit als JSON)
+  und `art: 'recherche'` (Websuche → Leistungsprofil und öffentliche Referenzen als Text mit Quellen).
+- Ergebnisse stehen am Angebot (`offer.eignung`) und lassen sich in „Qualifikation / Referenzen“ übernehmen; der Text bleibt editierbar.
+- Gleiche Umgebungsvariablen wie die Dokumentprüfung (`ANTHROPIC_API_KEY`, `APP_ACCESS_CODE`, `KI_MODEL`); Laufzeit bis 120 s.
 
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,

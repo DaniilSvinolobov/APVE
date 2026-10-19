@@ -367,3 +367,12 @@ select.pst.teil{background:var(--warn-l);border-color:#f3d28a}select.pst.unsign{
 
 .lvpruef{margin-top:18px}.lvpruef h3{font-size:15px;margin-bottom:4px}
 select.pst.pdf{background:var(--warn-l);border-color:#f3d28a}
+
+/* KI-Eignungsprüfung (Wertung) */
+.kibox .consent{display:flex;align-items:flex-start;gap:8px;margin:6px 0;font-weight:400}
+.kibox .consent input{margin-top:3px}
+.eignung{display:flex;flex-direction:column;gap:8px}
+.eignung .reftab td,.eignung .reftab th{vertical-align:top;font-size:13px}
+.eignung .hinweise{margin:6px 0;padding-left:20px;font-size:13px}
+.eignung .quellen a{margin-right:12px;word-break:break-all}
+.eignung .small{font-size:12px;margin:0}

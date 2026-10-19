@@ -41,6 +41,15 @@ export interface PriceEntry {
 
 export type PStatus = 'ok' | 'nach' | 'fehlt' | 'leer' | 'teil' | 'unsign' | 'entf' | 'pdf';
 
+/** Eine Referenz aus den Referenzunterlagen des Bieters, ausgewertet mit KI (api/eignung). */
+export interface KiReferenz { projekt: string; auftraggeber: string; ort: string; zeitraum: string; auftragssumme: string; leistungen: string; vergleichbar: 'ja' | 'teilweise' | 'nein' | 'unklar'; begruendung: string }
+
+/** Ergebnisse der optionalen KI-Eignungsprüfung je Angebot (stand = ISO-Zeitpunkt). */
+export interface Eignung {
+  referenzen?: { liste: KiReferenz[]; hinweise: string[]; fazit: string; dateien: string[]; stand: string };
+  recherche?: { text: string; quellen: { url: string; titel: string }[]; stand: string };
+}
+
 export interface Offer {
   id: string;
   nr: number; // Angebot Nr.
@@ -59,6 +68,7 @@ export interface Offer {
   summen: Record<string, number | null>; // [losId] netto, wenn ohne LV erfasst
   pruef: Record<string, { s: PStatus; d: string; n?: string; k?: 'auto' | 'ki' | 'user' }>; // Vollständigkeitsprüfung [Zeilen-ID]; n = Hinweis, k = Quelle
   kiDocs?: { datei: string; art: string; inhalt: string; unterschrift: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI)
+  eignung?: Eignung; // Referenzauswertung und Recherche (KI, optional)
   textErg: { oz: string; text: string }[];
   nachforderung: string[];
   dateien: { name: string; kat: string; nach?: string }[]; // nach = nachgereicht am (ISO-Datum, '' = unbekannt)

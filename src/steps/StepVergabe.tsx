@@ -54,7 +54,7 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
             <div className="losrow" key={l.id}>
               <input className="nr" value={l.nr} onChange={(e) => up((d) => void (d.lose[i].nr = e.target.value))} aria-label="Los-Nr." />
               <input value={l.name} onChange={(e) => up((d) => void (d.lose[i].name = e.target.value))} placeholder="Bezeichnung des Loses" aria-label="Bezeichnung" />
-              <NumInput value={l.kosten ?? kostenOf(s, l)} onChange={(v) => up((d) => void (d.lose[i].kosten = v))} suffix="€" placeholder="Kostenvoranschlag" label="Kostenvoranschlag" className={l.kosten == null && kostenOf(s, l) != null ? 'auto' : ''} />
+              <NumInput value={l.kosten ?? kostenOf(s, l)} onChange={(v) => up((d) => void (d.lose[i].kosten = v))} suffix="€" placeholder="Kostenvoranschlag" label="Kostenvoranschlag" className={l.kosten == null && kostenOf(s, l) != null ? 'berechnet' : ''} />
               <label className="mini"><input type="checkbox" checked={l.imVermerk} onChange={(e) => up((d) => void (d.lose[i].imVermerk = e.target.checked))} /> im Vermerk</label>
               <label className="mini"><input type="checkbox" checked={l.imBudget} onChange={(e) => up((d) => void (d.lose[i].imBudget = e.target.checked))} /> im Budget</label>
               <button className="icon-btn" title="Los entfernen" onClick={() => up((d) => { const [x] = d.lose.splice(i, 1); d.offers.forEach((o) => (o.lose = o.lose.filter((id) => id !== x.id))); })}><Icon name="trash" /></button>

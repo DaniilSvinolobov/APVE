@@ -29,7 +29,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
         <div className="kibox">
           <b>Automatische Dokumentprüfung (optional)</b>
           <p className="muted" style={{ margin: '6px 0 10px' }}>
-            Wenn Sie die Prüfung aktivieren, werden die <b>Formulare und Erklärungen</b> der Angebote (Angebotsschreiben, Eignungsfragebogen, Nachforderungen, Nachunternehmerverzeichnis) als PDF über den Server dieser Anwendung (Frankfurt) an die <b>Anthropic-API (USA)</b> übermittelt und dort mit KI ausgewertet. Die Dokumente können personenbezogene Daten enthalten (z. B. Namen, Unterschriften). Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise werden <b>nicht</b> übermittelt (Referenzen nur über die gesonderte Referenzauswertung in der Wertung). Alles andere bleibt in Ihrem Browser. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>. Bitte nur aktivieren, wenn dies mit Ihren Vertraulichkeits- und Datenschutzvorgaben vereinbar ist.
+            Wenn Sie die Prüfung aktivieren, werden <b>alle Unterlagen</b> der Angebote (PDFs, Scans und Fotos – auch Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise sowie das LV mit Preisen) über den Server dieser Anwendung (Frankfurt) an <b>Claude bei Amazon Bedrock in der EU (Frankfurt)</b> übermittelt und dort mit KI ausgewertet, auch handschriftliche Eintragungen. Große Dateien werden dafür im Browser in Teile zerlegt. Die Dokumente enthalten personenbezogene Daten (z. B. Namen, Unterschriften, Qualifikationsnachweise). Ihre Projektdaten bleiben in Ihrem Browser. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>. Bitte nur aktivieren, wenn dies mit Ihren Vertraulichkeits- und Datenschutzvorgaben vereinbar ist.
           </p>
           <button className="btn primary" onClick={() => { setConsent(true); setConsentState(true); runKi(s.offers.map((o) => o.id)); }}>Verstanden – Prüfung aktivieren</button>
         </div>
@@ -39,7 +39,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
             <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(s.offers.map((o) => o.id))}>
               <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : 'Dokumente automatisch prüfen (Claude)'}
             </button>
-            <span className="muted">Beim Einlesen läuft die Prüfung automatisch: Claude öffnet jedes Formular und beurteilt, ob es ausgefüllt und unterschrieben ist.</span>
+            <span className="muted">Beim Einlesen läuft die Prüfung automatisch: Claude öffnet jede Unterlage, liest auch Handschrift und beurteilt, ob sie ausgefüllt und unterschrieben ist. Unsichere Befunde bleiben offen.</span>
             <button className="link danger" onClick={() => { setConsent(false); setConsentState(false); }}>Prüfung deaktivieren</button>
           </div>
           {needCode && (
@@ -103,7 +103,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
           <summary><b>Befunde je Dokument (Claude)</b></summary>
           {s.offers.filter((o) => o.kiDocs?.length).map((o) => (
             <div key={o.id} className="kidocs"><b>Nr. {o.nr} · {o.firma}</b>
-              <ul>{o.kiDocs!.map((k, i) => <li key={i}><span className="muted">{k.datei.split('/').pop()}</span> – {k.art}: <Chip kind={k.inhalt === 'ausgefuellt' ? 'ok' : k.inhalt === 'leer' ? 'bad' : 'warn'}>{k.inhalt === 'ausgefuellt' ? 'ausgefüllt' : k.inhalt}</Chip> <Chip kind={k.unterschrift === 'ja' || k.unterschrift === 'nicht_erforderlich' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'ohne Unterschrift' : 'Unterschrift unklar'}</Chip> {k.bemerkung}</li>)}</ul>
+              <ul>{o.kiDocs!.map((k, i) => <li key={i}><span className="muted">{k.datei.split('/').pop()}</span> – {k.art}: <Chip kind={k.inhalt === 'ausgefuellt' ? 'ok' : k.inhalt === 'leer' ? 'bad' : 'warn'}>{k.inhalt === 'ausgefuellt' ? 'ausgefüllt' : k.inhalt}</Chip> <Chip kind={k.unterschrift === 'ja' || k.unterschrift === 'nicht_erforderlich' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'ohne Unterschrift' : 'Unterschrift unklar'}</Chip>{k.sicherheit === 'niedrig' && <> <Chip kind="warn">unsicher – bitte prüfen</Chip></>} {k.bemerkung}{k.handschrift && <div className="muted">Handschrift: {k.handschrift}</div>}</li>)}</ul>
             </div>
           ))}
         </details>

@@ -41,41 +41,59 @@ Maßnahme, Auftraggeber und Lose werden daraus vorbelegt, außerdem – soweit v
 - **Unterlagen je Angebot** (aufklappbar an der Angebotskarte): alle eingelesenen Dateien mit Kategorie; einzelne Dateien entfernen, Dateien (auch ZIP) ergänzen, als **nachgereicht** markieren und das Eingangsdatum setzen. Nachgereichte Unterlagen werden in der Vollständigkeitsprüfung als „nachgereicht“ mit Datum eingetragen (fehlt eine passende Zeile, entsteht eine neue); Einträge von Hand oder durch die KI bleiben dabei unverändert. Neue Preisdateien (X84) gehören nicht hierher, sondern als neues Angebot (Nachverhandlung) in das Ablagefeld oben.
 
 ## Dokumentprüfung mit Claude (Schritt 2, optional)
-Beim Einlesen öffnet Claude jedes PDF/jeden Scan eines Angebots und beurteilt: ausgefüllt / teilweise / leer,
-unterschrieben / nicht unterschrieben. Die Ergebnisse stehen in der Vollständigkeitstabelle (Markierung „KI“,
-Begründung als Tooltip) und bleiben manuell änderbar. **Nutzer der App brauchen dafür keinen eigenen Key.**
+Beim Einlesen öffnet Claude **jede Unterlage** eines Angebots (PDF, Scan, Foto – auch Meisterbrief, Referenzen, Versicherungs-
+und Präqualifikationsnachweise, LV mit Preisen) und beurteilt: ausgefüllt / teilweise / leer, unterschrieben / nicht unterschrieben;
+handschriftliche Eintragungen werden mit Seitenzahl wiedergegeben. Jeder Befund hat eine Sicherheit (hoch/mittel/niedrig); unsichere
+Befunde werden **nicht** in die Tabelle eingetragen, die Zeile bleibt offen und ist von Hand zu prüfen. Große Dateien werden im Browser
+in Teile zerlegt (max. 20 Seiten bzw. ca. 2,8 MB je Teil, übergroße Einzelseiten als Bild), sodass keine Datei übersprungen wird.
+Die Ergebnisse stehen in der Vollständigkeitstabelle (Markierung „KI“, Begründung als Tooltip) und bleiben manuell änderbar.
+**Nutzer der App brauchen dafür keinen eigenen Key.**
 
-Einrichtung durch den Betreiber (einmalig, Vercel → Project → Settings → Environment Variables, danach neu deployen):
+Claude läuft über **Amazon Bedrock in der EU** (Standard: Frankfurt, EU-Inferenzprofil). Die Function bricht ab, wenn Region oder
+Modell außerhalb der EU liegen würden.
+
+Einrichtung durch den Betreiber (einmalig):
+1. AWS-Konto anlegen, in der Konsole Region **Europe (Frankfurt) eu-central-1** wählen.
+2. *Amazon Bedrock → Model access*: Zugriff auf **Claude Opus 5.5** anfordern.
+3. *Bedrock → Inference profiles*: die ID des **EU**-Profils für Claude Opus 5.5 nachsehen (erwartet `eu.anthropic.claude-opus-5-5`;
+   weicht sie ab, als `KI_MODEL` eintragen).
+4. Zugang anlegen: entweder einen **Bedrock-API-Key** erzeugen oder einen IAM-Nutzer, der nur Bedrock aufrufen darf
+   (`bedrock-mantle:CreateInference`), mit Zugangsschlüssel.
+5. In AWS ein Budget mit Warnung setzen (Billing → Budgets).
+6. Vercel → Project → Settings → Environment Variables eintragen, danach neu deployen:
 
 | Variable | Pflicht | Bedeutung |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | ja | Key aus console.anthropic.com – bleibt auf dem Server (`api/pruefen.ts`) |
+| `BEDROCK_API_KEY` | ja* | Bedrock-API-Key – bleibt auf dem Server |
+| `BEDROCK_ACCESS_KEY_ID`, `BEDROCK_SECRET_ACCESS_KEY` | ja* | *statt des API-Keys: Zugangsschlüssel des IAM-Nutzers |
+| `BEDROCK_REGION` | nein | Standard `eu-central-1`; nur `eu-…` zulässig |
+| `KI_MODEL` | nein | Standard `eu.anthropic.claude-opus-5-5`; Profile `global.`/`us.` u. Ä. werden abgelehnt |
+| `KI_EFFORT` | nein | `low`/`medium`/`high` (Standard `high`, gründlichste Prüfung) |
 | `APP_ACCESS_CODE` | empfohlen | Zugangscode; verhindert, dass Fremde auf Ihre Kosten die Funktion nutzen (wird Nutzern einmalig abgefragt) |
-| `KI_MODEL` | nein | Standard `claude-opus-5-5`; z. B. `claude-sonnet-5-5` für geringere Kosten |
+| `ANTHROPIC_API_KEY` | nein | nur für die Internetrecherche in Schritt 4 (Bedrock hat keine Websuche); ohne Key ist sie ausgeschaltet |
 
-Ohne `ANTHROPIC_API_KEY` bleibt die App voll nutzbar; die Tabelle wird dann nur anhand der Dateinamen vorbelegt.
-Hinweise: Im Anthropic-Console ein monatliches Ausgabenlimit setzen. Die Dokumente werden zur Prüfung über die
-Vercel-Function an die Anthropic-API übermittelt. Pro Anfrage max. ca. 3 MB (Vercel-Limit), größere Dateien werden übersprungen.
+Ohne Bedrock-Zugang bleibt die App voll nutzbar; die Tabelle wird dann nur anhand der Dateinamen vorbelegt.
+Die Vercel-Variablennamen `AWS_*` sind reserviert, daher die eigenen Namen.
 
 ## Datenschutz (DSGVO)
 - Projektdaten bleiben im Browser (localStorage); „Daten löschen“ in der Kopfzeile entfernt sie.
 - Schriftarten werden lokal ausgeliefert (keine Google Fonts), keine Cookies, kein Tracking.
 - Die Entfernung zur Baustelle wird im Browser aus einer mitgelieferten PLZ-Tabelle geschätzt; Anschriften verlassen den Browser nicht.
 - Vercel-Functions laufen in Frankfurt (`regions: ["fra1"]` in `vercel.json`).
-- Die Claude-Dokumentprüfung ist optional und erst nach ausdrücklicher Aktivierung im Browser aktiv. Übermittelt werden nur Formulare und
-  Erklärungen (Angebotsschreiben, Eignungsfragebogen, Nachforderungen, Nachunternehmerverzeichnis) – keine Meisterbriefe, Referenzen,
-  Versicherungs- oder Präqualifikationsnachweise.
+- Die Claude-Dokumentprüfung ist optional und erst nach ausdrücklicher Aktivierung im Browser aktiv. Übermittelt werden dann alle
+  Unterlagen der Angebote (auch Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise), und zwar über Amazon Bedrock
+  in der EU (Frankfurt). Wer vor dieser Änderung zugestimmt hatte, wird erneut gefragt.
 - Die Eignungsprüfung mit Claude (Schritt 4) hat zwei eigene Einwilligungen: **Referenzen auswerten** übermittelt die
-  Referenzunterlagen des Bieters (auch nachgereichte) und die Losbezeichnungen; **Im Internet recherchieren** übermittelt nur
+  Referenzunterlagen des Bieters (auch nachgereichte) und die Losbezeichnungen über Amazon Bedrock (EU); **Im Internet recherchieren** übermittelt nur
   Firmenname, Ort und Losbezeichnungen – Claude sucht damit über die Websuche von Anthropic. Beides läuft nur auf Knopfdruck je Bieter.
 - `public/datenschutz.html` und `public/impressum.html` sind **Entwürfe** mit gelb markierten Platzhaltern; vor dem produktiven Einsatz
-  ergänzen und rechtlich prüfen lassen (AVV mit Vercel und Anthropic, Drittlandübertragung, Verarbeitungsverzeichnis, Vertraulichkeit im Vergabeverfahren).
+  ergänzen und rechtlich prüfen lassen (AVV mit Vercel, AWS und Anthropic, Drittlandübertragung, Verarbeitungsverzeichnis, Vertraulichkeit im Vergabeverfahren).
 
 ## Eignung mit KI (Schritt 4, optional)
 - `api/eignung.ts` mit `art: 'referenzen'` (Referenzlisten → Projekte, Vergleichbarkeit mit den Losen, Hinweise, Fazit als JSON)
   und `art: 'recherche'` (Websuche → Leistungsprofil und öffentliche Referenzen als Text mit Quellen).
 - Ergebnisse stehen am Angebot (`offer.eignung`) und lassen sich in „Qualifikation / Referenzen“ übernehmen; der Text bleibt editierbar.
-- Gleiche Umgebungsvariablen wie die Dokumentprüfung (`ANTHROPIC_API_KEY`, `APP_ACCESS_CODE`, `KI_MODEL`); Laufzeit bis 120 s.
+- Referenzen: gleicher Bedrock-Zugang wie die Dokumentprüfung; Recherche: `ANTHROPIC_API_KEY` (optional `KI_WEB_MODEL`). Laufzeit bis 300 s.
 
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,

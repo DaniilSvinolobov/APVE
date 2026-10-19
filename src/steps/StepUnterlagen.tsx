@@ -47,9 +47,11 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         if (!o) continue;
         const docs = offerDocs(o);
         if (!docs.length) { notes.push(`Nr. ${o.nr}: Originaldateien nicht mehr verfügbar – bitte den Ordner erneut einlesen.`); continue; }
-        const { results, zuGross } = await pruefeAngebot(docs, sRef.current.unterlagen, getCode(), (t) => setKi((k) => ({ ...k, text: `Nr. ${o.nr} ${o.firma}: ${t}` })));
+        const { results, fehler } = await pruefeAngebot(docs, sRef.current.unterlagen, getCode(), (t) => setKi((k) => ({ ...k, text: `Nr. ${o.nr} ${o.firma}: ${t}` })));
         up((d) => applyKi(d, id, results));
-        if (zuGross.length) notes.push(`Nr. ${o.nr}: zu groß für die automatische Prüfung (bitte manuell ansehen): ${zuGross.map((z) => z.split('/').pop()).join(', ')}`);
+        if (fehler.length) notes.push(`Nr. ${o.nr}: Datei nicht lesbar (bitte manuell ansehen): ${fehler.map((z) => z.split('/').pop()).join(', ')}`);
+        const unsicher = results.filter((r) => r.sicherheit === 'niedrig');
+        if (unsicher.length) notes.push(`Nr. ${o.nr}: Befund unsicher, bitte selbst prüfen: ${unsicher.map((r) => r.datei.split('/').pop()).join(', ')}`);
       }
       setKi({ running: false, text: 'Prüfung abgeschlossen.', error: notes.join(' · ') });
     } catch (e) {

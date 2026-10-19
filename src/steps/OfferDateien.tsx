@@ -61,9 +61,11 @@ export function OfferDateien({ o, up, onAdded }: { o: Offer; up: Up; onAdded: (o
 
   return (
     <details className="det">
-      <summary><span className="opt-l">Unterlagen</span> {o.dateien.length + 1} Datei(en){anzNach > 0 && <> · <Chip kind="warn">{anzNach} nachgereicht</Chip></>}{kats.length > 0 && <span className="muted"> – {kats.map(([k, n]) => `${k}${n > 1 ? ` (${n})` : ''}`).join(' · ')}</span>}</summary>
+      <summary><span className="opt-l">Unterlagen</span> {o.dateien.length + (o.quelle ? 1 : 0)} Datei(en){anzNach > 0 && <> · <Chip kind="warn">{anzNach} nachgereicht</Chip></>}{kats.length > 0 && <span className="muted"> – {kats.map(([k, n]) => `${k}${n > 1 ? ` (${n})` : ''}`).join(' · ')}</span>}</summary>
       <ul className="filelist">
-        <li><Icon name="file" /><span className="fname" title={o.quelle}>{o.quelle}</span><Chip kind="info">{o.preisQuelle === 'pdf' ? 'Preise (PDF)' : 'Preisdatei'}</Chip><span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>entfernen = Angebot entfernen</span></li>
+        {o.preisQuelle === 'keine'
+          ? <li className="nach"><Icon name="alert" /><span className="fname">Keine Preisdatei</span><Chip kind="warn">Preise fehlen</Chip><span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>Ordner mit Preisdatei erneut einlesen</span></li>
+          : <li><Icon name="file" /><span className="fname" title={o.quelle}>{o.quelle}</span><Chip kind="info">{o.preisQuelle === 'pdf' ? 'Preise (PDF)' : 'Preisdatei'}</Chip><span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>entfernen = Angebot entfernen</span></li>}
         {o.dateien.map((f) => {
           const n = istNach(f);
           return (

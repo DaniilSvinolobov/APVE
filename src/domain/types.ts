@@ -65,7 +65,7 @@ export interface Offer {
   check?: SummenCheck;
   ozZuordnung?: { bieter: string; lv: string; score: number }[]; // Positionen, die über den Text statt über die OZ dem Soll-LV zugeordnet wurden
   quelle: string;
-  preisQuelle?: 'gaeb' | 'pdf'; // pdf = GAEB-Datei des Bieters ohne Preise, Preise aus dem bepreisten LV-PDF gelesen
+  preisQuelle?: 'gaeb' | 'pdf' | 'keine'; // pdf = GAEB-Datei des Bieters ohne Preise, Preise aus dem bepreisten LV-PDF gelesen; keine = keine lesbaren Preise im Ordner
   lvPdf?: { name: string; befunde: LvBefund[] }[]; // Abgleich des beigelegten LV-PDF mit der GAEB-Preisdatei
 }
 

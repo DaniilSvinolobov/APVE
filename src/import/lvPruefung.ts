@@ -64,6 +64,16 @@ export const refFromDoc = (doc: GaebDoc): RefPos[] => doc.positions.map((p) => (
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+const RECHTSFORM = /GmbH|\bKG\b|\bAG\b|e\.K\.|\bUG\b|OHG|GbR|mbH/;
+
+/** Bieter und Angebotsdatum aus dem Briefkopf eines Angebots-PDF („Outdoor Design GmbH / Straße / Ort“, „Ort, 19.05.2026“). */
+export function kopfAusPdf(lines: string[]): { bieter: string; datum: string } {
+  const kopf = lines.slice(0, 30);
+  const bieter = kopf.flatMap((l) => l.split(/\s+[/|·]\s+/)).map((t) => t.trim()).find((t) => RECHTSFORM.test(t) && t.length <= 60 && !/^(an|z\.\s*hd)\b/i.test(t)) ?? '';
+  const d = kopf.map((l) => l.match(/,\s*(?:den\s+)?(\d{2})\.(\d{2})\.(\d{4})\s*$/)).find(Boolean);
+  return { bieter, datum: d ? `${d[3]}-${d[2]}-${d[1]}` : '' };
+}
+
 /**
  * Bieterordner ohne bepreiste GAEB-Datei, aber mit bepreistem LV als PDF (z. B. nur unbepreistes X83 + PDF):
  * Preise aus dem PDF lesen. `ref` = Positionen des eigenen LV; fehlt es, dient ein unbepreistes LV aus dem Ordner.
@@ -74,20 +84,20 @@ export async function bieterAusPdf(g: PdfGroup, ref: RefPos[] | null, nextNr: nu
   const positions = ref ?? (folderLv.soll ? refFromDoc(folderLv.soll) : null);
   const name = g.root.split('/').pop() || 'Ordner';
   if (!positions) return { parsed: null, hinweis: `„${name}“: LV-PDF gefunden, aber kein LV als Referenz – bitte zuerst das eigene LV laden.` };
-  let best: { f: RawFile; pdf: ReturnType<typeof parseLvPdf>; n: number; summe: number | null } | null = null;
+  let best: { f: RawFile; pdf: ReturnType<typeof parseLvPdf>; n: number; summe: number | null; lines: string[] } | null = null;
   for (const f of g.pdfs) {
     try {
       const lines = await pdfLines(f.data);
       const pdf = parseLvPdf(lines, positions);
       const n = pdf.filter((p) => p.ep != null).length;
-      if (!best || n > best.n) best = { f, pdf, n, summe: pdfNettoSumme(lines) };
+      if (!best || n > best.n) best = { f, pdf, n, summe: pdfNettoSumme(lines), lines };
     } catch { /* nächstes PDF */ }
   }
   const real = positions.filter((p) => !p.bedarf).length;
   if (!best || best.n * 2 < real) return { parsed: null, hinweis: '' };
   const by = new Map(best.pdf.map((p) => [ozNorm(p.oz), p]));
   const doc: GaebDoc = {
-    format: 'X', phase: 84, projekt: '', bezeichnung: '', auftraggeber: '', bieter: '', datum: '', titles: folderLv.soll?.titles ?? {}, totals: {}, total: { net: null, gross: null },
+    format: 'X', phase: 84, projekt: '', bezeichnung: '', auftraggeber: '', ...kopfAusPdf(best.lines), titles: folderLv.soll?.titles ?? {}, totals: {}, total: { net: null, gross: null },
     positions: positions.map((r) => {
       const q = by.get(ozNorm(r.oz));
       const menge = q?.menge ?? r.menge;

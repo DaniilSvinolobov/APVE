@@ -15,14 +15,19 @@ export const cleanFirma = (s: string) => {
 const decodeText = (b: Uint8Array) => new TextDecoder('utf-8').decode(b);
 
 const is84 = (path: string) => /\.[dpx]84$/i.test(path);
+/** Angebotsnummer im Ordnernamen: „Angebot 4“, „Angebot4_…“, „Angebotsdokumente_4_…“ */
+const ANGEBOT_NR = /angebot(?:e|s[a-zäöü]*)?[\s_-]*(\d+)/i;
 
 /** Bezeichnung einer nachgereichten Unterlage aus dem Dateinamen (ohne Endung und angehängten Firmennamen). */
 export const nachName = (name: string) => base(name).replace(/\.[a-z0-9]+$/i, '').replace(/\s*-\s*[^-]+$/, '');
 
 export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: DocFile[] }
 
-/** `pre`: Preise stammen nicht aus einer GAEB-Datei, sondern aus dem LV-PDF (Dokument bereits aufgebaut). */
-export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser, pre?: { doc: GaebDoc; quelle: string; hinweis: string }): ParsedBid | null {
+/**
+ * `pre`: Preise stammen nicht aus einer GAEB-Datei, sondern aus dem LV-PDF (Dokument bereits aufgebaut);
+ * `art: 'keine'` = Ordner ohne lesbare Preise – das Angebot wird trotzdem angelegt, damit es nicht verloren geht.
+ */
+export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser, pre?: { doc: GaebDoc; quelle: string; hinweis: string; art?: 'pdf' | 'keine' }): ParsedBid | null {
   const bidFiles = g.bids;
   const warnungen: string[] = [];
   // Duplikate erkennen
@@ -50,11 +55,11 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
   const sig = g.files.find((f) => /signaturbeleg/i.test(base(f.path)));
   const st = sig ? decodeText(sig.data) : '';
   const grab = (re: RegExp) => st.match(re)?.[1]?.trim() ?? '';
-  const folder = g.root.split('/').find((p) => /angebot\s*\d+/i.test(p)) ?? g.root.split('/').pop() ?? '';
-  const nr = Number(folder.match(/angebot\s*(\d+)/i)?.[1]) || nextNr;
+  const folder = g.root.split('/').find((p) => ANGEBOT_NR.test(p)) ?? g.root.split('/').pop() ?? '';
+  const nr = Number(folder.match(ANGEBOT_NR)?.[1]) || nextNr;
   const LEGAL = /GmbH|KG|\bAG\b|e\.K\.|\bUG\b|OHG|GbR|mbH/;
   const cands = [cleanFirma(doc.bieter), grab(/Firmenname:\s*(.+)/)].filter(Boolean);
-  const firma = cands.find((c) => LEGAL.test(c)) || cands[0] || folder.replace(/^Angebot\s*\d+[_\s-]*/i, '').replace(/_/g, '/');
+  const firma = cands.find((c) => LEGAL.test(c)) || cands[0] || folder.replace(/^Angebot(?:e|s[a-zäöü]*)?[_\s-]*\d*[_\s-]*/i, '').replace(/_/g, '/');
   const datumRaw = grab(/Angebotsdatum:\s*(\d{2}\.\d{2}\.\d{4})/);
   const datum = datumRaw ? datumRaw.split('.').reverse().join('-') : doc.datum;
 
@@ -75,7 +80,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
   for (const p of doc.positions) prices[ozKey(p.oz)] = { ep: p.ep, gp: p.gp };
   const offer: Offer = {
     id: uid(), nr, firma, ort: grab(/Firmenort:\s*(.+)/), runde: g.files.some((f) => /nachverh/i.test(f.path)) ? 2 : 1,
-    datum, preisQuelle: pre ? 'pdf' : undefined, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
+    datum, preisQuelle: pre ? pre.art ?? 'pdf' : undefined, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
     textErg: doc.positions.filter((p) => p.bieterText).map((p) => ({ oz: p.oz, text: p.bieterText! })),
     nachforderung, dateien, warnungen, quelle: base(used.path),
   };

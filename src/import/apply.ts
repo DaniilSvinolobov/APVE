@@ -92,7 +92,7 @@ export function summenCheck(doc: GaebDoc): { gaeb: number | null; positionen: nu
 /** Fügt ein analysiertes Angebot in den State ein. */
 export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   const { offer, doc } = parsed;
-  if (!d.lv.length) {
+  if (!d.lv.length && doc.positions.length) {
     // Fallback: LV aus Bieterdatei ableiten (ohne Texte/Mengen aus der Ausschreibung)
     const pos = doc.positions.map((p) => ({
       oz: p.oz, kurz: p.kurz || '', menge: p.ep ? Math.round(((p.gp ?? 0) / p.ep) * 1000) / 1000 : (p.menge ?? null), mengeOrig: null as number | null, einheit: p.einheit, bedarf: false,
@@ -105,19 +105,48 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
   offer.bidPos = doc.positions.map((p) => ({ oz: p.oz, kurz: p.kurz, lang: (p.lang ?? '').slice(0, 600), menge: p.menge, einheit: p.einheit, bedarf: p.bedarf, ep: p.ep, gp: p.gp }));
-  offer.check = { ...summenCheck(doc), pdf: offer.check?.pdf };
+  offer.check = offer.preisQuelle === 'keine' ? undefined : { ...summenCheck(doc), pdf: offer.check?.pdf };
   zuordnen(d, offer);
   offer.lose = loseOf(d, offer);
   const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => { const l = d.lose.find((x) => x.id === id); return !!l && (!l.oz || p.oz.startsWith(l.oz + '.')); }));
   autoPruef(d, offer, sigFound, preise);
   const eroeff = d.project.eroeffnung.slice(0, 10);
   if (eroeff && offer.datum && offer.datum > eroeff && offer.runde === 1) offer.runde = 2;
+  ersetzeOhnePreise(d, offer);
   const dup = d.offers.filter((o) => o.firma.toLowerCase().replace(/\W/g, '') === offer.firma.toLowerCase().replace(/\W/g, ''));
   if (dup.length && offer.runde === 1) offer.runde = (Math.min(3, Math.max(...dup.map((o) => o.runde)) + 1)) as 2 | 3;
   if (d.offers.some((o) => o.nr === offer.nr)) offer.nr = Math.max(0, ...d.offers.map((o) => o.nr)) + 1;
   if (offer.nr === 0) offer.nr = 1;
   d.offers.push(offer);
   d.offers.sort((a, b) => a.nr - b.nr);
+}
+
+/** Firmenname ohne Rechtsform und Satzzeichen, für den Vergleich („Outdoor Design GmbH“ = „outdoor/design“). */
+const firmaKey = (f: string) => f.toLowerCase().replace(/\b(gmbh|mbh|co|kg|ag|ug|ohg|gbr|e\.?\s?k)\b|&/g, '').replace(/[^a-z0-9äöüß]/g, '');
+
+/**
+ * Wird für einen Bieter, der bisher ohne Preise angelegt war, die Preisdatei nachgereicht (Ordner erneut eingelesen),
+ * ersetzt das neue Angebot den Platzhalter: Nummer, Runde, Eingaben von Hand und Markierungen „nachgereicht“ bleiben.
+ */
+function ersetzeOhnePreise(d: State, offer: Offer) {
+  const k = firmaKey(offer.firma);
+  const alt = k.length >= 4 ? d.offers.find((o) => o.preisQuelle === 'keine' && o !== offer && (firmaKey(o.firma).includes(k) || k.includes(firmaKey(o.firma)))) : undefined;
+  if (!alt || firmaKey(alt.firma).length < 4) return;
+  d.offers.splice(d.offers.indexOf(alt), 1);
+  offer.nr = alt.nr;
+  offer.runde = alt.runde;
+  if (alt.ort && !offer.ort) offer.ort = alt.ort;
+  for (const [id, p] of Object.entries(alt.pruef)) if (p.k !== 'auto') offer.pruef[id] = p;
+  for (const u of d.unterlagen) {
+    if (/preise vollständig|gaeb/.test(u.label.toLowerCase()) && alt.pruef[u.id]?.k !== 'user') offer.pruef[u.id] = { s: 'nach', d: '', n: 'Die Preisdatei wurde nachgereicht (Angebot zunächst ohne Preise eingelesen).', k: 'auto' };
+  }
+  for (const f of alt.dateien) {
+    const neu = offer.dateien.find((x) => x.name === f.name);
+    if (!neu) offer.dateien.push(f);
+    else if (f.nach != null && neu.nach == null) neu.nach = f.nach;
+  }
+  offer.nachforderung = [...new Set([...offer.nachforderung, ...alt.nachforderung])];
+  pruefNachDateien(d, offer);
 }
 
 const ZUORD_WARN = /Ordnungszahl als das Soll-LV|geringer Übereinstimmung|nicht im Soll-LV|des Soll-LV sind in der Bieterdatei nicht bepreist/;
@@ -204,7 +233,8 @@ function autoPruef(d: State, offer: Offer, sigFound: boolean, preise: boolean) {
     const l = u.label.toLowerCase();
     if (/unterschrieben|signiert/.test(l)) { if (sigFound) set(u.id); }
     else if (/preise vollständig|gaeb/.test(l)) {
-      if (offer.preisQuelle === 'pdf') offer.pruef[u.id] = { s: 'pdf', d: '', n: 'Die GAEB-Datei des Bieters enthält keine Preise; das bepreiste LV liegt nur als PDF vor. Die Preise wurden aus dem PDF gelesen und sind zu prüfen.', k: 'auto' };
+      if (offer.preisQuelle === 'keine') offer.pruef[u.id] = { s: 'fehlt', d: '', n: 'Im Angebotsordner liegt keine GAEB-Preisdatei, und aus den PDF-Dateien waren keine Preise lesbar.', k: 'auto' };
+      else if (offer.preisQuelle === 'pdf') offer.pruef[u.id] = { s: 'pdf', d: '', n: 'Die GAEB-Datei des Bieters enthält keine Preise; das bepreiste LV liegt nur als PDF vor. Die Preise wurden aus dem PDF gelesen und sind zu prüfen.', k: 'auto' };
       else if (preise) set(u.id);
     }
   }

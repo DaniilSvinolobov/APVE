@@ -136,7 +136,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
     <div className="stack">
       <section className="card">
         <div className="card-head">
-          <div><h2>Preisspiegel</h2><p className="lead">Automatisch aus LV und Bieterdateien erstellt. Titel anklicken, um Einzelpositionen zu sehen. Einheitspreise lassen sich direkt korrigieren.</p></div>
+          <div><h2>Preisspiegel</h2><p className="lead">Titel anklicken für Einzelpositionen; Einheitspreise lassen sich direkt korrigieren.</p></div>
           <div className="row">
             <button className="btn" onClick={exportCsv}><Icon name="download" /> Excel (CSV)</button>
           </div>

@@ -21,7 +21,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
       <div className="card-head">
         <div>
           <h2>Prüfung auf Vollständigkeit der Angebotsunterlagen</h2>
-          <p className="lead">Wird als Anlage im Vergabevermerk gedruckt. Was in den Ordnern erkannt wurde, ist vorbelegt (z. B. Formular 221 aus „Nachforderung“); alles andere bitte je Zeile auswählen. Zeilen lassen sich umbenennen, löschen und ergänzen.</p>
+          <p className="lead">Anlage zum Vermerk. Erkanntes ist vorbelegt, den Rest je Zeile auswählen.</p>
         </div>
         <label className="mini big"><input type="checkbox" checked={s.project.vollstaendigkeit} onChange={(e) => up((d) => void (d.project.vollstaendigkeit = e.target.checked))} /> als Anlage drucken</label>
       </div>

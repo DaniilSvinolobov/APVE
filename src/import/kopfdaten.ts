@@ -155,6 +155,12 @@ export function kopfLuecken(p: Project, k: Kopf): string[] {
   return out;
 }
 
+/** Felder, die leer sind und auch im LV nicht gefunden wurden (für die Meldung „Nicht im LV gefunden“). */
+export function kopfFehlt(p: Project, k: Kopf): string[] {
+  const felder: TextFeld[] = ['titel', 'nummer', 'auftraggeber', 'vergabestelle', 'ersteller', 'eroeffnung', 'zuschlagsfrist', 'beginn', 'ende'];
+  return felder.filter((f) => !String(p[f] ?? '').trim() && !k[f]).map((f) => FELDNAME[f]);
+}
+
 /** Leere Felder des Vorhabens mit den Eckdaten belegen; Vergabeverfahren und MwSt. nur, solange sie auf dem Standardwert stehen. */
 export function applyKopf(p: Project, k: Kopf) {
   for (const f of Object.keys(FELDNAME) as (keyof typeof FELDNAME)[]) {

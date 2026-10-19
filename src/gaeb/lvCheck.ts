@@ -110,7 +110,16 @@ export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
     if (!b.known) { out.push({ oz: b.oz, menge: null, einheit: '', ep: null, gp: null }); continue; }
     const r = refBy.get(ozNorm(b.oz))!;
     const unit = r.einheit ? esc(r.einheit) : '[^\\s\\d]{1,6}';
-    const text = b.text.replace(/ /g, ' ');
+    // Punktlinien („EP........ 50,00“) und Seitenüberträge entfernen
+    const text = b.text.replace(/ /g, ' ').replace(/\.{3,}/g, ' ').replace(new RegExp(String.raw`Übertrag:?\s*(${SNUM})`, 'gi'), ' ');
+    // Layout „EP 50,00 GP 300,00 6 St“ (Preise vor der Menge, Pauschalen nur mit GP): beschriftete Werte haben Vorrang
+    const lab = [...text.matchAll(new RegExp(String.raw`(?:\bEP:?\s*(${SNUM})\s+)?\bGP:?\s*(${SNUM})\s+(${NUM})\s*${unit}(?=\s|$)`, 'gi'))].pop();
+    if (lab) {
+      const menge = deNum(lab[3]), gp = deNum(lab[2]);
+      const ep = lab[1] != null ? deNum(lab[1]) : menge ? Math.round((gp / menge) * 1000) / 1000 : null;
+      out.push({ oz: b.oz, menge, einheit: r.einheit, ep, gp });
+      continue;
+    }
     // Menge Einheit [EP GP] – das letzte Vorkommen im Block gilt (Texte nennen oft Maße wie „3 cm“)
     const priced = [...text.matchAll(new RegExp(String.raw`(${NUM})\s*${unit}(?=\s)\s+(${SNUM})\s+(${SNUM})`, 'gi'))].pop();
     const plain = [...text.matchAll(new RegExp(String.raw`(${NUM})\s*${unit}(?=\s|$)`, 'gi'))].pop();
@@ -123,12 +132,19 @@ export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
     else if (plain) out.push({ oz: b.oz, menge: deNum(plain[1]), einheit: r.einheit, ep: null, gp: null });
     else out.push({ oz: b.oz, menge: null, einheit: '', ep: null, gp: null });
   }
-  return out;
+  // Dieselbe OZ mehrfach (z. B. in Vorbemerkungen aufgezählt): den Eintrag mit den meisten Angaben behalten
+  const score = (p: PdfPos) => (p.ep != null ? 2 : 0) + (p.menge != null ? 1 : 0);
+  const best = new Map<string, PdfPos>();
+  for (const p of out) { const k = ozNorm(p.oz), alt = best.get(k); if (!alt || score(p) >= score(alt)) best.set(k, p); }
+  return out.filter((p) => best.get(ozNorm(p.oz)) === p);
 }
 
 /** Nettosumme eines LV-PDF: „Summe“ bzw. „Summe netto“ (vor der MwSt.), sonst „Gesamtsumme (netto)“. */
 export function pdfLvSumme(lines: string[]): number | null {
-  for (let i = lines.length - 1; i >= 0; i--) { const m = lines[i].trim().match(/^(?:Summe(?:\s*\(?\s*netto\s*\)?)?|Gesamtsumme\s*\(?\s*netto\s*\)?)\s*(?:EUR|€)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})$/i); if (m) return deNum(m[1]); }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = lines[i].replace(/\.{3,}/g, ' ').trim().match(/^(?:Summe(?:[\s,]*\(?\s*netto\s*\)?)?|Gesamtsumme[\s,]*\(?\s*netto\s*\)?)\s*:?\s*(?:EUR|€)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?$/i);
+    if (m) return deNum(m[1]);
+  }
   return pdfNettoSumme(lines);
 }
 

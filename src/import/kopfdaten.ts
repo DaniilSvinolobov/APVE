@@ -39,23 +39,26 @@ const isoAus = (t: string, m = t.match(new RegExp(DATUM))) => {
 };
 const deDatum = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : iso);
 
-/** Beschriftungen mit Doppelpunkt; der Wert steht dahinter oder in der nächsten Zeile. */
-const LABELS: [Exclude<TextFeld, 'eroeffnung' | 'zuschlagsfrist' | 'kostenDatum'>, RegExp][] = [
-  ['nummer', /\b(?:Vergabe-?\s?(?:nummer|nr\.?)|Verfahrens-?\s?(?:nummer|nr\.?)|Ausschreibungs-?\s?(?:nummer|nr\.?)|Vergabe-?Kennung)\s*:/i],
-  ['vergabestelle', /\b(?:Vergabestelle|Ausschreibende Stelle)\s*:/i],
-  ['auftraggeber', /\b(?:Auftraggeber(?:in)?|Bauherr(?:in|schaft)?)\s*:/i],
-  ['ersteller', /\b(?:Planverfasser(?:in)?|Entwurfsverfasser(?:in)?|LV-?\s?Verfasser|Aufgestellt(?:\s+(?:durch|von))?|Objektplan(?:ung|er)|Planungsbüro)\s*:/i],
-  ['titel', /(?:^|\s)(?:Bauvorhaben|Baumaßnahme|Maßnahme|Projekt(?:bezeichnung)?|Vorhaben|BV)\s*:/i],
-  ['beginn', /\b(?:Ausführungsbeginn|Beginn der (?:Ausführung|Arbeiten|Bauarbeiten|Leistung)|Baubeginn)\s*:/i],
-  ['ende', /\b(?:Fertigstellung(?:stermin)?|Vollendung(?: der (?:Ausführung|Arbeiten|Leistung))?|Ausführungsende|Bauende)\s*:/i],
+/** Beschriftungen je Feld. Gefunden mit Doppelpunkt irgendwo in der Zeile oder ohne Doppelpunkt am Zeilenanfang („Auftraggeber  Stadt Bedburg“). */
+const LABEL_KERNE: [Exclude<TextFeld, 'eroeffnung' | 'zuschlagsfrist' | 'kostenDatum'>, string][] = [
+  ['nummer', String.raw`Vergabe-?\s?(?:nummer|nr\.?)|Verfahrens-?\s?(?:nummer|nr\.?)|Ausschreibungs-?\s?(?:nummer|nr\.?)|Vergabe-?Kennung|Maßnahmen-?\s?(?:nummer|nr\.?)|Vergabe-?\s?ID`],
+  ['vergabestelle', String.raw`Vergabestelle|Ausschreibende Stelle`],
+  ['auftraggeber', String.raw`Auftraggeber(?:in)?|Bauherr(?:in|schaft)?|Öffentlicher Auftraggeber`],
+  ['ersteller', String.raw`Planverfasser(?:in)?|Entwurfsverfasser(?:in)?|LV-?\s?Verfasser|Aufgestellt(?:\s+(?:durch|von))?|Objektplan(?:ung|er)|Planungsbüro|Planung|Architekt(?:in|en)?|Landschaftsarchitekt(?:in|en)?|Fachplaner(?:in)?`],
+  ['titel', String.raw`Bauvorhaben|Baumaßnahme|Maßnahme|Projekt(?:bezeichnung)?|Vorhaben|BV|Objekt`],
+  ['beginn', String.raw`Ausführungsbeginn|Beginn der (?:Ausführung|Arbeiten|Bauarbeiten|Leistung)|Baubeginn`],
+  ['ende', String.raw`Fertigstellung(?:stermin)?|Vollendung(?: der (?:Ausführung|Arbeiten|Leistung))?|Ausführungsende|Bauende`],
 ];
-const ALLE_LABELS = new RegExp(LABELS.map(([, r]) => r.source.replace(/^\(\?:\^\|\\s\)/, '\\b')).join('|') + String.raw`|\b(?:Datum|Stand|Telefon|Tel\.|E-Mail|Fax|Seite)\s*:`, 'i');
+const LABELS = LABEL_KERNE.map(([f, k]) => [f, new RegExp(String.raw`(?:^|[\s(])(?:${k})\s*:`, 'i'), new RegExp(String.raw`^\s*(?:${k})(?:\s+(?=\S)|\s*$)`, 'i')] as const);
+const ALLE_LABELS = new RegExp(String.raw`(?:^|[\s(])(?:${LABEL_KERNE.map(([, k]) => k).join('|')}|Datum|Stand|Telefon|Tel\.|E-Mail|Fax|Seite|Projekt-?\s?Nr\.?|LV)\s*:`, 'i');
 
 /** Wert hinter einer Beschriftung: bis zur nächsten Beschriftung derselben Zeile, sonst die Folgezeile. */
 function wertNach(lines: string[], i: number, ab: number): string {
   const rest = lines[i].slice(ab);
   const cut = rest.search(ALLE_LABELS);
   let v = (cut >= 0 ? rest.slice(0, cut) : rest).trim();
+  // „Planverfasser ...“: Punkte/Striche sind nur Füllzeichen, der Wert steht in der nächsten Zeile
+  if (/^[.…\-–_\s]*$/.test(v)) v = '';
   if (!v && i + 1 < lines.length && !ALLE_LABELS.test(lines[i + 1])) v = lines[i + 1].trim();
   return v.replace(/^[-–:\s]+|[\s,;.]+$/g, '').replace(/\s{2,}/g, ' ').slice(0, 160);
 }
@@ -63,7 +66,10 @@ function wertNach(lines: string[], i: number, ab: number): string {
 /** „Stadt Bedburg, Am Rathaus 1, 50181 Bedburg“ → „Stadt Bedburg“ (Anschrift gehört nicht in den Kopf des Vermerks). */
 const ohneAnschrift = (v: string) => {
   const i = v.indexOf(',');
-  return i > 0 && /\b\d{5}\b|str(?:\.|aße)|platz|weg\b|allee|postfach/i.test(v.slice(i)) ? v.slice(0, i).trim() : v;
+  if (i > 0 && /\b\d{5}\b|str(?:\.|aße)|platz|weg\b|allee|postfach/i.test(v.slice(i))) return v.slice(0, i).trim();
+  // ohne Komma: vor Straße mit Hausnummer bzw. vor der Postleitzahl abschneiden
+  const j = v.search(/\s(?=\S*(?:str\.|straße|platz|weg|allee|ring|gasse|markt)\s+\d)|\s(?=\d{5}\s)/i);
+  return j > 0 ? v.slice(0, j).trim() : v;
 };
 
 const VERFAHREN_TEXT: [RegExp, string][] = [
@@ -79,14 +85,19 @@ export function kopfAusText(lines: string[]): Kopf {
   const k: Kopf = {};
   const vorn = lines.slice(0, 400);
   vorn.forEach((l, i) => {
-    for (const [feld, re] of LABELS) {
+    for (const [feld, mitDp, amAnfang] of LABELS) {
       if (k[feld]) continue;
-      const m = re.exec(l);
+      // ohne Doppelpunkt nur auf dem Deckblatt (Vorbemerkungen enthalten Überschriften wie „Beginn der Arbeiten“)
+      const m = mitDp.exec(l) ?? (i < 80 ? amAnfang.exec(l) : null);
       if (!m) continue;
       const v = wertNach(vorn, i, m.index + m[0].length);
-      // Werte ohne Buchstaben/Ziffern oder offensichtliche Fließtexte verwerfen
+      // Werte ohne Buchstaben/Ziffern oder offensichtliche Fließtexte verwerfen (ohne Doppelpunkt strenger: kurz, beginnt groß)
       if (!/[\p{L}\d]/u.test(v) || v.split(' ').length > 18) continue;
+      // „k.A.“ = keine Angabe; ein Wert, der selbst eine Beschriftung ist (Spaltenköpfe „Ausführungsbeginn Ausführungsende“), zählt nicht
+      if (/^(?:k\.\s?A\.?|keine Angabe?n?|n\.\s?a\.?)(?:\s|$)/i.test(v) || LABELS.some(([, , a]) => a.test(v))) continue;
+      if (!m[0].includes(':') && (v.split(' ').length > 10 || !/^[\p{Lu}\d]/u.test(v))) continue;
       if (feld === 'nummer' && !/\d/.test(v)) continue;
+      if ((feld === 'beginn' || feld === 'ende') && !/\d{1,2}\.\d{1,2}\.|\bKW\b|\b20\d\d\b|sofort|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Frühjahr|Sommer|Herbst|Winter|Quartal|Woche|Monat|Tag/i.test(v)) continue;
       k[feld] = feld === 'nummer' ? v.split(' ')[0] : ohneAnschrift(v);
     }
     if (!k.eroeffnung) {
@@ -110,10 +121,13 @@ export function kopfAusText(lines: string[]): Kopf {
     if (!k.kostenDatum) {
       const m = l.match(new RegExp(String.raw`\b(?:Stand|Datum|aufgestellt am)\s*:?\s*${DATUM}`, 'i'));
       if (m) k.kostenDatum = isoAus(m[0]) || undefined;
+      // Fußzeile von AVA-Ausdrucken: „07.04.2026 - Seite 1“
+      const f = !k.kostenDatum && l.match(new RegExp(String.raw`^\s*${DATUM}\s*[-–]\s*Seite\s+1\b`, 'i'));
+      if (f) k.kostenDatum = isoAus(f[0]) || undefined;
     }
   });
   for (const l of lines) {
-    const m = l.match(/(\d{1,2})(?:,0+)?\s*%\s*(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)|(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)\.?\s*(\d{1,2})(?:,0+)?\s*%/i);
+    const m = l.match(/(\d{1,2})(?:,0+)?\s*%\s*(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)|(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)\.?\s*\(?\s*(\d{1,2})(?:,0+)?\s*%/i);
     const n = m ? Number(m[1] ?? m[2]) : 0;
     if (n > 0 && n <= 25) { k.mwst = n; break; }
   }

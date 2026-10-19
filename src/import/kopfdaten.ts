@@ -126,6 +126,13 @@ export function kopfAusText(lines: string[]): Kopf {
       if (f) k.kostenDatum = isoAus(f[0]) || undefined;
     }
   });
+  // Ausführungszeitraum im Fließtext der Vorbemerkungen („… im Zeitraum von August 26 bis Mitte Oktober 26.“), auch über Zeilen hinweg
+  if (!k.beginn && !k.ende) {
+    const MONAT = String.raw`(?:Anfang|Mitte|Ende)?\s*(?:Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s+(?:20)?\d{2}|KW\s*\d{1,2}(?:\s*\/?\s*(?:20)?\d{2})?|\d{1,2}\.\d{1,2}\.\d{2,4}`;
+    const m = vorn.join(' ').match(new RegExp(String.raw`(?:Zeitraum|Ausführungszeitraum|Bauzeit)\s+(?:von|vom)?\s*(${MONAT})\s+bis\s+(?:zum\s+)?(${MONAT})`, 'i'));
+    const jahr = (t: string) => t.trim().replace(/\s+/g, ' ').replace(/(\p{L})\s+(\d{2})$/u, '$1 20$2');
+    if (m) { k.beginn = `ab ${jahr(m[1])}`; k.ende = jahr(m[2]); }
+  }
   for (const l of lines) {
     const m = l.match(/(\d{1,2})(?:,0+)?\s*%\s*(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)|(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)\.?\s*\(?\s*(\d{1,2})(?:,0+)?\s*%/i);
     const n = m ? Number(m[1] ?? m[2]) : 0;

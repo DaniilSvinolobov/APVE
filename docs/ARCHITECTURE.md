@@ -11,6 +11,7 @@ Dateien (Ordner/ZIP)
    │  import/pdf.ts + gaeb/lvCheck.ts + import/lvPruefung.ts   LV prüfen (GAEB intern/untereinander, PDF gegen GAEB)
    │  import/ozMatch.ts   Bieterpositionen mit abweichender OZ über Text/Einheit/Menge dem Soll-LV zuordnen
    │  import/pdfSumme.ts  Gegenprobe: Endsumme im PDF des Bieters (lokal im Browser, Scans ohne Textebene nicht lesbar)
+   │  import/lvAusPdf.ts  eigenes LV nur als PDF: Positionen, Mengen, Titel, ggf. Preise aus den Textzeilen (ohne GAEB-Datei)
    │  import/kopfdaten.ts Eckdaten für Schritt 1 (Vergabenummer, Termine, Verfasser …) aus GAEB-Kopf, Vorbemerkungen und LV-PDF-Deckblatt; belegt nur leere Felder
    │  import/apply.ts     LV (+ Schätzpreise aus 82) und Angebote in den State schreiben, Vollständigkeit vorbelegen
    ▼

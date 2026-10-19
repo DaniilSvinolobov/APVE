@@ -14,6 +14,7 @@ import { Chip, Icon } from '../components/ui';
 import { DropZone } from '../components/DropZone';
 import { applyKopf, kopfAusDoc, kopfAusText, kopfFehlt, kopfLuecken, kopfMerge, type Kopf } from '../import/kopfdaten';
 import { pdfLines } from '../import/pdf';
+import { lvAusPdf, lvPdfBefund } from '../import/lvAusPdf';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -80,13 +81,35 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
           const n = nurSchaetz ? schaetz!.positions.filter((p) => p.ep != null).length : 0;
           setMsg({ ok: true, text: [nurSchaetz ? `LV-Schätzpreise ergänzt: ${n} Positionen (${schaetzName})` : '', ausPdf ? `LV-Schätzpreise aus dem PDF gelesen (${pdfSchaetz!.name})` : '', pdfs.length ? `${pdfs.length} PDF mit dem geladenen LV abgeglichen – Ergebnis siehe „Prüfung des LV“.` : '', vorbelegtText].filter(Boolean).join(' · ') });
         } else if (pdfs.length) {
-          // ohne GAEB-LV: nur die Eckdaten vom Deckblatt übernehmen, Positionen/Preise brauchen die GAEB-Datei
+          // ohne GAEB-Datei: LV (Positionen, Mengen, Titel, ggf. Preise) und Eckdaten direkt aus dem PDF lesen
           let k: Kopf = {};
-          for (const f of pdfs) { try { k = kopfMerge(k, kopfAusText(await pdfLines(f.data))); } catch { /* nicht lesbar */ } }
-          delete k.kostenDatum;
-          const neu = kopfLuecken(sRef.current.project, k);
-          if (neu.length) up((d) => applyKopf(d.project, k));
-          setMsg({ ok: false, text: [neu.length ? `Aus dem PDF vorbelegt: ${neu.join(', ')}.` : '', 'Für Positionen, Mengen und Preise bitte zusätzlich die GAEB-Datei (X81/X83) laden, gern zusammen mit dem PDF.'].filter(Boolean).join(' ') });
+          let lvPdf: { doc: GaebDoc; name: string } | null = null;
+          for (const f of pdfs) {
+            try {
+              const lines = await pdfLines(f.data);
+              k = kopfMerge(k, kopfAusText(lines));
+              if (!lvPdf) { const doc = lvAusPdf(lines); if (doc) lvPdf = { doc, name: base(f.path) }; }
+            } catch { /* nicht lesbar */ }
+          }
+          if (lvPdf) {
+            const { doc, name } = lvPdf;
+            const preise = doc.phase === 82;
+            if (!preise) delete k.kostenDatum;
+            doc.bezeichnung = k.titel ?? '';
+            doc.auftraggeber = k.auftraggeber ?? '';
+            doc.datum = k.kostenDatum ?? '';
+            const lesen = { ...lvPdfBefund(name, doc), datei: name };
+            const befunde = sortBefunde([lesen, ...pruefeLvDatei(name, doc).map((b) => ({ ...b, quelle: 'pdf' as const, datei: name }))]);
+            const neu = kopfLuecken(sr.project, k);
+            const fehlt = kopfFehlt(sr.project, k);
+            up((d) => { applyLv(d, doc, null, { lv: name, schaetz: name }); applyKopf(d.project, k); d.lvPruef = befunde; d.lvInfo = { ...d.lvInfo, pdfs: [] }; });
+            setMsg({ ok: true, text: [`LV aus dem PDF geladen: ${doc.positions.length} Positionen (${name})`, preise ? 'LV-Schätzpreise aus dem PDF' : 'ohne Preise', neu.length ? `Vorbelegt: ${neu.join(', ')}` : '', fehlt.length ? `Nicht im LV gefunden (bitte eintragen): ${fehlt.join(', ')}` : '', sr.offers.length ? 'Bereits geladene Angebote werden automatisch neu verglichen.' : ''].filter(Boolean).join(' · ') });
+          } else {
+            delete k.kostenDatum;
+            const neu = kopfLuecken(sr.project, k);
+            if (neu.length) up((d) => applyKopf(d.project, k));
+            setMsg({ ok: false, text: [neu.length ? `Aus dem PDF vorbelegt: ${neu.join(', ')}.` : '', 'Im PDF wurden keine Positionen mit Mengen erkannt (Scan ohne Text oder unbekanntes Layout) – bitte die GAEB-Datei (X81/X83) laden.'].filter(Boolean).join(' ') });
+          }
         } else {
           const bids = pricedSkipped.length > 0 || files.some((f) => isBidFile(f.path));
           setMsg({ ok: false, text: pricedSkipped.length ? `„${pricedSkipped.join('“, „')}“ enthält Bieterpreise und ist damit ein Angebot, kein LV – bitte im Schritt „Unterlagen“ unter „Angebote der Bieter“ ablegen.` : bids ? 'Das sind Angebotsdateien (x84/p84/d84) – bitte im Schritt „Unterlagen“ unter „Angebote der Bieter“ ablegen.' : 'Kein LV erkannt. Erwartet: .x81/.x82/.x83 (GAEB DA XML), .p8x (GAEB 2000) oder .d8x (GAEB 90), optional das LV als PDF.' });
@@ -112,8 +135,8 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
   return (
     <section className="card" id="lv-card">
       <h2>Eigenes LV (Ausschreibung)</h2>
-      <p className="lead">GAEB-Datei des LV (X81/X83), dazu optional X82 mit Schätzpreisen und das LV als PDF. Die Angaben unten werden daraus vorbelegt.</p>
-      <DropZone busy={busy} onFiles={process} title="LV-Dateien hierher ziehen (X81 · X82 · X83)" hint="Auch P8x, D8x, PDF und ZIP · Daten bleiben im Browser" folder={false} />
+      <p className="lead">LV als GAEB-Datei (X81/X83, optional X82 mit Schätzpreisen) oder nur als PDF. Die Angaben unten werden daraus vorbelegt.</p>
+      <DropZone busy={busy} onFiles={process} title="LV hierher ziehen (X81 · X82 · X83 · PDF)" hint="Auch P8x, D8x, PDF und ZIP · Daten bleiben im Browser" folder={false} />
       {msg && <p className={msg.ok ? 'okbox' : 'warnbox'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
       <div className="status">
         <Chip kind={hasLv ? 'ok' : 'warn'}>{hasLv ? `LV: ${s.lv.length} Positionen, ${s.lose.length} Los/Lose${s.lvInfo?.lv ? ` (${s.lvInfo.lv})` : ''}` : 'LV fehlt'}</Chip>
@@ -122,9 +145,9 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
       </div>
       {(hasLv || hasSchaetz || pdfListe.length > 0) && (
         <ul className="filelist">
-          {hasLv && <li><Icon name="file" /><span className="fname">{s.lvInfo?.lv || 'LV (Dateiname unbekannt)'}</span><Chip kind="info">LV · Positionen und Mengen</Chip>
+          {hasLv && <li><Icon name="file" /><span className="fname">{s.lvInfo?.lv || 'LV (Dateiname unbekannt)'}</span><Chip kind="info">{hasSchaetz && s.lvInfo?.schaetz === s.lvInfo?.lv ? 'LV · Positionen, Mengen und Schätzpreise' : 'LV · Positionen und Mengen'}</Chip>
             <button className="icon-btn" title="LV entfernen" onClick={() => { if (confirm('Eigenes LV entfernen? Positionen, LV-Schätzpreise und die Prüfung des LV werden gelöscht; Lose und Angebote bleiben erhalten und werden beim nächsten LV neu zugeordnet.')) { up(removeLv); setMsg(null); } }}><Icon name="trash" /></button></li>}
-          {hasSchaetz && !pdfListe.includes(s.lvInfo?.schaetz ?? '') && <li><Icon name="file" /><span className="fname">{s.lvInfo?.schaetz || 'Schätzpreise (Dateiname unbekannt)'}</span><Chip kind="info">LV-Schätzpreise</Chip>
+          {hasSchaetz && !pdfListe.includes(s.lvInfo?.schaetz ?? '') && s.lvInfo?.schaetz !== s.lvInfo?.lv && <li><Icon name="file" /><span className="fname">{s.lvInfo?.schaetz || 'Schätzpreise (Dateiname unbekannt)'}</span><Chip kind="info">LV-Schätzpreise</Chip>
             <button className="icon-btn" title="LV-Schätzpreise entfernen" onClick={() => up(removeSchaetz)}><Icon name="trash" /></button></li>}
           {pdfListe.map((n) => <li key={n}><Icon name="file" /><span className="fname">{n}</span><Chip kind="info">{n === s.lvInfo?.schaetz ? 'LV als PDF · Abgleich und LV-Schätzpreise' : 'LV als PDF · Abgleich'}</Chip>
             <button className="icon-btn" title="PDF entfernen" onClick={() => up((d) => { if (d.lvInfo?.schaetz === n) removeSchaetz(d); d.lvPruef = d.lvPruef?.filter((b) => !vonPdf(b, n)); d.lvInfo = { ...d.lvInfo, pdfs: (d.lvInfo.pdfs ?? []).filter((x) => x !== n) }; })}><Icon name="trash" /></button></li>)}

@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState, type ClipboardEvent } from 'react';
 import type { State } from '../domain/types';
 import { computeLos, losPositions, lvFremd, schaetzSumme, titelKey, zkey, zusatzWert } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from '../domain/fmt';
-import { Chip, Icon, NumInput, Seg, Tabs } from '../components/ui';
+import { Chip, FlagList, Icon, NumInput, Seg, Tabs } from '../components/ui';
 import { downloadCsv } from '../storage/exportCsv';
 
 type Up = (fn: (d: State) => void) => void;
@@ -118,6 +118,19 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const visibleGroups = [...groups.entries()].filter(([, ps]) => !onlyAuff || ps.some((p) => cells.some((c) => isOut(c, p.oz))));
   const visibleOz = visibleGroups.flatMap(([k, ps]) => (open.has(k) || onlyAuff ? ps.map((p) => p.oz) : []));
   const ncol = hasLv ? 4 : 1;
+  const notes: { kind: 'warn' | 'info'; text: string }[] = [];
+  if (lvFremdText) notes.push({ kind: 'warn', text: lvFremdText });
+  if (cells.some((c) => c.mengeAbw.length)) notes.push({ kind: 'warn', text: 'Mengen im LV weichen von der Bieterdatei ab – betroffene Zellen sind links blau markiert.' });
+  if (hasLv && hasSch && schFehlt > 0) notes.push({ kind: 'warn', text: `${schFehlt} Position(en) ohne LV-Schätzpreis – Summe und Abweichung zum LV nur bedingt aussagekräftig.` });
+  if (hasLv && !hasSch) notes.push({ kind: 'info', text: 'Keine LV-Schätzpreise geladen – X82 im Schritt „Vergabe“ laden oder EP in der Spalte „LV-Schätzpreis“ eintragen.' });
+  if (cells.some((c) => c.zusatz.length)) notes.push({ kind: 'info', text: 'Bieter haben Positionen ergänzt, die nicht im LV stehen – unten unter „Zusätzliche Positionen“ aufgeführt und in den Summen enthalten.' });
+  const legend: [string, string][] = [
+    ['low', 'günstigster EP'],
+    ['high', 'höchster EP'],
+    ['out', `Ausreißer (> ${s.project.abweichung} % vom Mittel der übrigen)`],
+    ...(cells.some((c) => c.mengeAbw.length) ? [['mabw', 'Menge laut Bieter weicht vom LV ab'] as [string, string]] : []),
+    ...(zList.length ? [['neu', 'neue Position (nicht im LV)'] as [string, string]] : []),
+  ];
 
   return (
     <div className="stack">
@@ -137,17 +150,17 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
         )}
         {cells.length === 0 ? <p className="muted" style={{ marginTop: 18 }}>Für {los.nr} liegt in dieser Runde kein Angebot vor.</p> : (
           <>
-            <div className="row" style={{ margin: '14px 0' }}>
-              {hasLv && <><button className="btn small" onClick={() => setOpen(open.size ? new Set() : new Set(groups.keys()))}>{open.size ? 'Alle Titel schließen' : 'Alle Titel öffnen'}</button>
-              <label className="mini"><input type="checkbox" checked={onlyAuff} onChange={(e) => setOnlyAuff(e.target.checked)} /> nur Titel mit Preisauffälligkeiten</label></>}
-              <span className="field-label" style={{ marginLeft: 8 }}>Abweichung in % zu:</span>
-              <Seg small value={basis} onChange={setBasis} options={[{ value: 'min', label: 'Günstigstem' }, { value: 'schaetz', label: 'LV-Schätzpreis' }, { value: 'beide', label: 'beiden' }]} />
-              {hasLv && hasSch && schFehlt > 0 && <Chip kind="warn">{schFehlt} Position(en) ohne LV-Schätzpreis – Summe und Abweichung zum LV nur bedingt aussagekräftig</Chip>}
-              {hasLv && !hasSch && <Chip kind="info">Keine LV-Schätzpreise geladen – X82 im Schritt „Vergabe“ laden oder EP in der Spalte „LV-Schätzpreis“ eintragen</Chip>}
-              {cells.some((c) => c.zusatz.length) && <Chip kind="info">Neue Positionen gegenüber dem LV (unten markiert) sind in den Summen enthalten</Chip>}
-              {cells.some((c) => c.mengeAbw.length) && <Chip kind="warn">Mengen im LV weichen von der Bieterdatei ab – siehe markierte Positionen</Chip>}
+            <div className="toolbar">
+              {hasLv && <div className="row">
+                <button className="btn small" onClick={() => setOpen(open.size ? new Set() : new Set(groups.keys()))}><Icon name={open.size ? 'right' : 'down'} /> {open.size ? 'Alle Titel schließen' : 'Alle Titel öffnen'}</button>
+                <label className="mini"><input type="checkbox" checked={onlyAuff} onChange={(e) => setOnlyAuff(e.target.checked)} /> nur Titel mit Preisauffälligkeiten</label>
+              </div>}
+              <div className="row">
+                <span className="field-label">Abweichung in % zu</span>
+                <Seg small value={basis} onChange={setBasis} options={[{ value: 'min', label: 'Günstigstem' }, { value: 'schaetz', label: 'LV-Schätzpreis' }, { value: 'beide', label: 'beiden' }]} />
+              </div>
             </div>
-            {lvFremdText && <p className="warnbox"><Icon name="alert" /> {lvFremdText}</p>}
+            {notes.length > 0 && <div className={`notes ${notes.some((n) => n.kind === 'warn') ? 'warn' : ''}`}><b>Hinweise zu diesem Los</b><FlagList items={notes} /></div>}
             <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>
               <table className="preis" style={{ minWidth: 480 + (cells.length + refHead.length) * 190 }}>
                 <thead>
@@ -261,16 +274,13 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                   ))}
                   {hasSkonto && <FootRow ncol={ncol} hasLv={hasLv} label="Skonto (informativ, nicht gewertet)">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp g0">{c.offer.skonto ? <>{fmtNum(c.offer.skonto)} % · ({fmtNum(skontoOf(c) ?? 0)})</> : <span className="muted">–</span>}</td>)}</FootRow>}
                   {hasSkonto && <FootRow ncol={ncol} hasLv={hasLv} label="Gesamt brutto abzgl. Skonto (informativ)">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="gp g0">{c.gross == null ? '' : `(${fmtNum(round2(c.gross - (skontoOf(c) ?? 0)))})`}</td>)}</FootRow>}
-                  <FootRow ncol={ncol} hasLv={hasLv} label="Hinweise">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className="flags g0">{c.flags.map((f, i) => <Chip key={i} kind={f.kind}>{f.text}</Chip>)}</td>)}</FootRow>
+                  <FootRow ncol={ncol} hasLv={hasLv} label="Hinweise">{hasLv && refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}{cells.map((c) => <td key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`flags g0 ${c.excluded ? 'dim' : ''}`}>{c.flags.length ? <FlagList items={c.flags} /> : <span className="muted">keine</span>}</td>)}</FootRow>
                 </tfoot>
               </table>
             </div>
             <div className="legend">
-              <span><i className="sw low" /> günstigster EP der Position</span>
-              <span><i className="sw high" /> höchster EP der Position</span>
-              <span><i className="sw out" /> Ausreißer (&gt; {s.project.abweichung} % vom Mittel der übrigen)</span>
-              <span><i className="sw mabw" /> Menge laut Bieter weicht vom LV ab</span>
-              <span><i className="sw neu" /> neue Position (nicht im LV), in der Summe enthalten</span>
+              <b>Legende</b>
+              {legend.map(([k, t]) => <span key={k}><i className={`sw ${k}`} /> {t}</span>)}
             </div>
           </>
         )}

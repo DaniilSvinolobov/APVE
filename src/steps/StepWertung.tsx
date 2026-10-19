@@ -105,7 +105,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
       {detail.length > 0 && (
         <section className="card">
           <h2>Angaben für die Begründung im Vermerk</h2>
-          <p className="lead">Der Text wird automatisch aus Preisspiegel und diesen Angaben erzeugt (Auffälligkeiten, Rang, Summe). Ergänzen Sie nur, was nur Sie wissen.</p>
+          <p className="lead">Der Text entsteht automatisch – ergänzen Sie nur, was nur Sie wissen.</p>
           {detail.map((c) => {
             const b = getBew(s, c.offer.id, los.id);
             const a = auffaelligkeiten(s, los, cells, c);

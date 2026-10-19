@@ -63,7 +63,7 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
       <style>{pageCss}</style>
       <section className="card no-print">
         <div className="card-head">
-          <div><h2>Vergabevermerk</h2><p className="lead">Vollständig aus Ihren Daten erzeugt – im Aufbau Ihres bisherigen Vermerks. Auf jeden Text klicken, um ihn zu ändern (mit „automatisch“ lässt er sich zurücksetzen).</p></div>
+          <div><h2>Vergabevermerk</h2><p className="lead">Aus Ihren Daten erzeugt. Text anklicken zum Ändern, „automatisch“ setzt ihn zurück.</p></div>
           <div className="row">
             <button className="btn" onClick={() => downloadJson(`Vergabe_${p.nummer || 'Sicherung'}.json`, s)}><Icon name="download" /> Datensicherung</button>
             <button className="btn primary" onClick={() => window.print()}><Icon name="print" /> Als PDF drucken</button>

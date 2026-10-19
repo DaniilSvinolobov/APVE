@@ -31,24 +31,24 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
 
       <section className="card">
         <h2>Vorhaben</h2>
-        <p className="lead">Diese Angaben erscheinen im Kopf des Vergabevermerks. Leere Felder werden beim Laden des LV (oben) vorbelegt: Maßnahme, Vergabenummer, Auftraggeber, Vergabestelle, Verfahren, Termine, Verfasser, Lose und Kosten – soweit die GAEB-Datei oder das LV-PDF sie enthält. Bitte prüfen.</p>
+        <p className="lead">Erscheint im Kopf des Vergabevermerks.</p>
         <div className="grid">
-          <Field label="Bezeichnung der Maßnahme" wide><input value={p.titel} onChange={(e) => set('titel', e.target.value)} placeholder="z. B. Umbau Schlosspark Bedburg BA3 (ISEK)" /></Field>
-          <Field label="Vergabenummer"><input value={p.nummer} onChange={(e) => set('nummer', e.target.value)} placeholder="S-BEDB-2026-0020" /></Field>
+          <Field label="Bezeichnung der Maßnahme" wide><input value={p.titel} onChange={(e) => set('titel', e.target.value)} /></Field>
+          <Field label="Vergabenummer"><input value={p.nummer} onChange={(e) => set('nummer', e.target.value)} /></Field>
           <Field label="Vergabeverfahren">
             <select value={p.verfahren} onChange={(e) => set('verfahren', e.target.value)}>{VERFAHREN.map((v) => <option key={v}>{v}</option>)}</select>
           </Field>
-          <Field label="Auftraggeber"><input value={p.auftraggeber} onChange={(e) => set('auftraggeber', e.target.value)} placeholder="Stadt Bedburg" /></Field>
-          <Field label="Vergabestelle"><input value={p.vergabestelle} onChange={(e) => set('vergabestelle', e.target.value)} placeholder="Zentrale Vergabestelle der Stadt Bedburg" /></Field>
+          <Field label="Auftraggeber"><input value={p.auftraggeber} onChange={(e) => set('auftraggeber', e.target.value)} /></Field>
+          <Field label="Vergabestelle"><input value={p.vergabestelle} onChange={(e) => set('vergabestelle', e.target.value)} /></Field>
         </div>
       </section>
 
       <section className="card">
         <div className="card-head">
-          <div><h2>Lose</h2><p className="lead">Pro Los wird ein eigener Preisspiegel und eine eigene Vergabeempfehlung erstellt.</p></div>
+          <div><h2>Lose</h2><p className="lead">Je Los ein eigener Preisspiegel und eine eigene Vergabeempfehlung.</p></div>
           <button className="btn" onClick={() => up((d) => void d.lose.push({ id: uid(), oz: String(d.lose.length + 1).padStart(2, '0'), nr: `LOS${d.lose.length + 1}`, name: '', kosten: null, imVermerk: true, imBudget: true }))}><Icon name="plus" /> Los</button>
         </div>
-        {s.lose.length === 0 && <p className="muted">Noch keine Lose – sie werden beim Laden des LV oben automatisch angelegt, oder Sie legen sie hier an.</p>}
+        {s.lose.length === 0 && <p className="muted">Noch keine Lose – sie entstehen beim Laden des LV oder über „+ Los“.</p>}
         <div className="loslist">
           {s.lose.map((l, i) => (
             <div className="losrow" key={l.id}>
@@ -66,7 +66,7 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
             <select value={p.kostenBasis} onChange={(e) => set('kostenBasis', e.target.value as 'brutto' | 'netto')}><option value="brutto">brutto</option><option value="netto">netto</option></select>
           </Field>
           <Field label="Kostenvoranschlag vom"><input type="date" value={p.kostenDatum} onChange={(e) => set('kostenDatum', e.target.value)} /></Field>
-          <Field label="Gesamtbudget (brutto)" hint="Für Abschnitt 6 – Einordnung in das Gesamtbudget"><NumInput value={p.budgetBrutto} onChange={(v) => set('budgetBrutto', v)} suffix="€" /></Field>
+          <Field label="Gesamtbudget (brutto)" hint="Für Abschnitt 6 des Vermerks"><NumInput value={p.budgetBrutto} onChange={(v) => set('budgetBrutto', v)} suffix="€" /></Field>
         </div>
       </section>
 
@@ -75,8 +75,8 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
         <div className="grid">
           <Field label="Eröffnungstermin"><input type="datetime-local" value={p.eroeffnung} onChange={(e) => set('eroeffnung', e.target.value)} /></Field>
           <Field label="Ende der Zuschlagsfrist"><input type="date" value={p.zuschlagsfrist} onChange={(e) => set('zuschlagsfrist', e.target.value)} /></Field>
-          <Field label="Beginn der Ausführung"><input value={p.beginn} onChange={(e) => set('beginn', e.target.value)} placeholder="ab 24.08.2026" /></Field>
-          <Field label="Vollendung der Ausführung"><input value={p.ende} onChange={(e) => set('ende', e.target.value)} placeholder="Ende 2026" /></Field>
+          <Field label="Beginn der Ausführung"><input value={p.beginn} onChange={(e) => set('beginn', e.target.value)} /></Field>
+          <Field label="Vollendung der Ausführung"><input value={p.ende} onChange={(e) => set('ende', e.target.value)} /></Field>
           <Field label="Aufgeforderte Unternehmen"><NumInput value={p.angefordert} onChange={(v) => set('angefordert', v)} decimals={0} /></Field>
           <Field label="MwSt.-Satz"><NumInput value={p.mwst} onChange={(v) => set('mwst', v ?? 19)} decimals={0} suffix="%" /></Field>
         </div>
@@ -85,16 +85,16 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
       <section className="card">
         <h2>Absender & Darstellung</h2>
         <div className="grid">
-          <Field label="Verfasser / Planungsbüro"><input value={p.ersteller} onChange={(e) => set('ersteller', e.target.value)} placeholder="A24 LANDSCHAFT Landschaftsarchitektur GmbH" /></Field>
-          <Field label="Unterzeichner"><input value={p.unterzeichner} onChange={(e) => set('unterzeichner', e.target.value)} placeholder="i. A. Vorname Nachname" /></Field>
-          <Field label="Ort"><input value={p.ort} onChange={(e) => set('ort', e.target.value)} placeholder="Berlin/Essen" /></Field>
+          <Field label="Verfasser / Planungsbüro"><input value={p.ersteller} onChange={(e) => set('ersteller', e.target.value)} /></Field>
+          <Field label="Unterzeichner"><input value={p.unterzeichner} onChange={(e) => set('unterzeichner', e.target.value)} /></Field>
+          <Field label="Ort"><input value={p.ort} onChange={(e) => set('ort', e.target.value)} /></Field>
           <Field label="Datum des Vermerks"><input type="date" value={p.datum} onChange={(e) => set('datum', e.target.value)} /></Field>
-          <Field label="Logo (Briefkopf, rechts oben)" hint="PNG/JPG – erscheint auf jeder Seite des Vermerks">
+          <Field label="Logo" hint="PNG/JPG, oben rechts auf jeder Seite">
             <div className="row"><input type="file" accept="image/*" onChange={(e) => onLogo(e.target.files?.[0])} />{s.logo && <><img src={s.logo} alt="Logo" className="logo-prev" /><button className="link danger" onClick={() => up((d) => void (d.logo = ''))}>entfernen</button></>}</div>
           </Field>
-          <Field label="Einzeln bewertete Angebote (Engere Wahl)" hint="Wie viele Angebote je Los einzeln im Vermerk bewertet werden"><NumInput value={p.engereWahl} onChange={(v) => set('engereWahl', Math.max(1, v ?? 2))} decimals={0} /></Field>
-          <Field label="Preisauffälligkeit ab" hint="Einzelpreis weicht um mehr als x % vom Mittel der übrigen Angebote ab"><NumInput value={p.abweichung} onChange={(v) => set('abweichung', v ?? 30)} decimals={0} suffix="%" /></Field>
-          <Field label="Aufklärung bei Gesamtpreis unter" hint="x % unter Kostenvoranschlag bzw. nächstem Angebot"><NumInput value={p.schwelle} onChange={(v) => set('schwelle', v ?? 15)} decimals={0} suffix="%" /></Field>
+          <Field label="Einzeln bewertete Angebote (Engere Wahl)" hint="Angebote je Los, die einzeln bewertet werden"><NumInput value={p.engereWahl} onChange={(v) => set('engereWahl', Math.max(1, v ?? 2))} decimals={0} /></Field>
+          <Field label="Preisauffälligkeit ab" hint="Abweichung vom Mittel der anderen Angebote"><NumInput value={p.abweichung} onChange={(v) => set('abweichung', v ?? 30)} decimals={0} suffix="%" /></Field>
+          <Field label="Aufklärung bei Gesamtpreis unter" hint="unter Kostenvoranschlag bzw. nächstem Angebot"><NumInput value={p.schwelle} onChange={(v) => set('schwelle', v ?? 15)} decimals={0} suffix="%" /></Field>
         </div>
       </section>
     </div>

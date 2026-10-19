@@ -124,7 +124,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
 
       <section className="card" id="bieter-card">
         <h2>Angebote der Bieter</h2>
-        <p className="lead">Angebotsordner oder ZIP-Dateien der Bieter, so unsortiert wie sie ankommen (GAEB X84/P84/D84 samt Nachweisen). Mehrere Bieter gleichzeitig möglich, verschachtelte ZIPs werden entpackt.{!hasLv && ' Das eigene LV wird im Schritt „Vergabe“ geladen.'}</p>
+        <p className="lead">Ordner oder ZIP-Dateien der Bieter, so wie sie ankommen – mehrere Bieter auf einmal.{!hasLv && ' Das eigene LV wird im Schritt „Vergabe“ geladen.'}</p>
         <DropZone busy={busy} onFiles={processBids} title="Ordner oder ZIP-Dateien der Bieter hierher ziehen" hint="Daten verlassen Ihren Browser nicht" folder />
         {msg && <p className={msg.ok ? 'okbox' : 'warnbox'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
         <div className="status"><Chip kind={s.offers.length ? 'ok' : 'info'}>{s.offers.length} Angebot(e) geladen</Chip></div>

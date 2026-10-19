@@ -5,6 +5,7 @@ import { pdfLines } from './pdf';
 import { findLvFiles, type LvFiles, type PdfGroup } from './files';
 import { analyzeGroup, type ParsedBid } from './analyze';
 import { ozNorm, pdfNettoSumme } from '../gaeb/lvCheck';
+import { kopfAusText, type Kopf } from './kopfdaten';
 
 const order = { bad: 0, warn: 1, info: 2 } as const;
 export const sortBefunde = (b: Befund[]) => [...b].sort((x, y) => order[x.kind] - order[y.kind]);
@@ -24,14 +25,14 @@ export async function pruefePdf(f: RawFile, ref: RefPos[], mitPreisen: boolean):
   return (await lesePdf(f, ref, mitPreisen)).befunde;
 }
 
-/** Wie `pruefePdf`, liefert zusätzlich die gelesenen Positionen und die Nettosumme des PDF. */
-export async function lesePdf(f: RawFile, ref: RefPos[], mitPreisen: boolean): Promise<{ befunde: Befund[]; pdf: PdfPos[]; summe: number | null }> {
+/** Wie `pruefePdf`, liefert zusätzlich die gelesenen Positionen, die Nettosumme und die Eckdaten vom Deckblatt des PDF. */
+export async function lesePdf(f: RawFile, ref: RefPos[], mitPreisen: boolean): Promise<{ befunde: Befund[]; pdf: PdfPos[]; summe: number | null; kopf?: Kopf }> {
   const name = base(f.path);
   try {
     const lines = await pdfLines(f.data);
     if (lines.join('').length < 40) return { befunde: [{ kind: 'warn', quelle: 'pdf', text: `${name}: Das PDF enthält keinen lesbaren Text (Scan?) – bitte manuell mit der GAEB-Datei vergleichen.` }], pdf: [], summe: null };
     const pdf = parseLvPdf(lines, ref);
-    return { befunde: vergleichePdf(name, pdf, ref, mitPreisen), pdf, summe: pdfLvSumme(lines) };
+    return { befunde: vergleichePdf(name, pdf, ref, mitPreisen), pdf, summe: pdfLvSumme(lines), kopf: kopfAusText(lines) };
   } catch (e) {
     return { befunde: [{ kind: 'warn', quelle: 'pdf', text: `${name}: PDF konnte nicht gelesen werden (${(e as Error).message}).` }], pdf: [], summe: null };
   }

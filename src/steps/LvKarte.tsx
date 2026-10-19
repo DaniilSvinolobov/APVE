@@ -12,6 +12,7 @@ import { schaetzSumme } from '../domain/calc';
 import { fmtEur } from '../domain/fmt';
 import { Chip, Icon } from '../components/ui';
 import { DropZone } from '../components/DropZone';
+import { applyKopf, kopfAusDoc, kopfLuecken, kopfMerge, type Kopf } from '../import/kopfdaten';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -40,8 +41,11 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
       const pdfBefunde: LvBefund[] = [];
       // bepreistes LV-PDF: liefert die LV-Schätzpreise, wenn keine X82 dabei ist (eine X82 hat Vorrang)
       let pdfSchaetz: { doc: GaebDoc; name: string; befund: LvBefund } | null = null;
+      // Eckdaten vom Deckblatt der PDF (Vergabenummer, Termine, Planverfasser …); das erste PDF hat Vorrang
+      let pdfKopf: Kopf = {};
       if (ref) for (const f of pdfs) {
         const r = await lesePdf(f, ref, true);
+        if (r.kopf) pdfKopf = kopfMerge(pdfKopf, r.kopf);
         pdfBefunde.push(...r.befunde.map((b) => ({ ...b, datei: base(f.path) })));
         const sp: ReturnType<typeof schaetzAusPdf> = !schaetz && !pdfSchaetz ? schaetzAusPdf(base(f.path), r.pdf, ref, r.summe) : null;
         if (sp) pdfSchaetz = { doc: sp.doc, name: base(f.path), befund: { ...sp.befund, datei: base(f.path) } };
@@ -49,6 +53,11 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
       // PDF-Preise nur übernehmen, wenn keine Schätzpreise aus einer GAEB-Datei (X82) bestehen bleiben
       const gaebPreise = sr.lvInfo?.schaetz && Object.keys(sr.schaetz ?? {}).length > 0 && !/\.pdf$/i.test(sr.lvInfo.schaetz) && (!soll || sr.lvInfo.schaetz !== sr.lvInfo.lv) ? sr.lvInfo.schaetz : '';
       const ausPdf = !!pdfSchaetz && !gaebPreise;
+      // „Stand/Datum“ des PDF ist nur dann das Datum des Kostenvoranschlags, wenn die Schätzpreise aus diesem PDF stammen
+      if (!ausPdf) delete pdfKopf.kostenDatum;
+      const kopf = kopfMerge(soll ? kopfMerge(kopfAusDoc(soll), schaetz ? kopfAusDoc(schaetz) : {}) : nurSchaetz ? { kostenDatum: kopfAusDoc(schaetz!).kostenDatum } : {}, pdfKopf);
+      const vorbelegt = kopfLuecken(sr.project, kopf);
+      const vorbelegtText = vorbelegt.length ? `Vorbelegt: ${vorbelegt.join(', ')}` : '';
       const pdfPreise = (d: State) => {
         if (!pdfSchaetz) return;
         if (ausPdf) { applySchaetz(d, pdfSchaetz.doc, pdfSchaetz.name); d.lvPruef = [...(d.lvPruef ?? []), pdfSchaetz.befund]; }
@@ -64,9 +73,10 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
             if (pdfNamen.length) d.lvInfo = { ...d.lvInfo, pdfs: [...(d.lvInfo.pdfs ?? []).filter((n) => !pdfNamen.includes(n)), ...pdfNamen] };
             pdfPreise(d);
             d.lvPruef = sortBefunde(d.lvPruef);
+            applyKopf(d.project, pdfKopf);
           });
           const n = nurSchaetz ? schaetz!.positions.filter((p) => p.ep != null).length : 0;
-          setMsg({ ok: true, text: [nurSchaetz ? `LV-Schätzpreise ergänzt: ${n} Positionen (${schaetzName})` : '', ausPdf ? `LV-Schätzpreise aus dem PDF gelesen (${pdfSchaetz!.name})` : '', pdfs.length ? `${pdfs.length} PDF mit dem geladenen LV abgeglichen – Ergebnis siehe „Prüfung des LV“.` : ''].filter(Boolean).join(' · ') });
+          setMsg({ ok: true, text: [nurSchaetz ? `LV-Schätzpreise ergänzt: ${n} Positionen (${schaetzName})` : '', ausPdf ? `LV-Schätzpreise aus dem PDF gelesen (${pdfSchaetz!.name})` : '', pdfs.length ? `${pdfs.length} PDF mit dem geladenen LV abgeglichen – Ergebnis siehe „Prüfung des LV“.` : '', vorbelegtText].filter(Boolean).join(' · ') });
         } else if (pdfs.length) {
           setMsg({ ok: false, text: 'Ein PDF kann nur gegen ein GAEB-LV geprüft werden – bitte zuerst die GAEB-Datei (X81/X83) laden, gern zusammen mit dem PDF.' });
         } else {
@@ -75,9 +85,9 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
         }
       } else {
         const befunde = sortBefunde([...pruefeEigenesLv(lv), ...pdfBefunde]);
-        up((d) => { applyLv(d, soll, schaetz, { lv: sollName, schaetz: schaetzName }); d.lvPruef = befunde; d.lvInfo = { ...d.lvInfo, pdfs: pdfNamen }; pdfPreise(d); d.lvPruef = sortBefunde(d.lvPruef); });
+        up((d) => { applyLv(d, soll, schaetz, { lv: sollName, schaetz: schaetzName }); d.lvPruef = befunde; d.lvInfo = { ...d.lvInfo, pdfs: pdfNamen }; pdfPreise(d); d.lvPruef = sortBefunde(d.lvPruef); applyKopf(d.project, pdfKopf); });
         const n = schaetz ? schaetz.positions.filter((p) => p.ep != null).length : 0;
-        setMsg({ ok: true, text: [`LV geladen: ${soll.positions.length} Positionen (${sollName})`, n ? `LV-Schätzpreise: ${n} Positionen (${schaetzName})` : ausPdf ? `LV-Schätzpreise aus dem PDF (${pdfSchaetz!.name})` : sr.lvInfo?.schaetz && sr.lvInfo.schaetz !== sr.lvInfo.lv ? `LV-Schätzpreise aus ${sr.lvInfo.schaetz} beibehalten` : 'keine Schätzpreise (GAEB 82 oder bepreistes PDF) gefunden', pdfs.length ? `${pdfs.length} PDF abgeglichen` : '', pricedSkipped.length ? `Übersprungen (enthält Bieterpreise, gehört zu den Angeboten): ${pricedSkipped.join(', ')}` : '', sRef.current.offers.length ? 'Bereits geladene Angebote werden automatisch neu verglichen.' : ''].filter(Boolean).join(' · ') });
+        setMsg({ ok: true, text: [`LV geladen: ${soll.positions.length} Positionen (${sollName})`, n ? `LV-Schätzpreise: ${n} Positionen (${schaetzName})` : ausPdf ? `LV-Schätzpreise aus dem PDF (${pdfSchaetz!.name})` : sr.lvInfo?.schaetz && sr.lvInfo.schaetz !== sr.lvInfo.lv ? `LV-Schätzpreise aus ${sr.lvInfo.schaetz} beibehalten` : 'keine Schätzpreise (GAEB 82 oder bepreistes PDF) gefunden', pdfs.length ? `${pdfs.length} PDF abgeglichen` : '', pricedSkipped.length ? `Übersprungen (enthält Bieterpreise, gehört zu den Angeboten): ${pricedSkipped.join(', ')}` : '', vorbelegtText, sRef.current.offers.length ? 'Bereits geladene Angebote werden automatisch neu verglichen.' : ''].filter(Boolean).join(' · ') });
       }
     } catch (e) {
       setMsg({ ok: false, text: `Fehler beim Einlesen: ${(e as Error).message}` });
@@ -94,7 +104,7 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
   return (
     <section className="card" id="lv-card">
       <h2>Eigenes LV (Ausschreibung)</h2>
-      <p className="lead">Ihr Leistungsverzeichnis als GAEB-Datei: <b>X81/X83</b> liefert Positionen und Mengen, <b>X82</b> (Kostenanschlag) – oder ersatzweise das bepreiste LV als PDF – die LV-Schätzpreise für den Preisvergleich und den Kostenvoranschlag je Los. Eine oder mehrere Dateien oder eine ZIP – die App erkennt die Rolle selbst. Maßnahme, Auftraggeber und Lose werden daraus vorbelegt. Legen Sie das LV zusätzlich als <b>PDF</b> dazu, wird es mit den GAEB-Daten abgeglichen (Positionen, Mengen) – so fallen Unstimmigkeiten schon vor der Ausschreibung auf.</p>
+      <p className="lead">Ihr Leistungsverzeichnis als GAEB-Datei: <b>X81/X83</b> liefert Positionen und Mengen, <b>X82</b> (Kostenanschlag) – oder ersatzweise das bepreiste LV als PDF – die LV-Schätzpreise für den Preisvergleich und den Kostenvoranschlag je Los. Eine oder mehrere Dateien oder eine ZIP – die App erkennt die Rolle selbst. Maßnahme, Auftraggeber, Vergabenummer, Termine und Lose werden daraus vorbelegt (nur leere Felder) – aus dem Kopf der GAEB-Datei, den Vorbemerkungen und dem Deckblatt des PDF. Legen Sie das LV zusätzlich als <b>PDF</b> dazu, wird es mit den GAEB-Daten abgeglichen (Positionen, Mengen) – so fallen Unstimmigkeiten schon vor der Ausschreibung auf.</p>
       <DropZone busy={busy} onFiles={process} title="LV-Dateien hierher ziehen (X81 · X82 · X83)" hint="Auch .p8x (GAEB 2000), .d8x (GAEB 90) und das LV als PDF · Daten verlassen Ihren Browser nicht" folder={false} />
       {msg && <p className={msg.ok ? 'okbox' : 'warnbox'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
       <div className="status">

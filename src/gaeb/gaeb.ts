@@ -12,6 +12,17 @@ export interface GaebPos {
   bieterText?: string; // Textergänzung des Bieters
 }
 
+/** Vergabedaten aus dem Kopf der Datei (nur GAEB DA XML: Award/AwardInfo, OWN) und Vorbemerkungen als Text. */
+export interface GaebKopf {
+  vergabenummer: string;
+  eroeffnung: string; // ISO „JJJJ-MM-TTTHH:MM“ oder nur Datum
+  zuschlagsfrist: string; // ISO-Datum
+  beginn: string; // ISO-Datum
+  ende: string; // ISO-Datum
+  mwst: number | null;
+  text: string; // Vorbemerkungen/Hinweistexte, für die Suche nach Eckdaten (gekürzt)
+}
+
 export interface GaebDoc {
   format: 'D' | 'P' | 'X';
   phase: number; // 83, 84, ...
@@ -24,6 +35,7 @@ export interface GaebDoc {
   positions: GaebPos[];
   totals: Record<string, number>; // Summe laut Datei je OZ-Prefix
   total: { net: number | null; gross: number | null };
+  kopf?: GaebKopf;
 }
 
 const empty = (format: GaebDoc['format'], phase: number): GaebDoc => ({
@@ -235,6 +247,28 @@ function xmlText(e: El | undefined): string {
   return parts.join('').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
 }
 
+/** Erstes Element mit diesem Namen irgendwo unterhalb von `e` (Namensraum egal). */
+const deep = (e: El | undefined, name: string) => (e ? Array.from(e.getElementsByTagName('*')).find((c) => c.localName === name) : undefined);
+
+function xmlKopf(award: El | undefined, totals: El | undefined): GaebKopf {
+  const info = award && kid(award, 'AwardInfo');
+  const own = award && kid(award, 'OWN');
+  const d = (name: string) => txt(info && kid(info, name)).slice(0, 10);
+  const zeit = txt(info && kid(info, 'OpenTime')).slice(0, 5);
+  const vat = num(txt(deep(totals, 'VAT')));
+  // Vorbemerkungen: Hinweistexte (Remark) im LV und Zusatztexte (AddText) – nur der Anfang, er trägt die Eckdaten
+  const text = award ? Array.from(award.getElementsByTagName('*')).filter((e) => e.localName === 'Remark' || e.localName === 'AddText').map((e) => xmlText(e)).join('\n').slice(0, 30000) : '';
+  return {
+    vergabenummer: txt(own && kid(own, 'AwardNo')),
+    eroeffnung: d('OpenDate') ? d('OpenDate') + (/^\d\d:\d\d$/.test(zeit) ? `T${zeit}` : '') : '',
+    zuschlagsfrist: d('EvalEnd'),
+    beginn: d('CnstStart'),
+    ende: d('CnstEnd'),
+    mwst: vat != null && vat > 0 && vat <= 30 ? vat : null,
+    text,
+  };
+}
+
 function parseX(buf: Uint8Array, DOMParserCtor: typeof DOMParser): GaebDoc {
   const xml = new DOMParserCtor().parseFromString(decode(buf, 'utf-8'), 'text/xml');
   const root = xml.documentElement;
@@ -254,6 +288,7 @@ function parseX(buf: Uint8Array, DOMParserCtor: typeof DOMParser): GaebDoc {
   const boq = award && kid(award, 'BoQ');
   const totals = boq && kid(kid(boq, 'BoQInfo') ?? boq, 'Totals');
   if (totals) { doc.total.net = num(txt(kid(totals, 'TotalNet'))); doc.total.gross = num(txt(kid(totals, 'TotalGross'))); }
+  doc.kopf = xmlKopf(award, totals);
 
   const walk = (body: El | undefined, path: string[]) => {
     if (!body) return;

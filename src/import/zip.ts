@@ -6,13 +6,22 @@ const JUNK = /(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db|desktop\.ini)(\/|$)/i;
 export const base = (p: string) => p.split('/').pop() ?? p;
 export const dir = (p: string) => p.split('/').slice(0, -1).join('/');
 
+/** Obere Hälfte von Codepage 437 (Dateinamen aus „ZIP-komprimierter Ordner“ unter Windows, z. B. 0x84 = ä, 0xE1 = ß). */
+const CP437 = 'ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ';
+
+/** Dateinamen im ZIP: UTF-8, sonst (ohne UTF-8-Kennung, ältere Windows-Packer) Codepage 437. */
+export function decodeName(bytes: Uint8Array | string[]): string {
+  const b = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes, (c) => c.charCodeAt(0));
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { return Array.from(b, (c) => (c < 128 ? String.fromCharCode(c) : CP437[c - 128])).join(''); }
+}
+
 export async function expandZips(files: RawFile[], depth = 0): Promise<RawFile[]> {
   const out: RawFile[] = [];
   for (const f of files) {
     if (JUNK.test(f.path)) continue;
     if (/\.zip$/i.test(f.path) && depth < 3) {
       try {
-        const z = await JSZip.loadAsync(f.data);
+        const z = await JSZip.loadAsync(f.data, { decodeFileName: (n) => decodeName(n as Uint8Array | string[]) });
         const entries = Object.values(z.files).filter((e) => !e.dir);
         const inner: RawFile[] = [];
         for (const e of entries) inner.push({ path: e.name, data: await e.async('uint8array') });

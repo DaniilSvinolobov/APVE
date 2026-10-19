@@ -109,6 +109,22 @@ export function groupBids(files: RawFile[], DP?: typeof DOMParser): BidGroup[] {
 
 export interface PdfGroup { root: string; files: RawFile[]; pdfs: RawFile[] }
 
+/**
+ * Bieterordner, aus denen kein Angebot gelesen werden konnte (keine Preisdatei, Preise im PDF nicht lesbar).
+ * `covered` = Ordner, die bereits ein Angebot ergeben haben. Dateien in deren übergeordneten Ordnern gehören
+ * keinem Bieter; Kopien des Ausschreibungs-LV (x81/x82/x83) allein ergeben kein Angebot.
+ */
+export function groupRest(files: RawFile[], covered: string[]): { root: string; files: RawFile[] }[] {
+  const inCovered = (p: string) => covered.some((r) => !r || p.startsWith(r + '/'));
+  const ancestor = (d: string) => covered.some((r) => (d ? r.startsWith(d + '/') : r !== ''));
+  const rest = files.filter((f) => !LV_FILE.test(f.path) && !inCovered(f.path) && !ancestor(dir(f.path)));
+  const dirs = [...new Set(rest.map((f) => dir(f.path)))].sort((a, b) => a.length - b.length);
+  const roots = dirs.filter((d, i) => !dirs.slice(0, i).some((r) => r && d.startsWith(r + '/')));
+  // lose Dateien (ohne Ordner) bilden ein eigenes Angebot, Unterordner gehören ihrem eigenen Ordner
+  const owner = (p: string) => roots.find((r) => r && p.startsWith(r + '/')) ?? '';
+  return roots.map((root) => ({ root, files: rest.filter((f) => owner(f.path) === root) }));
+}
+
 /** Ordner mit einem LV-PDF, aber ohne Preisdatei (x84 bzw. bepreistes x83): Kandidaten für „Preise nur im PDF“. */
 export function groupPdfBids(files: RawFile[], covered: BidGroup[]): PdfGroup[] {
   // Nachweise (Meisterbrief, Referenzen …) scheiden aus; jedes andere PDF kann das bepreiste LV enthalten (Dateiname beliebig)

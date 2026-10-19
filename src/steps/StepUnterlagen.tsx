@@ -3,8 +3,10 @@ import type { State } from '../domain/types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
 import { OfferDateien } from './OfferDateien';
 import { expandZips, type RawFile } from '../import/zip';
-import { groupBids, groupPdfBids, isLvFile, isLvPdf } from '../import/files';
-import { bieterAusPdf, pruefePdf, refFromDoc, sortBefunde } from '../import/lvPruefung';
+import { groupBids, groupPdfBids, groupRest, isLvFile, isLvPdf, kategorie } from '../import/files';
+import { bieterAusPdf, kopfAusPdf, pruefePdf, refFromDoc, sortBefunde } from '../import/lvPruefung';
+import { pdfLines } from '../import/pdf';
+import type { GaebDoc } from '../gaeb/gaeb';
 import type { ParsedBid } from '../import/analyze';
 import { base } from '../import/zip';
 import { analyzeGroup } from '../import/analyze';
@@ -65,12 +67,28 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
       const withGroup = groups.map((g, i) => ({ g, p: analyzeGroup(g, s.offers.length + i + 1) })).filter((x): x is { g: typeof x.g; p: NonNullable<typeof x.p> } => !!x.p);
       const parsed: ParsedBid[] = withGroup.map((x) => x.p);
       // Ordner ohne Preisdatei, aber mit bepreistem LV als PDF (GAEB-Datei des Bieters ohne Preise)
-      const hinweise: string[] = [];
+      const hinweise = new Map<string, string>();
+      const covered = withGroup.map((x) => x.g.root);
       const lvRef = s.lv.length ? s.lv.map((p) => ({ oz: p.oz, menge: p.menge, einheit: p.einheit, kurz: p.kurz, bedarf: p.bedarf })) : null;
       for (const pg of groupPdfBids(files, groups)) {
         const r = await bieterAusPdf(pg, lvRef, s.offers.length + parsed.length + 1);
-        if (r.parsed) parsed.push(r.parsed);
-        else if (r.hinweis) hinweise.push(r.hinweis);
+        if (r.parsed) { parsed.push(r.parsed); covered.push(pg.root); }
+        else if (r.hinweis) hinweise.set(pg.root, r.hinweis);
+      }
+      // Ordner ohne lesbare Preise (z. B. GAEB-Datei wird nachgereicht): trotzdem als Angebot anlegen und melden, nie stillschweigend weglassen
+      const ohne: string[] = [];
+      for (const rg of groupRest(files, covered)) {
+        const pdfs = rg.files.filter((f) => /\.pdf$/i.test(f.path) && f.data.length <= 9_000_000 && ['Sonstiges', 'Angebotsschreiben', 'LV (PDF)'].includes(kategorie(f.path)));
+        let kopf = { bieter: '', datum: '' };
+        for (const f of pdfs.slice(0, 3)) { try { kopf = kopfAusPdf(await pdfLines(f.data)); } catch { /* nicht lesbar */ } if (kopf.bieter) break; }
+        const name = rg.root.split('/').pop() || 'lose Dateien';
+        const vorher = [...hinweise].filter(([r]) => r === rg.root || r.startsWith(rg.root + '/')).map(([, h]) => h);
+        const hinweis = vorher.length
+          ? `Keine auswertbaren Preise im Ordner „${name}“: Es liegt keine GAEB-Preisdatei (X84/P84/D84) bei. ${vorher.join(' ')} Danach den Ordner erneut einlesen – das Angebot wird dann ersetzt.`
+          : `Keine auswertbaren Preise im Ordner „${name}“: Es liegt keine GAEB-Preisdatei (X84/P84/D84) bei${pdfs.length ? ', und aus den PDF-Dateien konnten keine Preise gelesen werden' : ''}. Das Angebot ist angelegt, wird aber erst gewertet, wenn Preise vorliegen – Preisdatei nachreichen (Ordner erneut einlesen, das Angebot wird dann ersetzt) oder Lose wählen und die Preise im Preisspiegel eintragen.`;
+        const doc: GaebDoc = { format: 'X', phase: 84, projekt: '', bezeichnung: '', auftraggeber: '', ...kopf, titles: {}, totals: {}, total: { net: null, gross: null }, positions: [] };
+        const p = analyzeGroup({ root: rg.root, files: rg.files, bids: [] }, s.offers.length + parsed.length + 1, undefined, { doc, quelle: '', hinweis, art: 'keine' });
+        if (p) { parsed.push(p); ohne.push(p.offer.firma); }
       }
       // LV als PDF im Angebot: mit den Preisen der GAEB-Datei des Bieters abgleichen
       for (const { g, p } of withGroup) {
@@ -82,12 +100,13 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
       // Gegenprobe: Endsumme im PDF des Bieters
       for (const { g, p } of withGroup) { const ck = summenCheck(p.doc); p.offer.check = { ...ck, pdf: await pdfSummenCheck(g.files, ck.gaeb ?? ck.positionen) }; }
       if (!parsed.length) {
-        setMsg({ ok: false, text: hinweise.length ? hinweise.join(' ') : files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien ohne Preise (x81/x82/x83) – das eigene LV gehört in den Schritt „Vergabe“.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
+        setMsg({ ok: false, text: hinweise.size ? [...hinweise.values()].join(' ') : files.some((f) => isLvFile(f.path)) ? 'Das sind LV-Dateien ohne Preise (x81/x82/x83) – das eigene LV gehört in den Schritt „Vergabe“.' : 'Keine Angebote erkannt (.x84/.p84/.d84, oder .x83/.p83/.d83 mit Preisen). PDF-Dateien allein können nicht ausgewertet werden.' });
       } else {
         parsed.forEach((p) => docStore.set(p.offer.id, p.docs));
         up((d) => parsed.forEach((p) => applyOffer(d, p)));
         setTimeout(() => runKi(parsed.map((p) => p.offer.id)), 50);
-        setMsg({ ok: true, text: `${parsed.length} Angebot(e) eingelesen: ${parsed.map((p) => p.offer.firma + (p.offer.preisQuelle === 'pdf' ? ' (Preise aus PDF)' : '')).join(', ')}${hinweise.length ? ' · ' + hinweise.join(' ') : ''}` });
+        const art = (q: ParsedBid['offer']['preisQuelle']) => (q === 'pdf' ? ' (Preise aus PDF)' : q === 'keine' ? ' (ohne Preise)' : '');
+        setMsg({ ok: !ohne.length, text: `${parsed.length} Angebot(e) eingelesen: ${parsed.map((p) => p.offer.firma + art(p.offer.preisQuelle)).join(', ')}${ohne.length ? ` · Achtung: Für ${ohne.join(', ')} liegen keine auswertbaren Preise vor – Hinweise am Angebot beachten.` : ''}` });
       }
     } catch (e) {
       setMsg({ ok: false, text: `Fehler beim Einlesen: ${(e as Error).message}` });

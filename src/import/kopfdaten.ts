@@ -57,6 +57,8 @@ function wertNach(lines: string[], i: number, ab: number): string {
   const rest = lines[i].slice(ab);
   const cut = rest.search(ALLE_LABELS);
   let v = (cut >= 0 ? rest.slice(0, cut) : rest).trim();
+  // „Planverfasser ...“: Punkte/Striche sind nur Füllzeichen, der Wert steht in der nächsten Zeile
+  if (/^[.…\-–_\s]*$/.test(v)) v = '';
   if (!v && i + 1 < lines.length && !ALLE_LABELS.test(lines[i + 1])) v = lines[i + 1].trim();
   return v.replace(/^[-–:\s]+|[\s,;.]+$/g, '').replace(/\s{2,}/g, ' ').slice(0, 160);
 }
@@ -85,13 +87,17 @@ export function kopfAusText(lines: string[]): Kopf {
   vorn.forEach((l, i) => {
     for (const [feld, mitDp, amAnfang] of LABELS) {
       if (k[feld]) continue;
-      const m = mitDp.exec(l) ?? amAnfang.exec(l);
+      // ohne Doppelpunkt nur auf dem Deckblatt (Vorbemerkungen enthalten Überschriften wie „Beginn der Arbeiten“)
+      const m = mitDp.exec(l) ?? (i < 80 ? amAnfang.exec(l) : null);
       if (!m) continue;
       const v = wertNach(vorn, i, m.index + m[0].length);
       // Werte ohne Buchstaben/Ziffern oder offensichtliche Fließtexte verwerfen (ohne Doppelpunkt strenger: kurz, beginnt groß)
       if (!/[\p{L}\d]/u.test(v) || v.split(' ').length > 18) continue;
+      // „k.A.“ = keine Angabe; ein Wert, der selbst eine Beschriftung ist (Spaltenköpfe „Ausführungsbeginn Ausführungsende“), zählt nicht
+      if (/^(?:k\.\s?A\.?|keine Angabe?n?|n\.\s?a\.?)(?:\s|$)/i.test(v) || LABELS.some(([, , a]) => a.test(v))) continue;
       if (!m[0].includes(':') && (v.split(' ').length > 10 || !/^[\p{Lu}\d]/u.test(v))) continue;
       if (feld === 'nummer' && !/\d/.test(v)) continue;
+      if ((feld === 'beginn' || feld === 'ende') && !/\d{1,2}\.\d{1,2}\.|\bKW\b|\b20\d\d\b|sofort|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Frühjahr|Sommer|Herbst|Winter|Quartal|Woche|Monat|Tag/i.test(v)) continue;
       k[feld] = feld === 'nummer' ? v.split(' ')[0] : ohneAnschrift(v);
     }
     if (!k.eroeffnung) {
@@ -115,10 +121,13 @@ export function kopfAusText(lines: string[]): Kopf {
     if (!k.kostenDatum) {
       const m = l.match(new RegExp(String.raw`\b(?:Stand|Datum|aufgestellt am)\s*:?\s*${DATUM}`, 'i'));
       if (m) k.kostenDatum = isoAus(m[0]) || undefined;
+      // Fußzeile von AVA-Ausdrucken: „07.04.2026 - Seite 1“
+      const f = !k.kostenDatum && l.match(new RegExp(String.raw`^\s*${DATUM}\s*[-–]\s*Seite\s+1\b`, 'i'));
+      if (f) k.kostenDatum = isoAus(f[0]) || undefined;
     }
   });
   for (const l of lines) {
-    const m = l.match(/(\d{1,2})(?:,0+)?\s*%\s*(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)|(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)\.?\s*(\d{1,2})(?:,0+)?\s*%/i);
+    const m = l.match(/(\d{1,2})(?:,0+)?\s*%\s*(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)|(?:MwSt|Mehrwertsteuer|Umsatzsteuer|USt)\.?\s*\(?\s*(\d{1,2})(?:,0+)?\s*%/i);
     const n = m ? Number(m[1] ?? m[2]) : 0;
     if (n > 0 && n <= 25) { k.mwst = n; break; }
   }

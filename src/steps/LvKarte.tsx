@@ -12,7 +12,8 @@ import { schaetzSumme } from '../domain/calc';
 import { fmtEur } from '../domain/fmt';
 import { Chip, Icon } from '../components/ui';
 import { DropZone } from '../components/DropZone';
-import { applyKopf, kopfAusDoc, kopfFehlt, kopfLuecken, kopfMerge, type Kopf } from '../import/kopfdaten';
+import { applyKopf, kopfAusDoc, kopfAusText, kopfFehlt, kopfLuecken, kopfMerge, type Kopf } from '../import/kopfdaten';
+import { pdfLines } from '../import/pdf';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -79,7 +80,13 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
           const n = nurSchaetz ? schaetz!.positions.filter((p) => p.ep != null).length : 0;
           setMsg({ ok: true, text: [nurSchaetz ? `LV-Schätzpreise ergänzt: ${n} Positionen (${schaetzName})` : '', ausPdf ? `LV-Schätzpreise aus dem PDF gelesen (${pdfSchaetz!.name})` : '', pdfs.length ? `${pdfs.length} PDF mit dem geladenen LV abgeglichen – Ergebnis siehe „Prüfung des LV“.` : '', vorbelegtText].filter(Boolean).join(' · ') });
         } else if (pdfs.length) {
-          setMsg({ ok: false, text: 'Ein PDF kann nur gegen ein GAEB-LV geprüft werden – bitte zuerst die GAEB-Datei (X81/X83) laden, gern zusammen mit dem PDF.' });
+          // ohne GAEB-LV: nur die Eckdaten vom Deckblatt übernehmen, Positionen/Preise brauchen die GAEB-Datei
+          let k: Kopf = {};
+          for (const f of pdfs) { try { k = kopfMerge(k, kopfAusText(await pdfLines(f.data))); } catch { /* nicht lesbar */ } }
+          delete k.kostenDatum;
+          const neu = kopfLuecken(sRef.current.project, k);
+          if (neu.length) up((d) => applyKopf(d.project, k));
+          setMsg({ ok: false, text: [neu.length ? `Aus dem PDF vorbelegt: ${neu.join(', ')}.` : '', 'Für Positionen, Mengen und Preise bitte zusätzlich die GAEB-Datei (X81/X83) laden, gern zusammen mit dem PDF.'].filter(Boolean).join(' ') });
         } else {
           const bids = pricedSkipped.length > 0 || files.some((f) => isBidFile(f.path));
           setMsg({ ok: false, text: pricedSkipped.length ? `„${pricedSkipped.join('“, „')}“ enthält Bieterpreise und ist damit ein Angebot, kein LV – bitte im Schritt „Unterlagen“ unter „Angebote der Bieter“ ablegen.` : bids ? 'Das sind Angebotsdateien (x84/p84/d84) – bitte im Schritt „Unterlagen“ unter „Angebote der Bieter“ ablegen.' : 'Kein LV erkannt. Erwartet: .x81/.x82/.x83 (GAEB DA XML), .p8x (GAEB 2000) oder .d8x (GAEB 90), optional das LV als PDF.' });

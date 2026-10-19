@@ -30,6 +30,8 @@ export interface GaebDoc {
   bezeichnung: string;
   auftraggeber: string;
   bieter: string;
+  bieterOrt?: string; // „PLZ Ort“ aus der Anschrift des Bieters (nur GAEB DA XML)
+  auftraggeberOrt?: string; // „PLZ Ort“ aus der Anschrift des Auftraggebers (nur GAEB DA XML)
   datum: string; // ISO oder ''
   titles: Record<string, string>; // OZ-Prefix -> Titeltext
   positions: GaebPos[];
@@ -285,6 +287,9 @@ function parseX(buf: Uint8Array, DOMParserCtor: typeof DOMParser): GaebDoc {
   const adr = (parent: El | undefined) => { const c = parent && kid(parent, 'Address'); return c ? [txt(kid(c, 'Name1')), txt(kid(c, 'Name2'))].filter(Boolean).join(' ') : ''; };
   doc.bieter = adr(award && kid(award, 'CTR'));
   doc.auftraggeber = adr(award && kid(award, 'OWN'));
+  const ort = (parent: El | undefined) => { const c = parent && kid(parent, 'Address'); return c ? [txt(kid(c, 'PCode') ?? kid(c, 'PCod')), txt(kid(c, 'City'))].filter(Boolean).join(' ') : ''; };
+  doc.bieterOrt = ort(award && kid(award, 'CTR')) || undefined;
+  doc.auftraggeberOrt = ort(award && kid(award, 'OWN')) || undefined;
   const boq = award && kid(award, 'BoQ');
   const totals = boq && kid(kid(boq, 'BoQInfo') ?? boq, 'Totals');
   if (totals) { doc.total.net = num(txt(kid(totals, 'TotalNet'))); doc.total.gross = num(txt(kid(totals, 'TotalGross'))); }

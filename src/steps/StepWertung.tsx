@@ -1,14 +1,18 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { Bew, State } from '../domain/types';
-import { auffaelligkeiten, computeLos, emptyBew, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
+import { auffaelligkeiten, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
 import { bewText } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
+import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
+import { EignungEinwilligung, EignungKi, useEignung } from './EignungKi';
 
 type Up = (fn: (d: State) => void) => void;
 
 export function StepWertung({ s, up }: { s: State; up: Up }) {
   const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
+  useGeo();
+  const eig = useEignung();
   const los = s.lose.find((l) => l.id === losId) ?? s.lose[0];
   const cells = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
   if (!los) return <section className="card"><h2>Wertung</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden.</p></section>;
@@ -21,7 +25,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 
   const detail: Cell[] = [];
   const hrl = cells.length ? Math.min(...cells.map((c) => c.offer.runde)) : 1;
-  const first = cells.filter((c) => c.offer.runde === hrl && c.rankAll).sort((a, b) => a.rankAll! - b.rankAll!).slice(0, Math.max(1, s.project.engereWahl));
+  const first = engereWahl(s, cells).take;
   detail.push(...first, ...cells.filter((c) => c.offer.runde > hrl && c.rankAll).sort((a, b) => a.offer.runde - b.offer.runde || a.rankAll! - b.rankAll!));
 
   return (
@@ -39,6 +43,11 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         return (
           <section className="card" key={r}>
             <h2>{los.nr} · {r === hrl ? (r === 1 ? 'Hauptangebote' : 'Angebote') : 'Nachverhandlung'}</h2>
+            {r !== hrl && (
+              <label className="field wide nvgrund"><span className="field-label">Anlass der Nachverhandlung (für den Vermerk)</span>
+                <textarea rows={2} value={s.nvGrund?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.nvGrund = { ...(d.nvGrund ?? {}), [los.id]: e.target.value }))} placeholder="Was wurde festgestellt? Z. B. Missverständnisse bei Positionen mit Arbeitsgängen, falsche Menge im LV …" />
+              </label>
+            )}
             <div className="scroll">
               <table className="matrix rank">
                 <thead><tr><th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Prüfhinweise & Aktionen</th></tr></thead>
@@ -52,7 +61,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                         <tr className={c.excluded ? 'dim' : isWin ? 'first' : ''}>
                           <td>{c.rankAll ? <span className={`rankbadge ${isWin ? 'one' : ''}`}>{c.rankAll}</span> : '–'}</td>
                           <td>{c.offer.nr}</td>
-                          <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}</small></td>
+                          <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}{(() => { const e = entfernung(s, c.offer); return e ? ` · ca. ${e.km} km zur Baustelle` : ''; })()}</small></td>
                           <td className="r">{fmtEur(c.net)}{c.nachlass ? <small className="muted block">nach {fmtNum(c.nachlass)} % Nachlass</small> : null}</td>
                           <td className="r">{fmtEur(c.gross)}</td>
                           <td className="r">{c.rankAll ? fmtPct(c.dMin) : '–'}</td>
@@ -106,10 +115,12 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         <section className="card">
           <h2>Angaben für die Begründung im Vermerk</h2>
           <p className="lead">Der Text entsteht automatisch – ergänzen Sie nur, was nur Sie wissen.</p>
+          <EignungEinwilligung ctx={eig} />
           {detail.map((c) => {
             const b = getBew(s, c.offer.id, los.id);
             const a = auffaelligkeiten(s, los, cells, c);
             const nv = c.offer.runde > hrl;
+            const e = entfernung(s, c.offer);
             return (
               <div className="bewcard" key={c.offer.id}>
                 <h3>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</h3>
@@ -122,8 +133,18 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                   </div>
                 )}
                 <div className="grid g2">
+                  {!nv && <div className="wide"><EignungKi s={s} up={up} o={c.offer} b={b} setBew={(patch) => setBew(c.offer.id, patch)} ctx={eig} /></div>}
                   {!nv && <label className="field wide"><span className="field-label">Qualifikation / Referenzen des Bieters</span><textarea rows={2} value={b.qualifikation} onChange={(e) => setBew(c.offer.id, { qualifikation: e.target.value })} placeholder="Die Qualifikation des Bieters ist bekannt, die Fachfirma hat bereits vergleichbare Leistungen erbracht …" /></label>}
-                  {!nv && <label className="field"><span className="field-label">Entfernung zur Baustelle</span><NumInput value={b.km} decimals={0} suffix="km" onChange={(v) => setBew(c.offer.id, { km: v })} /></label>}
+                  {!nv && (
+                    <label className="field"><span className="field-label">Entfernung zur Baustelle</span>
+                      <NumInput value={b.km ?? e?.km ?? null} decimals={0} suffix="km" className={b.km == null && e ? 'berechnet' : ''} onChange={(v) => setBew(c.offer.id, { km: v })} label="Entfernung zur Baustelle" />
+                      <span className="field-hint">
+                        {b.km != null ? (b.km > 0 ? 'Von Hand eingetragen – Feld leeren für die Schätzung.' : '0 km: kein Satz zur Entfernung im Vermerk.')
+                          : e ? `Geschätzt (Straße) aus ${e.von} → ${e.nach}, Luftlinie ${e.luft} km. ${e.km >= KM_HINWEIS ? 'Erscheint im Vermerk.' : `Im Vermerk erst ab ${KM_HINWEIS} km.`}`
+                          : !s.project.baustelle?.trim() ? 'Für eine Schätzung die Baustelle in Schritt 1 angeben.' : 'Firmenort nicht gefunden – Ort mit PLZ in Schritt 2 ergänzen.'}
+                      </span>
+                    </label>
+                  )}
                   {!nv && <label className="field"><span className="field-label">&nbsp;</span><span className="mini big"><input type="checkbox" checked={b.auskoemm} onChange={(e) => setBew(c.offer.id, { auskoemm: e.target.checked })} /> Auskömmlichkeitserklärung empfohlen</span></label>}
                   {!nv && <label className="field wide"><span className="field-label">Erläuterung der niedrigen Preise (optional)</span><textarea rows={2} value={b.erlaeuterung} onChange={(e) => setBew(c.offer.id, { erlaeuterung: e.target.value })} placeholder="z. B. Pflanzenlieferungen (Baumschul-Rabatte), Synergieeffekte durch benachbarte Baustelle …" /></label>}
                   <label className="field wide"><span className="field-label">Zusätzliche Anmerkung (optional)</span><textarea rows={2} value={b.zusatz} onChange={(e) => setBew(c.offer.id, { zusatz: e.target.value })} /></label>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { State } from '../domain/types';
+import type { Offer, State } from '../domain/types';
 import { Vollstaendigkeit } from './Vollstaendigkeit';
 import { OfferDateien } from './OfferDateien';
 import { expandZips, type RawFile } from '../import/zip';
@@ -174,6 +174,16 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
                   ))}
                   {!o.nachlassLose.length && <span className="muted">(alle Lose)</span>}
                 </> : null}
+              </div>
+              <div>
+                <span className="opt-l">Status</span>
+                <select value={o.status ?? ''} onChange={(e) => setOffer(i, (x) => void (x.status = e.target.value as Offer['status']))} aria-label="Status des Angebots">
+                  <option value="">in der Wertung</option>
+                  <option value="formal">bei formaler Prüfung ausgeschlossen</option>
+                  <option value="zurueck">zurückgezogen</option>
+                </select>
+                {o.status === 'formal' && <input className="grund" value={o.statusGrund ?? ''} onChange={(e) => setOffer(i, (x) => void (x.statusGrund = e.target.value))} placeholder="Grund des Ausschlusses" aria-label="Grund des Ausschlusses" />}
+                {o.runde === 1 && <label className={`pill ${o.nebenangebot ? 'on' : ''}`}><input type="checkbox" checked={!!o.nebenangebot} onChange={(e) => setOffer(i, (x) => void (x.nebenangebot = e.target.checked))} />Nebenangebot beigefügt</label>}
               </div>
             </div>
             {o.check && (

@@ -4,11 +4,14 @@ import { kostenOf } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { Field, Icon, NumInput } from '../components/ui';
 import { LvKarte } from './LvKarte';
+import { findeOrt, useGeo } from '../geo/entfernung';
 
 type Up = (fn: (d: State) => void) => void;
 
 export function StepVergabe({ s, up }: { s: State; up: Up }) {
   const p = s.project;
+  useGeo();
+  const bs = findeOrt(p.baustelle);
   const set = <K extends keyof State['project']>(k: K, v: State['project'][K]) => up((d) => void (d.project[k] = v));
   const onLogo = (f?: File) => {
     if (!f) return;
@@ -40,6 +43,9 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
           </Field>
           <Field label="Auftraggeber"><input value={p.auftraggeber} onChange={(e) => set('auftraggeber', e.target.value)} /></Field>
           <Field label="Vergabestelle"><input value={p.vergabestelle} onChange={(e) => set('vergabestelle', e.target.value)} /></Field>
+          <Field label="Baustelle (PLZ Ort)" hint={!p.baustelle?.trim() ? 'Für die geschätzte Entfernung der Bieter zur Baustelle' : bs ? `Erkannt: ${bs.wie}` : 'Ort nicht gefunden – bitte Postleitzahl angeben'}>
+            <input value={p.baustelle ?? ''} onChange={(e) => set('baustelle', e.target.value)} />
+          </Field>
         </div>
       </section>
 

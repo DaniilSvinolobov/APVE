@@ -25,6 +25,7 @@ Zusätzlich die betroffene Funktion im Browser prüfen (z. B. mit Playwright). E
 - `src/steps/` (`Step*.tsx`, `Vollstaendigkeit.tsx`) – die fünf Schritte der Oberfläche; `src/storage/` – Browser-Speicher und Export
 - `docs/ARCHITECTURE.md` – Datenfluss und Ordnerübersicht
 - `api/pruefen.ts` – optionale Dokumentprüfung mit Claude (serverseitig, Key nur in `ANTHROPIC_API_KEY`)
+- `api/eignung.ts` – optionale Referenzauswertung und Internetrecherche zum Bieter (`src/ki/kiEignung.ts`, Anzeige `src/steps/EignungKi.tsx`)
 
 ## Fachliche Leitplanken
 - Wertung nach VOB/A-Logik: Nachlass ohne Bedingung wird eingerechnet, **Skonto nicht**. Ein Los wird je Runde (Haupt- bzw. Nachverhandlung) gerankt; maßgeblich ist die letzte Runde mit wertbaren Angeboten.
@@ -34,5 +35,5 @@ Zusätzlich die betroffene Funktion im Browser prüfen (z. B. mit Playwright). E
 
 ## Datenschutz (DSGVO)
 - Projektdaten bleiben im Browser (localStorage). Keine Cookies, kein Tracking, **keine externen Hosts** (keine CDN-Schriften, keine Analytics).
-- Übermittlung an Dritte nur optional, nach ausdrücklicher Aktivierung durch den Nutzer und nur, was der Zweck braucht (Datenminimierung). Nicht übermitteln: Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise.
+- Übermittlung an Dritte nur optional, nach ausdrücklicher Aktivierung durch den Nutzer und nur, was der Zweck braucht (Datenminimierung). Nicht übermitteln: Meisterbriefe, Versicherungs- und Präqualifikationsnachweise. Referenzunterlagen nur über die eigens aktivierte Referenzauswertung; an die Websuche nur Firmenname, Ort und Losbezeichnungen.
 - Server-Funktionen in Frankfurt (`fra1`). Neue Datenflüsse zuerst mit dem Nutzer abstimmen und in README/Datenschutzhinweisen dokumentieren.

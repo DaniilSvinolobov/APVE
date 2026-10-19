@@ -5,6 +5,7 @@ import { computeLos, getBew, pruefStatus } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { downloadJson } from '../storage/exportCsv';
 import { Icon } from '../components/ui';
+import { useGeo } from '../geo/entfernung';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -28,7 +29,8 @@ function Editable({ id, text, edited, onChange, onReset }: { id: string; text: s
 const esc = (t: string) => t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
 
 export function StepVermerk({ s, up }: { s: State; up: Up }) {
-  const blocks = useMemo(() => buildVermerk(s), [s]);
+  const geo = useGeo(); // Entfernungen im Text, sobald die PLZ-Tabelle geladen ist
+  const blocks = useMemo(() => buildVermerk(s), [s, geo]);
   const anl = anlagenList(s);
   const p = s.project;
 
@@ -46,11 +48,16 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
       if (c.rechenDiff != null && Math.abs(c.rechenDiff) > 0.01 && !c.mengeAbw.length) open.push(`${l.nr}, Nr. ${c.offer.nr}: Rechenabweichung`);
     }
   }
-  for (const o of s.offers) {
+  for (const o of s.offers.filter((x) => !x.status)) {
     const ps = pruefStatus(s, o);
     if (ps.fehlt.length) open.push(`Nr. ${o.nr}: Unterlagen fehlen (${ps.fehlt.join(', ')}) – nachfordern oder Ausschluss prüfen`);
     else if (ps.ungeprueft) open.push(`Nr. ${o.nr}: Vollständigkeitsprüfung unvollständig (${ps.ungeprueft} Zeile(n) offen)`);
   }
+  for (const l of s.lose.filter((x) => x.imVermerk)) {
+    const rs = s.offers.filter((o) => o.lose.includes(l.id)).map((o) => o.runde);
+    if (rs.length && Math.max(...rs) > Math.min(...rs) && !s.nvGrund?.[l.id]?.trim()) open.push(`${l.nr}: Anlass der Nachverhandlung fehlt (Schritt Wertung)`);
+  }
+  for (const o of s.offers) if (o.status === 'formal' && !o.statusGrund?.trim()) open.push(`Nr. ${o.nr}: Grund des formalen Ausschlusses fehlt (Schritt Unterlagen)`);
   if (!p.budgetBrutto) open.push('Gesamtbudget für Abschnitt 6 fehlt');
 
   const pageCss = `@page { size: A4; margin: 36.5mm 20mm 24mm 20mm;

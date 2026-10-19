@@ -60,12 +60,22 @@ Vercel-Function an die Anthropic-API übermittelt. Pro Anfrage max. ca. 3 MB (Ve
 ## Datenschutz (DSGVO)
 - Projektdaten bleiben im Browser (localStorage); „Daten löschen“ in der Kopfzeile entfernt sie.
 - Schriftarten werden lokal ausgeliefert (keine Google Fonts), keine Cookies, kein Tracking.
+- Die Entfernung zur Baustelle wird im Browser aus einer mitgelieferten PLZ-Tabelle geschätzt; Anschriften verlassen den Browser nicht.
 - Vercel-Functions laufen in Frankfurt (`regions: ["fra1"]` in `vercel.json`).
 - Die Claude-Dokumentprüfung ist optional und erst nach ausdrücklicher Aktivierung im Browser aktiv. Übermittelt werden nur Formulare und
   Erklärungen (Angebotsschreiben, Eignungsfragebogen, Nachforderungen, Nachunternehmerverzeichnis) – keine Meisterbriefe, Referenzen,
   Versicherungs- oder Präqualifikationsnachweise.
+- Die Eignungsprüfung mit Claude (Schritt 4) hat zwei eigene Einwilligungen: **Referenzen auswerten** übermittelt die
+  Referenzunterlagen des Bieters (auch nachgereichte) und die Losbezeichnungen; **Im Internet recherchieren** übermittelt nur
+  Firmenname, Ort und Losbezeichnungen – Claude sucht damit über die Websuche von Anthropic. Beides läuft nur auf Knopfdruck je Bieter.
 - `public/datenschutz.html` und `public/impressum.html` sind **Entwürfe** mit gelb markierten Platzhaltern; vor dem produktiven Einsatz
   ergänzen und rechtlich prüfen lassen (AVV mit Vercel und Anthropic, Drittlandübertragung, Verarbeitungsverzeichnis, Vertraulichkeit im Vergabeverfahren).
+
+## Eignung mit KI (Schritt 4, optional)
+- `api/eignung.ts` mit `art: 'referenzen'` (Referenzlisten → Projekte, Vergleichbarkeit mit den Losen, Hinweise, Fazit als JSON)
+  und `art: 'recherche'` (Websuche → Leistungsprofil und öffentliche Referenzen als Text mit Quellen).
+- Ergebnisse stehen am Angebot (`offer.eignung`) und lassen sich in „Qualifikation / Referenzen“ übernehmen; der Text bleibt editierbar.
+- Gleiche Umgebungsvariablen wie die Dokumentprüfung (`ANTHROPIC_API_KEY`, `APP_ACCESS_CODE`, `KI_MODEL`); Laufzeit bis 120 s.
 
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,
@@ -79,3 +89,12 @@ Texte sind anklickbar und editierbar.
 - Auffällige Einzelpreise/Titel (Abweichung vom Mittel der übrigen Angebote) fließen in die Begründung ein
 - Auffallend niedrige Gesamtpreise (Standard 15 % unter Kostenvoranschlag bzw. Nächstbieter) → Hinweis zur Aufklärung
 - Die App ersetzt keine Rechtsprüfung.
+
+## Entfernung zur Baustelle
+- Baustelle in Schritt 1 als „PLZ Ort“ (vorbelegt aus „Baustelle:“/„Ausführungsort:“ im LV, sonst aus der Anschrift des Auftraggebers).
+- Firmenort des Bieters aus dem Signaturbeleg bzw. der Anschrift in der GAEB-Datei; in Schritt 2 änderbar (am besten mit PLZ).
+- Geschätzte Straßenkilometer = Luftlinie zwischen den PLZ-Mittelpunkten × Umwegfaktor (ca. 1,4 im Nahbereich bis ca. 1,18 auf
+  großen Strecken), Genauigkeit etwa ±15 %. Ab 50 km schreibt der Vermerk den Satz zu Fahrt- und Betriebskosten automatisch;
+  ein Wert von Hand hat Vorrang, 0 km unterdrückt den Satz.
+- Ohne externen Dienst: Die PLZ-Tabelle (`src/geo/plzDaten.ts`, erzeugt mit `scripts/build-plz.mjs`) wird mit der App ausgeliefert.
+  Datenquelle: [GeoNames](https://www.geonames.org) Postleitzahlen, Lizenz [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

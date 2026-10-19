@@ -5,6 +5,9 @@
   "functions": {
     "api/pruefen.ts": {
       "maxDuration": 60
+    },
+    "api/eignung.ts": {
+      "maxDuration": 120
     }
   },
   "regions": [

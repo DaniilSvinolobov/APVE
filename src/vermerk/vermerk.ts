@@ -1,7 +1,8 @@
 import type { Los, State } from '../domain/types';
-import { auffaelligkeiten, computeLos, finalRound, getBew, kostenOf, offerBrutto, pruefStatus, zuschlagCell, type Cell } from '../domain/calc';
+import { auffaelligkeiten, computeLos, engereWahl, finalRound, getBew, kostenOf, offerBrutto, pruefStatus, zuschlagCell, type Cell } from '../domain/calc';
 import { PSTATUS } from '../domain/types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
+import { kmFuerVermerk } from '../geo/entfernung';
 
 export type Block =
   | { t: 'meta'; lines: { k?: string; v: string; bold?: boolean }[] }
@@ -112,26 +113,41 @@ export function buildVermerk(s: State): Block[] {
   B.push({
     t: 'tab',
     cols: [{ h: 'Angebot\nNr.', w: 12, a: 'c' }, { h: 'Bieter\nFirmenname, Ort', w: 46 }, { h: 'Nachlass\nv. H.', w: 14, a: 'c' }, { h: 'Angebotssumme\nungeprüft (brutto EUR)', w: 28, a: 'c' }],
-    rows: r1.map((o) => [String(o.nr), `${o.firma}${losSuffix(o)}`, nlLabel(o), fmtNum(offerBrutto(s, o) ?? 0)]),
+    rows: r1.map((o) => o.status === 'zurueck'
+      ? [String(o.nr), `${o.firma}${losSuffix(o)}\n(Angebot zurückgezogen)`, '-', '-']
+      : [String(o.nr), `${o.firma}${losSuffix(o)}`, nlLabel(o), fmtNum(offerBrutto(s, o) ?? 0)]),
   });
 
   B.push({ t: 'h', n: '4.1', text: `Formale Prüfung der Angebote${vergabe ? ' gem. VOB/A § 16' : ''}`, lvl: 2 });
-  B.push(T('formal', `Die ${p.vergabestelle || 'Vergabestelle'} hat eine erste formelle und rechnerische Prüfung durchgeführt. Es wurden keine Angebote von der weiteren Prüfung ausgeschlossen.\n${aNr('mitteilung1')}${s.project.vollstaendigkeit ? `\nDas Ergebnis der Prüfung auf Vollständigkeit der Angebotsunterlagen ist in Anlage ${anl.findIndex((a) => a.key === 'vollstaendigkeit') + 1} dargestellt.` : ''}`));
+  const zurueck = r1.filter((o) => o.status === 'zurueck');
+  const formalAus = r1.filter((o) => o.status === 'formal');
+  B.push(T('formal', [
+    `Die ${p.vergabestelle || 'Vergabestelle'} hat eine erste formelle und rechnerische Prüfung durchgeführt.`,
+    formalAus.length
+      ? `Folgende Angebote wurden von der weiteren Prüfung ausgeschlossen:\n${formalAus.map((o) => `- Angebot Nr. ${o.nr}, Fa. ${o.firma}${o.statusGrund?.trim() ? `: ${o.statusGrund.trim().replace(/\.$/, '')}` : ' [Grund angeben]'}`).join('\n')}`
+      : 'Es wurden keine Angebote von der weiteren Prüfung ausgeschlossen.',
+    ...zurueck.map((o) => `Das Angebot Nr. ${o.nr} der Fa. ${o.firma} wurde zurückgezogen.`),
+    aNr('mitteilung1'),
+    s.project.vollstaendigkeit ? `Das Ergebnis der Prüfung auf Vollständigkeit der Angebotsunterlagen ist in Anlage ${anl.findIndex((a) => a.key === 'vollstaendigkeit') + 1} dargestellt.` : '',
+  ].filter(Boolean).join('\n')));
 
   B.push({ t: 'h', n: '4.2', text: 'Submissionsergebnis', lvl: 2 });
-  const nachlassNrs = r1.filter((o) => o.nachlass).map((o) => o.nr);
+  const nachlassNrs = r1.filter((o) => o.nachlass && o.status !== 'zurueck').map((o) => o.nr);
+  const neben = r1.filter((o) => o.nebenangebot && o.status !== 'zurueck');
   const keinLos = r1.flatMap((o) => s.lose.filter((l) => !o.lose.includes(l.id) && r1.some((x) => x !== o && x.lose.includes(l.id))).map((l) => `In Hauptangebot Nr. ${o.nr} wurde kein Angebot für ${l.nr} abgegeben.`));
   B.push(T('submission', [
-    `Es wurden insgesamt ${r1.length} Hauptangebote fristgerecht zum Submissionstermin am ${fmtDate(p.eroeffnung)} eingereicht.`,
+    // „fristgerecht“ nur, solange kein Angebot formal ausgeschlossen ist (der Grund kann die Frist sein)
+    `Es wurden insgesamt ${r1.length} Hauptangebote${formalAus.length ? '' : ' fristgerecht'} zum Submissionstermin am ${fmtDate(p.eroeffnung)} eingereicht.`,
+    zurueck.length ? `${zurueck.length > 1 ? 'Die Angebote' : 'Das Angebot'} Nr. ${listDe(zurueck.map((o) => String(o.nr)))} ${zurueck.length > 1 ? 'wurden' : 'wurde'} zurückgezogen.` : '',
     nachlassNrs.length ? `Hauptangebot Nr. ${listDe(nachlassNrs.map(String))} wurde${nachlassNrs.length > 1 ? 'n' : ''} mit einem Nachlass eingereicht.` : '',
     ...keinLos,
-    'Es wurden keine Nebenangebote beigefügt.',
+    neben.length ? `${neben.length > 1 ? 'Den Hauptangeboten' : 'Dem Hauptangebot'} Nr. ${listDe(neben.map((o) => String(o.nr)))} wurde${neben.length > 1 ? ' jeweils' : ''} ein Nebenangebot beigefügt.` : 'Es wurden keine Nebenangebote beigefügt.',
     'Es handelt sich um folgende Firmen mit nachstehend genannten Brutto-Angebotssummen inkl. Preisnachlässe (ungeprüft) in der angegebenen Rangfolge aufgeteilt nach Lose:',
   ].filter(Boolean).join('\n')));
   const rangTab = (cells: Cell[]): Block => ({
     t: 'tab',
     cols: [{ h: 'Rang\nNr.', w: 10, a: 'c' }, { h: 'Angebot\nNr.', w: 12, a: 'c' }, { h: 'Bieter\nFirmenname, Ort', w: 38 }, { h: 'Nachlass\nv. H.', w: 13, a: 'c' }, { h: 'Angebotssumme\nungeprüft (brutto EUR)', w: 27, a: 'c' }],
-    rows: cells.filter((c) => c.rankAll).sort((a, b) => a.rankAll! - b.rankAll!).map((c) => [String(c.rankAll), String(c.offer.nr), c.offer.firma, c.nachlass ? pctDe(c.nachlass) : '-', fmtNum(c.gross ?? 0)]),
+    rows: cells.filter((c) => c.rankAll).sort((a, b) => a.rankAll! - b.rankAll!).map((c) => [String(c.rankAll), String(c.offer.nr), `${c.offer.firma}${c.offer.status === 'formal' ? ' (ausgeschlossen)' : ''}`, c.nachlass ? pctDe(c.nachlass) : '-', fmtNum(c.gross ?? 0)]),
     hl: [0],
   });
   for (const l of s.lose) {
@@ -147,11 +163,18 @@ export function buildVermerk(s: State): Block[] {
 
   B.push({ t: 'h', n: '4.4', text: 'Festlegungen aufgrund der formalen und rechnerischen Prüfung', lvl: 2 });
   const sep = s.lose.filter((l) => !l.imVermerk);
+  // einzeln geprüft werden die Angebote der engeren Wahl je Los (Abschnitt 4.5 ff.); die übrigen wertbaren nur benennen
+  const nrs = (os: { nr: number }[]) => [...new Set(os.map((o) => o.nr))].sort((a, b) => a - b).map(String);
+  const geprueft = nrs(vLose.flatMap((l) => engereWahl(s, allCells.get(l.id) ?? []).take.map((c) => c.offer)));
+  const nichtEinzeln = nrs(vLose.flatMap((l) => engereWahl(s, allCells.get(l.id) ?? []).ranked.map((c) => c.offer))).filter((n) => !geprueft.includes(n));
   B.push(T('festlegungen', [
-    'Aufgrund o.a. Prüfung wurde kein Angebot von der weiteren Prüfung ausgeschlossen.',
-    `Nachfolgend werden die Angebote Nr. ${listDe(r1.map((o) => String(o.nr)))} technisch und wirtschaftlich geprüft.`,
+    formalAus.length
+      ? `Aufgrund o.a. Prüfung ${formalAus.length > 1 ? 'wurden die Angebote' : 'wurde das Angebot'} Nr. ${listDe(nrs(formalAus))} von der weiteren Prüfung ausgeschlossen.`
+      : 'Aufgrund o.a. Prüfung wurde kein Angebot von der weiteren Prüfung ausgeschlossen.',
+    geprueft.length ? `Nachfolgend ${geprueft.length > 1 ? 'werden die Angebote' : 'wird das Angebot'} Nr. ${listDe(geprueft)} technisch und wirtschaftlich geprüft${nichtEinzeln.length ? ' (engere Wahl)' : ''}.` : '',
+    nichtEinzeln.length ? `${nichtEinzeln.length > 1 ? 'Die Angebote' : 'Das Angebot'} Nr. ${listDe(nichtEinzeln)} ${nichtEinzeln.length > 1 ? 'kommen' : 'kommt'} aufgrund des Preisrangs für den Zuschlag nicht in Betracht und ${nichtEinzeln.length > 1 ? 'werden' : 'wird'} nicht einzeln bewertet.` : '',
     '',
-    ...s.offers.flatMap((o) => {
+    ...s.offers.filter((o) => !o.status).flatMap((o) => {
       const ps = pruefStatus(s, o);
       const out: string[] = [];
       if (ps.nach.length) {
@@ -172,8 +195,7 @@ export function buildVermerk(s: State): Block[] {
     if (!cells.length) continue;
     const hrl = Math.min(...cells.map((c) => c.offer.runde));
     const first = cells.filter((c) => c.offer.runde === hrl);
-    const ranked = [...first].filter((c) => c.rankAll).sort((a, b) => a.rankAll! - b.rankAll!);
-    const take = ranked.slice(0, Math.max(1, p.engereWahl));
+    const { take, ranked } = engereWahl(s, cells);
     const eng = ranked.length > take.length;
     B.push({ t: 'h', n: `4.${n}`, text: `Technische und wirtschaftliche Prüfung der Angebote ${l.nr}${eng ? ' (Engere Wahl)' : ''}`, lvl: 2 });
     take.forEach((c, i) => {
@@ -187,7 +209,8 @@ export function buildVermerk(s: State): Block[] {
       B.push({ t: 'h', n: `4.${n}`, text: `Nachverhandlung der Angebote für ${l.nr}: ${l.name}`, lvl: 2 });
       const missing = first.filter((c) => !rc.some((x) => x.offer.firma === c.offer.firma) && !c.excluded);
       B.push(T(`nv:${l.id}:${rd}`, [
-        `Im Rahmen der technischen und wirtschaftlichen Prüfung (siehe Titel 4.${n - 1}) wurde festgestellt, dass es bei den Bietern zu Missverständnissen kam, die voraussichtlich zu falschen Preisangaben geführt haben.`,
+        `Im Rahmen der technischen und wirtschaftlichen Prüfung (siehe Titel 4.${n - 1}) wurde Folgendes festgestellt:`,
+        s.nvGrund?.[l.id]?.trim() || '[Anlass der Nachverhandlung angeben – Schritt „Wertung“]',
         `Aufgrund o.g. Feststellungen wurde ${l.nr} nachverhandelt.`,
         '',
         `Es wurden insgesamt ${rc.length} nachverhandelte Angebote für ${l.nr}${rc.every((c) => !c.nachlass) ? ' ohne Nachlass' : ''} eingereicht.`,
@@ -282,7 +305,8 @@ export function bewText(s: State, l: Los, cells: Cell[], c: Cell, nv = false): s
     }
   } else {
     if (b.qualifikation) L.push(b.qualifikation);
-    if (b.km) L.push(`Durch die Entfernung zur Baustelle (ca. ${b.km} km) fallen für o.g. Fachfirma zusätzliche Fahrt- und Betriebskosten an, welche bei der Kalkulation der Einheitspreise berücksichtigt wurden.`);
+    const km = kmFuerVermerk(s, o, b);
+    if (km) L.push(`Durch die Entfernung zur Baustelle (ca. ${km} km) fallen für o.g. Fachfirma zusätzliche Fahrt- und Betriebskosten an, welche bei der Kalkulation der Einheitspreise berücksichtigt wurden.`);
     const a = auffaelligkeiten(s, l, cells, c);
     const platz = c.rankAll === 1 ? 'erste' : c.rankAll === 2 ? 'zweite' : `${c.rankAll}.`;
     if (a.guenstig.length || a.titel.length) {

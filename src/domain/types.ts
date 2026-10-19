@@ -47,6 +47,9 @@ export interface Offer {
   firma: string;
   ort: string;
   runde: 1 | 2 | 3; // 1 = Hauptangebot, 2+ = Nachverhandlung
+  status?: '' | 'zurueck' | 'formal'; // zurueck = Angebot zurückgezogen; formal = bei der formalen Prüfung ausgeschlossen (Grund in statusGrund)
+  statusGrund?: string;
+  nebenangebot?: boolean; // dem Hauptangebot ist ein Nebenangebot beigefügt
   datum: string;
   lose: string[];
   nachlass: number | null;
@@ -123,6 +126,7 @@ export interface State {
   bew: Record<string, Bew>;
   texte: Record<string, string>;
   zuschlag: Record<string, string>; // [losId] -> offerId ('' = automatisch)
+  nvGrund?: Record<string, string>; // [losId] Anlass der Nachverhandlung (Text für den Vermerk)
   anlagen: Anlage[];
   logo: string; // data-URL
   schaetz: Record<string, number>; // LV-Schätzpreis (EP netto) je Position [OZ ohne Punkte], aus GAEB 82

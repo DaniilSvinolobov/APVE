@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { Bew, State } from '../domain/types';
-import { auffaelligkeiten, computeLos, emptyBew, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
+import { auffaelligkeiten, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
 import { bewText } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
@@ -23,7 +23,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 
   const detail: Cell[] = [];
   const hrl = cells.length ? Math.min(...cells.map((c) => c.offer.runde)) : 1;
-  const first = cells.filter((c) => c.offer.runde === hrl && c.rankAll).sort((a, b) => a.rankAll! - b.rankAll!).slice(0, Math.max(1, s.project.engereWahl));
+  const first = engereWahl(s, cells).take;
   detail.push(...first, ...cells.filter((c) => c.offer.runde > hrl && c.rankAll).sort((a, b) => a.offer.runde - b.offer.runde || a.rankAll! - b.rankAll!));
 
   return (
@@ -41,6 +41,11 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         return (
           <section className="card" key={r}>
             <h2>{los.nr} · {r === hrl ? (r === 1 ? 'Hauptangebote' : 'Angebote') : 'Nachverhandlung'}</h2>
+            {r !== hrl && (
+              <label className="field wide nvgrund"><span className="field-label">Anlass der Nachverhandlung (für den Vermerk)</span>
+                <textarea rows={2} value={s.nvGrund?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.nvGrund = { ...(d.nvGrund ?? {}), [los.id]: e.target.value }))} placeholder="Was wurde festgestellt? Z. B. Missverständnisse bei Positionen mit Arbeitsgängen, falsche Menge im LV …" />
+              </label>
+            )}
             <div className="scroll">
               <table className="matrix rank">
                 <thead><tr><th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Prüfhinweise & Aktionen</th></tr></thead>

@@ -116,7 +116,7 @@ export function computeLos(s: State, los: Los): Cell[] {
       const nl = o.nachlass && (o.nachlassLose.length === 0 || o.nachlassLose.includes(los.id)) ? o.nachlass : 0;
       const net = sum == null ? null : round2(sum * (1 - nl / 100));
       const bew = getBew(s, o.id, los.id);
-      const excluded = !!bew.ausschluss.trim() || bew.aufklaerung === 'unangemessen';
+      const excluded = !!bew.ausschluss.trim() || bew.aufklaerung === 'unangemessen' || !!o.status;
       const complete = sum != null && missing === 0 && sum !== 0;
       return {
         offer: o, los, covered: true, complete, sumNet: sum, nachlass: nl, net, gross: net == null ? null : round2(net * mw),
@@ -129,7 +129,8 @@ export function computeLos(s: State, los: Los): Cell[] {
   const byRound = new Map<number, Cell[]>();
   for (const c of cells) byRound.set(c.offer.runde, [...(byRound.get(c.offer.runde) ?? []), c]);
   for (const group of byRound.values()) {
-    const all = group.filter((c) => c.complete).sort((a, b) => a.net! - b.net!);
+    // zurückgezogene Angebote erhalten keinen Rang; formal ausgeschlossene bleiben in der Submissionsrangfolge (rankAll)
+    const all = group.filter((c) => c.complete && c.offer.status !== 'zurueck').sort((a, b) => a.net! - b.net!);
     all.forEach((c, i) => (c.rankAll = i + 1));
     const el = all.filter((c) => c.eligible);
     el.forEach((c, i) => (c.rank = i + 1));
@@ -146,7 +147,9 @@ export function computeLos(s: State, los: Los): Cell[] {
     const t = s.project.schwelle / 100;
     for (const c of group) {
       const b = getBew(s, c.offer.id, los.id);
-      if (c.excluded && b.aufklaerung !== 'unangemessen') c.flags.push({ kind: 'bad', text: 'Ausgeschlossen' });
+      if (c.offer.status === 'zurueck') c.flags.push({ kind: 'bad', text: 'Angebot zurückgezogen' });
+      else if (c.offer.status === 'formal') c.flags.push({ kind: 'bad', text: `Bei der formalen Prüfung ausgeschlossen${c.offer.statusGrund?.trim() ? `: ${c.offer.statusGrund.trim()}` : ''}` });
+      else if (c.excluded && b.aufklaerung !== 'unangemessen') c.flags.push({ kind: 'bad', text: 'Ausgeschlossen' });
       if (b.aufklaerung === 'unangemessen') c.flags.push({ kind: 'bad', text: 'Preis unangemessen – nicht gewertet' });
       if (!c.complete && !c.excluded) c.flags.push({ kind: 'warn', text: hasLv ? `${c.missing} Position(en) ohne Preis` : 'Kein Preis erfasst' });
       if (c.zero > 0) c.flags.push({ kind: 'info', text: `${c.zero}× Preis 0,00 €` });
@@ -203,6 +206,14 @@ export function summenFlags(s: State, o: Offer): Flag[] {
 export function finalRound(cells: Cell[]): number {
   const r = cells.filter((c) => c.eligible).map((c) => c.offer.runde);
   return r.length ? Math.max(...r) : Math.max(1, ...cells.map((c) => c.offer.runde));
+}
+
+/** Angebote der ersten Runde, die einzeln technisch und wirtschaftlich geprüft werden (engere Wahl): nach Submissionsrang, ohne zurückgezogene und formal ausgeschlossene. */
+export function engereWahl(s: State, cells: Cell[]): { take: Cell[]; ranked: Cell[] } {
+  if (!cells.length) return { take: [], ranked: [] };
+  const hr = Math.min(...cells.map((c) => c.offer.runde));
+  const ranked = cells.filter((c) => c.offer.runde === hr && c.rankAll && !c.offer.status).sort((a, b) => a.rankAll! - b.rankAll!);
+  return { take: ranked.slice(0, Math.max(1, s.project.engereWahl)), ranked };
 }
 
 export function zuschlagCell(s: State, los: Los, cells: Cell[]): Cell | undefined {

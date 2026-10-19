@@ -21,7 +21,10 @@ export function saveState(s: State): boolean {
 /** Datensicherung (JSON) prüfen; `null`, wenn es keine Sicherung dieser Version ist. */
 export function parseBackup(j: unknown): State | null {
   const o = j as { v?: number } | null;
-  return o?.v === 2 ? { ...emptyState(), ...(j as State) } : null;
+  if (o?.v !== 2) return null;
+  const e = emptyState();
+  // Felder, die in neueren Versionen dazugekommen sind, mit Standardwerten ergänzen
+  return { ...e, ...(j as State), project: { ...e.project, ...(j as State).project } };
 }
 
 export function loadStep(): number {

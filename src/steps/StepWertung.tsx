@@ -4,11 +4,13 @@ import { auffaelligkeiten, computeLos, emptyBew, getBew, zuschlagCell, bewKey, t
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
 import { bewText } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
+import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
 
 type Up = (fn: (d: State) => void) => void;
 
 export function StepWertung({ s, up }: { s: State; up: Up }) {
   const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
+  useGeo();
   const los = s.lose.find((l) => l.id === losId) ?? s.lose[0];
   const cells = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
   if (!los) return <section className="card"><h2>Wertung</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden.</p></section>;
@@ -52,7 +54,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                         <tr className={c.excluded ? 'dim' : isWin ? 'first' : ''}>
                           <td>{c.rankAll ? <span className={`rankbadge ${isWin ? 'one' : ''}`}>{c.rankAll}</span> : '–'}</td>
                           <td>{c.offer.nr}</td>
-                          <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}</small></td>
+                          <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}{(() => { const e = entfernung(s, c.offer); return e ? ` · ca. ${e.km} km zur Baustelle` : ''; })()}</small></td>
                           <td className="r">{fmtEur(c.net)}{c.nachlass ? <small className="muted block">nach {fmtNum(c.nachlass)} % Nachlass</small> : null}</td>
                           <td className="r">{fmtEur(c.gross)}</td>
                           <td className="r">{c.rankAll ? fmtPct(c.dMin) : '–'}</td>
@@ -110,6 +112,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
             const b = getBew(s, c.offer.id, los.id);
             const a = auffaelligkeiten(s, los, cells, c);
             const nv = c.offer.runde > hrl;
+            const e = entfernung(s, c.offer);
             return (
               <div className="bewcard" key={c.offer.id}>
                 <h3>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</h3>
@@ -123,7 +126,16 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 )}
                 <div className="grid g2">
                   {!nv && <label className="field wide"><span className="field-label">Qualifikation / Referenzen des Bieters</span><textarea rows={2} value={b.qualifikation} onChange={(e) => setBew(c.offer.id, { qualifikation: e.target.value })} placeholder="Die Qualifikation des Bieters ist bekannt, die Fachfirma hat bereits vergleichbare Leistungen erbracht …" /></label>}
-                  {!nv && <label className="field"><span className="field-label">Entfernung zur Baustelle</span><NumInput value={b.km} decimals={0} suffix="km" onChange={(v) => setBew(c.offer.id, { km: v })} /></label>}
+                  {!nv && (
+                    <label className="field"><span className="field-label">Entfernung zur Baustelle</span>
+                      <NumInput value={b.km ?? e?.km ?? null} decimals={0} suffix="km" className={b.km == null && e ? 'berechnet' : ''} onChange={(v) => setBew(c.offer.id, { km: v })} label="Entfernung zur Baustelle" />
+                      <span className="field-hint">
+                        {b.km != null ? (b.km > 0 ? 'Von Hand eingetragen – Feld leeren für die Schätzung.' : '0 km: kein Satz zur Entfernung im Vermerk.')
+                          : e ? `Geschätzt (Straße) aus ${e.von} → ${e.nach}, Luftlinie ${e.luft} km. ${e.km >= KM_HINWEIS ? 'Erscheint im Vermerk.' : `Im Vermerk erst ab ${KM_HINWEIS} km.`}`
+                          : !s.project.baustelle?.trim() ? 'Für eine Schätzung die Baustelle in Schritt 1 angeben.' : 'Firmenort nicht gefunden – Ort mit PLZ in Schritt 2 ergänzen.'}
+                      </span>
+                    </label>
+                  )}
                   {!nv && <label className="field"><span className="field-label">&nbsp;</span><span className="mini big"><input type="checkbox" checked={b.auskoemm} onChange={(e) => setBew(c.offer.id, { auskoemm: e.target.checked })} /> Auskömmlichkeitserklärung empfohlen</span></label>}
                   {!nv && <label className="field wide"><span className="field-label">Erläuterung der niedrigen Preise (optional)</span><textarea rows={2} value={b.erlaeuterung} onChange={(e) => setBew(c.offer.id, { erlaeuterung: e.target.value })} placeholder="z. B. Pflanzenlieferungen (Baumschul-Rabatte), Synergieeffekte durch benachbarte Baustelle …" /></label>}
                   <label className="field wide"><span className="field-label">Zusätzliche Anmerkung (optional)</span><textarea rows={2} value={b.zusatz} onChange={(e) => setBew(c.offer.id, { zusatz: e.target.value })} /></label>

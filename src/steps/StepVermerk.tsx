@@ -5,6 +5,7 @@ import { computeLos, getBew, pruefStatus } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { downloadJson } from '../storage/exportCsv';
 import { Icon } from '../components/ui';
+import { useGeo } from '../geo/entfernung';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -28,7 +29,8 @@ function Editable({ id, text, edited, onChange, onReset }: { id: string; text: s
 const esc = (t: string) => t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
 
 export function StepVermerk({ s, up }: { s: State; up: Up }) {
-  const blocks = useMemo(() => buildVermerk(s), [s]);
+  const geo = useGeo(); // Entfernungen im Text, sobald die PLZ-Tabelle geladen ist
+  const blocks = useMemo(() => buildVermerk(s), [s, geo]);
   const anl = anlagenList(s);
   const p = s.project;
 

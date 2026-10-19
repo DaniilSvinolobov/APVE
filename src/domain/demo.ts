@@ -6,7 +6,7 @@ export function emptyState(): State {
   return {
     v: 2,
     project: {
-      titel: '', nummer: '', auftraggeber: '', vergabestelle: '', ersteller: '', ort: '', verfahren: 'Nichtförmliches Verfahren',
+      titel: '', nummer: '', auftraggeber: '', vergabestelle: '', ersteller: '', ort: '', baustelle: '', verfahren: 'Nichtförmliches Verfahren',
       kostenBasis: 'brutto', kostenDatum: '', mwst: 19, schwelle: 15, abweichung: 30, engereWahl: 2,
       eroeffnung: '', zuschlagsfrist: '', beginn: '', ende: '', angefordert: null, budgetBrutto: null, unterzeichner: '', datum: '', vollstaendigkeit: true,
     },
@@ -26,7 +26,7 @@ export function demoState(): State {
   const s = emptyState();
   s.project = {
     ...s.project, titel: 'Neubau Quartierspark Nordstadt (BA2)', nummer: 'V-2026-0087', auftraggeber: 'Stadt Beispielburg',
-    vergabestelle: 'Zentrale Vergabestelle der Stadt Beispielburg', ersteller: 'Landschaftsarchitekten Muster GmbH', ort: 'Berlin',
+    vergabestelle: 'Zentrale Vergabestelle der Stadt Beispielburg', ersteller: 'Landschaftsarchitekten Muster GmbH', ort: 'Berlin', baustelle: '50181 Bedburg',
     kostenDatum: '2026-06-10', eroeffnung: '2026-07-14T10:00', zuschlagsfrist: '2026-08-14', beginn: 'ab 07.09.2026', ende: 'Ende 2026',
     angefordert: 12, budgetBrutto: 213000, unterzeichner: 'i. A. Erika Mustermann', datum: '2026-09-02',
   };
@@ -51,7 +51,7 @@ export function demoState(): State {
   s.lv = defs.map(([oz, kurz, menge, einheit]) => ({ oz, kurz, menge, mengeOrig: menge, einheit, bedarf: false }));
   const pr = (i: number, only?: string) => Object.fromEntries(defs.filter((d) => !only || d[0].startsWith(only)).map((d) => [d[0].replace(/\./g, ''), { ep: d[4][i], gp: Math.round(d[2] * d[4][i] * 100) / 100 }]));
   const o1 = mkOffer(1, 'Gartenbau Weber GmbH', 'Kerpen', 1, [l1.id, l2.id], pr(0), { nachlass: 2, nachlassLose: [l1.id] });
-  const o2 = mkOffer(2, 'Grün & Form Landschaftsbau KG', 'Köln', 1, [l1.id, l2.id], pr(1));
+  const o2 = mkOffer(2, 'Grün & Form Landschaftsbau KG', '46395 Bocholt', 1, [l1.id, l2.id], pr(1));
   const o3 = mkOffer(3, 'Natura Außenanlagen GmbH', 'Düren', 1, [l1.id, l2.id], pr(2));
   // Nachverhandlung LOS1: Bieter 3 senkt Position 01.02.03 auf marktüblichen Preis
   const p4 = pr(2, '01'); p4['010203'] = { ep: 26.2, gp: Math.round(380 * 26.2 * 100) / 100 };

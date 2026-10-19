@@ -93,6 +93,7 @@ export interface Project {
   vergabestelle: string;
   ersteller: string; // Planungsbüro / Verfasser
   ort: string;
+  baustelle: string; // Lage der Baustelle („PLZ Ort“) – für die geschätzte Entfernung der Bieter
   verfahren: string;
   kostenBasis: 'brutto' | 'netto';
   kostenDatum: string;

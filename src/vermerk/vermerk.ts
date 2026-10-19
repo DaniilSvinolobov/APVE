@@ -2,6 +2,7 @@ import type { Los, State } from '../domain/types';
 import { auffaelligkeiten, computeLos, finalRound, getBew, kostenOf, offerBrutto, pruefStatus, zuschlagCell, type Cell } from '../domain/calc';
 import { PSTATUS } from '../domain/types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
+import { kmFuerVermerk } from '../geo/entfernung';
 
 export type Block =
   | { t: 'meta'; lines: { k?: string; v: string; bold?: boolean }[] }
@@ -282,7 +283,8 @@ export function bewText(s: State, l: Los, cells: Cell[], c: Cell, nv = false): s
     }
   } else {
     if (b.qualifikation) L.push(b.qualifikation);
-    if (b.km) L.push(`Durch die Entfernung zur Baustelle (ca. ${b.km} km) fallen für o.g. Fachfirma zusätzliche Fahrt- und Betriebskosten an, welche bei der Kalkulation der Einheitspreise berücksichtigt wurden.`);
+    const km = kmFuerVermerk(s, o, b);
+    if (km) L.push(`Durch die Entfernung zur Baustelle (ca. ${km} km) fallen für o.g. Fachfirma zusätzliche Fahrt- und Betriebskosten an, welche bei der Kalkulation der Einheitspreise berücksichtigt wurden.`);
     const a = auffaelligkeiten(s, l, cells, c);
     const platz = c.rankAll === 1 ? 'erste' : c.rankAll === 2 ? 'zweite' : `${c.rankAll}.`;
     if (a.guenstig.length || a.titel.length) {

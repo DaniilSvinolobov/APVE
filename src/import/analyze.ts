@@ -21,6 +21,13 @@ const ANGEBOT_NR = /angebot(?:e|s[a-zäöü]*)?[\s_-]*(\d+)/i;
 /** Bezeichnung einer nachgereichten Unterlage aus dem Dateinamen (ohne Endung und angehängten Firmennamen). */
 export const nachName = (name: string) => base(name).replace(/\.[a-z0-9]+$/i, '').replace(/\s*-\s*[^-]+$/, '');
 
+/** Firmenort für die Entfernung zur Baustelle: Angabe mit Postleitzahl bevorzugen (Signaturbeleg, sonst Anschrift in der GAEB-Datei). */
+const firmenOrt = (sigOrt: string, sigPlz: string, gaebOrt?: string) => {
+  const sig = sigOrt && sigPlz && !/\d{5}/.test(sigOrt) ? `${sigPlz} ${sigOrt}` : sigOrt;
+  if (/\d{5}/.test(sig) || !gaebOrt) return sig;
+  return /\d{5}/.test(gaebOrt) || !sig ? gaebOrt : sig;
+};
+
 export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: DocFile[] }
 
 /**
@@ -79,7 +86,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
   const prices: Offer['prices'] = {};
   for (const p of doc.positions) prices[ozKey(p.oz)] = { ep: p.ep, gp: p.gp };
   const offer: Offer = {
-    id: uid(), nr, firma, ort: grab(/Firmenort:\s*(.+)/), runde: g.files.some((f) => /nachverh/i.test(f.path)) ? 2 : 1,
+    id: uid(), nr, firma, ort: firmenOrt(grab(/Firmenort:\s*(.+)/), grab(/(?:Firmen-?)?PLZ:\s*(\d{5})\b/), doc.bieterOrt), runde: g.files.some((f) => /nachverh/i.test(f.path)) ? 2 : 1,
     datum, preisQuelle: pre ? pre.art ?? 'pdf' : undefined, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
     textErg: doc.positions.filter((p) => p.bieterText).map((p) => ({ oz: p.oz, text: p.bieterText! })),
     nachforderung, dateien, warnungen, quelle: base(used.path),

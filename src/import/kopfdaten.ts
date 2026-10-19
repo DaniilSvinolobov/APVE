@@ -20,14 +20,16 @@ export interface Kopf {
   ende?: string; // Freitext
   kostenDatum?: string; // ISO-Datum
   mwst?: number;
+  baustelle?: string; // „Baustelle: …“, „Ausführungsort: …“
+  agOrt?: string; // „PLZ Ort“ aus der Anschrift des Auftraggebers – Ersatz für die Baustelle, wenn diese nicht genannt ist
 }
 
-type TextFeld = 'titel' | 'nummer' | 'auftraggeber' | 'vergabestelle' | 'ersteller' | 'eroeffnung' | 'zuschlagsfrist' | 'beginn' | 'ende' | 'kostenDatum';
+type TextFeld = 'titel' | 'nummer' | 'auftraggeber' | 'vergabestelle' | 'ersteller' | 'eroeffnung' | 'zuschlagsfrist' | 'beginn' | 'ende' | 'kostenDatum' | 'baustelle';
 
 const FELDNAME: Record<TextFeld | 'verfahren' | 'mwst', string> = {
   titel: 'Maßnahme', nummer: 'Vergabenummer', auftraggeber: 'Auftraggeber', vergabestelle: 'Vergabestelle', ersteller: 'Verfasser',
   verfahren: 'Vergabeverfahren', eroeffnung: 'Eröffnungstermin', zuschlagsfrist: 'Zuschlagsfrist', beginn: 'Ausführungsbeginn',
-  ende: 'Vollendung', kostenDatum: 'Datum des Kostenvoranschlags', mwst: 'MwSt.-Satz',
+  ende: 'Vollendung', kostenDatum: 'Datum des Kostenvoranschlags', mwst: 'MwSt.-Satz', baustelle: 'Baustelle',
 };
 
 const DATUM = String.raw`(\d{1,2})\.\s?(\d{1,2})\.\s?(\d{2,4})`;
@@ -48,6 +50,7 @@ const LABEL_KERNE: [Exclude<TextFeld, 'eroeffnung' | 'zuschlagsfrist' | 'kostenD
   ['titel', String.raw`Bauvorhaben|Baumaßnahme|Maßnahme|Projekt(?:bezeichnung)?|Vorhaben|BV|Objekt`],
   ['beginn', String.raw`Ausführungsbeginn|Beginn der (?:Ausführung|Arbeiten|Bauarbeiten|Leistung)|Baubeginn`],
   ['ende', String.raw`Fertigstellung(?:stermin)?|Vollendung(?: der (?:Ausführung|Arbeiten|Leistung))?|Ausführungsende|Bauende`],
+  ['baustelle', String.raw`Baustelle|Lage der Baustelle|Bauort|Ausführungsort|Ort der (?:Ausführung|Leistung|Baustelle|Leistungserbringung)|Leistungsort|Erfüllungsort`],
 ];
 const LABELS = LABEL_KERNE.map(([f, k]) => [f, new RegExp(String.raw`(?:^|[\s(])(?:${k})\s*:`, 'i'), new RegExp(String.raw`^\s*(?:${k})(?:\s+(?=\S)|\s*$)`, 'i')] as const);
 const ALLE_LABELS = new RegExp(String.raw`(?:^|[\s(])(?:${LABEL_KERNE.map(([, k]) => k).join('|')}|Datum|Stand|Telefon|Tel\.|E-Mail|Fax|Seite|Projekt-?\s?Nr\.?|LV)\s*:`, 'i');
@@ -71,6 +74,9 @@ const ohneAnschrift = (v: string) => {
   const j = v.search(/\s(?=\S*(?:str\.|straße|platz|weg|allee|ring|gasse|markt)\s+\d)|\s(?=\d{5}\s)/i);
   return j > 0 ? v.slice(0, j).trim() : v;
 };
+
+/** „Am Rathaus 1, 50181 Bedburg“ → „50181 Bedburg“ (leer, wenn keine Postleitzahl darin steht). */
+const plzOrt = (v: string) => v.match(/(?<!\d)(\d{5})\s+([\p{L}][\p{L}.\s-]*[\p{L}.])/u)?.slice(1, 3).join(' ') ?? undefined;
 
 const VERFAHREN_TEXT: [RegExp, string][] = [
   [/VOB\/?A[- ]?EU|EU-weit|europaweit|Offenes Verfahren|Nichtoffenes Verfahren|Verhandlungsverfahren/i, 'VOB/A-EU'],
@@ -97,8 +103,11 @@ export function kopfAusText(lines: string[]): Kopf {
       if (/^(?:k\.\s?A\.?|keine Angabe?n?|n\.\s?a\.?)(?:\s|$)/i.test(v) || LABELS.some(([, , a]) => a.test(v))) continue;
       if (!m[0].includes(':') && (v.split(' ').length > 10 || !/^[\p{Lu}\d]/u.test(v))) continue;
       if (feld === 'nummer' && !/\d/.test(v)) continue;
+      // Baustelle nur mit Doppelpunkt („Baustelle ist während …“ in den Vorbemerkungen ist kein Ort)
+      if (feld === 'baustelle' && (!m[0].includes(':') || v.split(' ').length > 8)) continue;
+      if (feld === 'auftraggeber' && !k.agOrt) k.agOrt = plzOrt(v);
       if ((feld === 'beginn' || feld === 'ende') && !/\d{1,2}\.\d{1,2}\.|\bKW\b|\b20\d\d\b|sofort|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Frühjahr|Sommer|Herbst|Winter|Quartal|Woche|Monat|Tag/i.test(v)) continue;
-      k[feld] = feld === 'nummer' ? v.split(' ')[0] : ohneAnschrift(v);
+      k[feld] = feld === 'nummer' ? v.split(' ')[0] : feld === 'baustelle' ? v : ohneAnschrift(v);
     }
     if (!k.eroeffnung) {
       const m = l.match(new RegExp(String.raw`(?:Eröffnungs-?\s?termin|Submission(?:stermin)?|Angebotseröffnung|(?:Ablauf der |Ende der )?Angebotsfrist|Einreichungsfrist)\b[^\d]{0,40}${DATUM}(?:[^\d]{0,20}?(\d{1,2})[:.](\d{2})(?!\d))?`, 'i'));
@@ -156,6 +165,7 @@ export function kopfAusDoc(doc: GaebDoc): Kopf {
     ende: g?.ende ? deDatum(g.ende) : t.ende,
     mwst: g?.mwst ?? t.mwst,
     kostenDatum: doc.phase === 82 && /^\d{4}-\d{2}-\d{2}/.test(doc.datum) ? doc.datum.slice(0, 10) : undefined,
+    agOrt: doc.auftraggeberOrt || t.agOrt,
   };
   return k;
 }
@@ -166,6 +176,7 @@ const DEFAULT_MWST = 19;
 /** Welche Felder würde `applyKopf` vorbelegen? (für die Meldung) */
 export function kopfLuecken(p: Project, k: Kopf): string[] {
   const out: string[] = [];
+  if (!k.baustelle && k.agOrt && !p.baustelle?.trim()) out.push('Baustelle (Ort des Auftraggebers)');
   for (const f of Object.keys(FELDNAME) as (keyof typeof FELDNAME)[]) {
     const v = k[f];
     if (v == null || v === '') continue;
@@ -178,8 +189,8 @@ export function kopfLuecken(p: Project, k: Kopf): string[] {
 
 /** Felder, die leer sind und auch im LV nicht gefunden wurden (für die Meldung „Nicht im LV gefunden“). */
 export function kopfFehlt(p: Project, k: Kopf): string[] {
-  const felder: TextFeld[] = ['titel', 'nummer', 'auftraggeber', 'vergabestelle', 'ersteller', 'eroeffnung', 'zuschlagsfrist', 'beginn', 'ende'];
-  return felder.filter((f) => !String(p[f] ?? '').trim() && !k[f]).map((f) => FELDNAME[f]);
+  const felder: TextFeld[] = ['titel', 'nummer', 'auftraggeber', 'vergabestelle', 'ersteller', 'eroeffnung', 'zuschlagsfrist', 'beginn', 'ende', 'baustelle'];
+  return felder.filter((f) => !String(p[f] ?? '').trim() && !k[f] && !(f === 'baustelle' && k.agOrt)).map((f) => FELDNAME[f]);
 }
 
 /** Leere Felder des Vorhabens mit den Eckdaten belegen; Vergabeverfahren und MwSt. nur, solange sie auf dem Standardwert stehen. */
@@ -191,6 +202,8 @@ export function applyKopf(p: Project, k: Kopf) {
     else if (f === 'mwst') { if (p.mwst === DEFAULT_MWST) p.mwst = v as number; }
     else if (!String(p[f] ?? '').trim()) p[f] = v as string;
   }
+  // ohne Angabe im LV: Ort des Auftraggebers als Baustelle annehmen (bei kommunalen Maßnahmen meist zutreffend; im Schritt „Vergabe“ prüfen)
+  if (!p.baustelle?.trim() && k.agOrt) p.baustelle = k.agOrt;
 }
 
 /** Zwei Quellen zusammenführen; die erste hat Vorrang. */

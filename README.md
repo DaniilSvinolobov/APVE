@@ -60,6 +60,7 @@ Vercel-Function an die Anthropic-API übermittelt. Pro Anfrage max. ca. 3 MB (Ve
 ## Datenschutz (DSGVO)
 - Projektdaten bleiben im Browser (localStorage); „Daten löschen“ in der Kopfzeile entfernt sie.
 - Schriftarten werden lokal ausgeliefert (keine Google Fonts), keine Cookies, kein Tracking.
+- Die Entfernung zur Baustelle wird im Browser aus einer mitgelieferten PLZ-Tabelle geschätzt; Anschriften verlassen den Browser nicht.
 - Vercel-Functions laufen in Frankfurt (`regions: ["fra1"]` in `vercel.json`).
 - Die Claude-Dokumentprüfung ist optional und erst nach ausdrücklicher Aktivierung im Browser aktiv. Übermittelt werden nur Formulare und
   Erklärungen (Angebotsschreiben, Eignungsfragebogen, Nachforderungen, Nachunternehmerverzeichnis) – keine Meisterbriefe, Referenzen,
@@ -79,3 +80,12 @@ Texte sind anklickbar und editierbar.
 - Auffällige Einzelpreise/Titel (Abweichung vom Mittel der übrigen Angebote) fließen in die Begründung ein
 - Auffallend niedrige Gesamtpreise (Standard 15 % unter Kostenvoranschlag bzw. Nächstbieter) → Hinweis zur Aufklärung
 - Die App ersetzt keine Rechtsprüfung.
+
+## Entfernung zur Baustelle
+- Baustelle in Schritt 1 als „PLZ Ort“ (vorbelegt aus „Baustelle:“/„Ausführungsort:“ im LV, sonst aus der Anschrift des Auftraggebers).
+- Firmenort des Bieters aus dem Signaturbeleg bzw. der Anschrift in der GAEB-Datei; in Schritt 2 änderbar (am besten mit PLZ).
+- Geschätzte Straßenkilometer = Luftlinie zwischen den PLZ-Mittelpunkten × Umwegfaktor (ca. 1,4 im Nahbereich bis ca. 1,18 auf
+  großen Strecken), Genauigkeit etwa ±15 %. Ab 50 km schreibt der Vermerk den Satz zu Fahrt- und Betriebskosten automatisch;
+  ein Wert von Hand hat Vorrang, 0 km unterdrückt den Satz.
+- Ohne externen Dienst: Die PLZ-Tabelle (`src/geo/plzDaten.ts`, erzeugt mit `scripts/build-plz.mjs`) wird mit der App ausgeliefert.
+  Datenquelle: [GeoNames](https://www.geonames.org) Postleitzahlen, Lizenz [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

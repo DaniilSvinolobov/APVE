@@ -17,7 +17,7 @@ npm run build   # Produktions-Build nach dist/ (Vercel erkennt Vite automatisch)
 
 ## Einlesen – LV im Schritt „Vergabe“, Angebote im Schritt „Unterlagen“
 **Eigenes LV (Schritt 1, ganz oben):** GAEB-Dateien (X8x, P8x, D8x), die App erkennt die Rolle selbst.
-Maßnahme, Auftraggeber und Lose werden daraus vorbelegt:
+Maßnahme, Auftraggeber und Lose werden daraus vorbelegt, außerdem – soweit vorhanden – Vergabenummer, Vergabestelle, Vergabeverfahren, Eröffnungstermin, Zuschlagsfrist, Ausführungsbeginn/-ende, Verfasser (Planverfasser), MwSt.-Satz und das Datum des Kostenvoranschlags (aus dem Kopf der GAEB-DA-XML-Datei, den Vorbemerkungen des LV und dem Deckblatt des LV-PDF; nur leere Felder, Eingaben von Hand bleiben):
 - **X83 / X81:** Positionen, Texte, Mengen, Lose (bevorzugt 83, sonst 81)
 - **X82 (Kostenanschlag):** LV-Schätzpreise je Position (eigenes LV) → Spalte „LV-Schätzpreis“ im Preisspiegel; Zuordnung zum LV über die OZ (auch bei abweichender Nullauffüllung), sonst über Text/Menge. Fehlende Schätzpreise lassen sich in der Spalte direkt eintragen. Der Kostenvoranschlag je Los wird daraus vorbelegt (manuelle Eingabe hat Vorrang)
 - **Preisspiegel:** Abweichung in % zum Günstigsten, zum LV-Schätzpreis oder zu beiden (je Position, Titel und Gesamt); Fußzeilen Nachlass (% und €), Gesamt netto, MwSt., Gesamt brutto, Abweichung zum Günstigsten/LV-Schätzpreis, Skonto informativ; höchster EP je Position violett

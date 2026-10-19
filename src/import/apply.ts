@@ -4,6 +4,7 @@ import { fmtEur, round2, uid } from '../domain/fmt';
 import { losPositions, zusatzWert } from '../domain/calc';
 import { nachName, type ParsedBid } from './analyze';
 import { matchPositions, SICHER } from './ozMatch';
+import { applyKopf, kopfAusDoc, kopfMerge } from './kopfdaten';
 
 const LOS_TITEL = /^\s*LOS\s*\d+/i;
 
@@ -79,8 +80,8 @@ export function applyLv(d: State, doc: GaebDoc, schaetz: GaebDoc | null = null, 
     o.lose = o.lose.filter((id) => d.lose.some((l) => l.id === id));
     if (!o.lose.length) o.lose = loseOf(d, o);
   }
-  if (!d.project.titel && doc.bezeichnung) d.project.titel = doc.bezeichnung;
-  if (!d.project.auftraggeber && doc.auftraggeber) d.project.auftraggeber = doc.auftraggeber;
+  // Maßnahme, Auftraggeber, Vergabenummer, Termine … aus dem Kopf der Datei und den Vorbemerkungen (nur leere Felder)
+  applyKopf(d.project, kopfMerge(kopfAusDoc(doc), schaetz ? kopfAusDoc(schaetz) : {}));
 }
 
 /** Endsumme laut GAEB-Datei (Kopfsumme, sonst Summe der Titelsummen) und Summe der Positionen. */
@@ -303,6 +304,7 @@ export function removeDatei(d: State, offer: Offer, name: string) {
 export function applySchaetz(d: State, doc: GaebDoc, name: string) {
   d.schaetz = schaetzPreise(d.lv, doc);
   d.lvInfo = { ...d.lvInfo, schaetz: Object.keys(d.schaetz).length ? name : '' };
+  applyKopf(d.project, { kostenDatum: kopfAusDoc(doc).kostenDatum });
 }
 
 export function removeSchaetz(d: State) {

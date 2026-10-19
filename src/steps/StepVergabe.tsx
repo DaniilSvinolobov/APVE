@@ -31,7 +31,7 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
 
       <section className="card">
         <h2>Vorhaben</h2>
-        <p className="lead">Diese Angaben erscheinen im Kopf des Vergabevermerks. Maßnahme, Auftraggeber, Lose und Kosten werden beim Laden des LV (oben) vorbelegt.</p>
+        <p className="lead">Diese Angaben erscheinen im Kopf des Vergabevermerks. Leere Felder werden beim Laden des LV (oben) vorbelegt: Maßnahme, Vergabenummer, Auftraggeber, Vergabestelle, Verfahren, Termine, Verfasser, Lose und Kosten – soweit die GAEB-Datei oder das LV-PDF sie enthält. Bitte prüfen.</p>
         <div className="grid">
           <Field label="Bezeichnung der Maßnahme" wide><input value={p.titel} onChange={(e) => set('titel', e.target.value)} placeholder="z. B. Umbau Schlosspark Bedburg BA3 (ISEK)" /></Field>
           <Field label="Vergabenummer"><input value={p.nummer} onChange={(e) => set('nummer', e.target.value)} placeholder="S-BEDB-2026-0020" /></Field>

@@ -4,10 +4,10 @@
   "outputDirectory": "dist",
   "functions": {
     "api/pruefen.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/eignung.ts": {
-      "maxDuration": 120
+      "maxDuration": 300
     }
   },
   "regions": [

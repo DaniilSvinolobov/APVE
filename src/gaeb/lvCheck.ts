@@ -83,6 +83,10 @@ const SNUM = String.raw`-?(?:${NUM})`;
 const deNum = (s: string) => Number(s.replace(/\./g, '').replace(',', '.'));
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const OZ_START = /^(\d{1,2}(?:\.\d{1,4}){1,4})(?=\s|$)/;
+/** OZ mit Platzhaltern für leere Stufen („00.__.___1“, „05.__.__10“) → „00.1“, „05.10“. */
+const ozPlatzhalter = (line: string) => line.replace(/^(\s*)(\d[\d_]*(?:\.[\d_]+)+)(?=\s|$)/, (m, sp: string, oz: string) => (oz.includes('_') ? sp + oz.split('.').map((x) => x.replace(/_/g, '')).filter(Boolean).join('.') : m));
+/** Pauschalposition ohne Menge: „pauschal 1.334,00“ (der Betrag ist EP und GP zugleich). */
+const PAUSCHAL = String.raw`\b(?:pauschal|pausch\.?|pschl?\.?)`;
 
 /**
  * Positionen aus den Textzeilen eines LV-PDF lesen. Die Positionen des Vergleichs (`ref`) geben vor, welche
@@ -95,8 +99,9 @@ export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
   // Titel (Lose, Abschnitte): jede Vorstufe einer Positions-OZ – deren Überschriften und Titelsummen sind keine Positionen
   const titel = new Set(ref.flatMap((p) => ozNorm(p.oz).split('.').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('.'))));
   const blocks: { oz: string; text: string; known: boolean; titel?: boolean }[] = [];
-  for (const line of lines) {
-    const m = line.trim().match(OZ_START);
+  for (const raw of lines) {
+    const line = ozPlatzhalter(raw.trim());
+    const m = line.match(OZ_START);
     const isDate = !!m && /^\d{1,2}\.\d{1,2}\.(19|20)?\d{2}$/.test(m[1]);
     if (m && refBy.has(ozNorm(m[1]))) blocks.push({ oz: m[1], text: line.trim().slice(m[1].length), known: true });
     else if (m && !isDate && titel.has(ozNorm(m[1]))) blocks.push({ oz: m[1], text: '', known: false, titel: true });
@@ -128,8 +133,12 @@ export function parseLvPdf(lines: string[], ref: RefPos[]): PdfPos[] {
     let tri: [number, number, number] | null = null;
     for (let i = nums.length - 3; i >= 0 && !tri; i--) if (Math.abs(r2(nums[i] * nums[i + 1]) - nums[i + 2]) <= 0.01 && nums[i + 1] !== 0) tri = [nums[i], nums[i + 1], nums[i + 2]];
     if (!priced && tri) { out.push({ oz: b.oz, menge: tri[0], einheit: r.einheit, ep: tri[1], gp: tri[2] }); continue; }
-    if (priced) out.push({ oz: b.oz, menge: deNum(priced[1]), einheit: r.einheit, ep: deNum(priced[2]), gp: deNum(priced[3]) });
-    else if (plain) out.push({ oz: b.oz, menge: deNum(plain[1]), einheit: r.einheit, ep: null, gp: null });
+    if (priced) { out.push({ oz: b.oz, menge: deNum(priced[1]), einheit: r.einheit, ep: deNum(priced[2]), gp: deNum(priced[3]) }); continue; }
+    const psch = [...text.matchAll(new RegExp(String.raw`${PAUSCHAL}\s+(${SNUM})(?![\d,])`, 'gi'))].pop();
+    if (psch) {
+      const gp = deNum(psch[1]), menge = r.menge ?? 1;
+      out.push({ oz: b.oz, menge, einheit: r.einheit, ep: menge ? Math.round((gp / menge) * 1000) / 1000 : gp, gp });
+    } else if (plain) out.push({ oz: b.oz, menge: deNum(plain[1]), einheit: r.einheit, ep: null, gp: null });
     else out.push({ oz: b.oz, menge: null, einheit: '', ep: null, gp: null });
   }
   // Dieselbe OZ mehrfach (z. B. in Vorbemerkungen aufgezählt): den Eintrag mit den meisten Angaben behalten
@@ -150,7 +159,7 @@ export function pdfLvSumme(lines: string[]): number | null {
 
 /** „Gesamtsumme (netto)“ eines Angebots-PDF, sofern vorhanden. */
 export function pdfNettoSumme(lines: string[]): number | null {
-  for (const l of lines) { const m = l.match(/Gesamtsumme\s*\(\s*netto\s*\)\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i); if (m) return deNum(m[1]); }
+  for (const l of lines) { const m = l.match(/(?:Gesamtsumme\s*\(\s*netto\s*\)|^\s*Nettosumme)\s*:?\s*(?:EUR|€)?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i); if (m) return deNum(m[1]); }
   return null;
 }
 

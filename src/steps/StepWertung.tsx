@@ -3,7 +3,7 @@ import type { Bew, State } from '../domain/types';
 import { auffaelligkeiten, computeLos, emptyBew, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
 import { bewText } from '../vermerk/vermerk';
-import { Chip, Icon, NumInput, Tabs } from '../components/ui';
+import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -58,8 +58,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                           <td className="r">{c.rankAll ? fmtPct(c.dMin) : '–'}</td>
                           <td className="r">{fmtPct(c.dKosten)}</td>
                           <td className="left flags">
-                            {c.flags.length === 0 && c.eligible && <Chip kind="ok">Keine Auffälligkeiten</Chip>}
-                            {c.flags.map((f, i) => <Chip key={i} kind={f.kind}>{f.text}</Chip>)}
+                            <FlagList items={c.flags.length === 0 && c.eligible ? [{ kind: 'ok', text: 'Keine Auffälligkeiten' }] : c.flags} />
                             <div className="row acts">
                               <label className="mini"><input type="checkbox" checked={!!b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.checked ? 'fehlender Eignungsnachweise' : '' })} /> ausschließen</label>
                               {needsAufk && (

@@ -62,6 +62,15 @@ export function Chip({ kind, children, title }: { kind: 'warn' | 'info' | 'bad' 
   return <span className={`chip ${kind}`} title={title}>{children}</span>;
 }
 
+const ORDER = { bad: 0, warn: 1, info: 2, ok: 3 } as const;
+
+/** Ruhige Hinweisliste: wichtigste zuerst, Farbe nur als Punkt, Text einheitlich. */
+export function FlagList({ items }: { items: { kind: 'warn' | 'info' | 'bad' | 'ok'; text: ReactNode }[] }) {
+  if (!items.length) return null;
+  const sorted = items.map((f, i) => ({ ...f, i })).sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.i - b.i);
+  return <ul className="flaglist">{sorted.map((f) => <li key={f.i} className={f.kind}>{f.text}</li>)}</ul>;
+}
+
 const P: Record<string, string> = {
   check: 'M5 13l4 4L19 7', plus: 'M12 5v14M5 12h14', x: 'M6 6l12 12M18 6L6 18',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3',

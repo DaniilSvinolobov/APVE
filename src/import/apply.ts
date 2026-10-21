@@ -138,6 +138,7 @@ function ersetzeOhnePreise(d: State, offer: Offer) {
 }
 
 const PREIS_ZEILE = /preise vollständig|gaeb/;
+const GAEB_KAT = 'Preisdatei (GAEB)';
 
 /**
  * Das neue Angebot tritt an die Stelle von `alt`: Nummer, Runde, Eingaben von Hand und Markierungen „nachgereicht“ bleiben.
@@ -157,7 +158,7 @@ function uebernehmen(d: State, offer: Offer, alt: Offer, nach: string | null, gl
   const preisZeile = (id: string) => PREIS_ZEILE.test(d.unterlagen.find((u) => u.id === id)?.label.toLowerCase() ?? '');
   for (const [id, p] of Object.entries(alt.pruef)) if (p.k !== 'auto' || (gleich && !preisZeile(id))) offer.pruef[id] = p;
   if (nach != null) for (const u of d.unterlagen) {
-    if (PREIS_ZEILE.test(u.label.toLowerCase()) && alt.pruef[u.id]?.k !== 'user') offer.pruef[u.id] = { s: 'nach', d: nach, n: alt.preisQuelle === 'pdf' ? 'Die GAEB-Preisdatei wurde nachgereicht (Preise zunächst aus dem PDF gelesen).' : 'Die Preisdatei wurde nachgereicht (Angebot zunächst ohne Preise eingelesen).', k: 'auto' };
+    if (PREIS_ZEILE.test(u.label.toLowerCase()) && alt.pruef[u.id]?.k !== 'user') offer.pruef[u.id] = { s: 'nach', d: nach, n: alt.preisQuelle === 'pdf' ? 'Die GAEB-Preisdatei wurde nachgereicht; ihre Preise stimmen mit dem bepreisten LV (PDF) des Angebots überein.' : 'Die Preisdatei wurde nachgereicht (Angebot zunächst ohne lesbare Preise eingelesen). Bitte mit dem eingereichten Angebot abgleichen: Durch die Nachreichung dürfen sich die Preise nicht ändern (§ 15 Abs. 3 VOB/A); fehlende Preisangaben dürfen nur in engen Grenzen nachgefordert werden (§ 16a VOB/A).', k: 'auto' };
   }
   for (const f of alt.dateien) {
     const neu = offer.dateien.find((x) => x.name === f.name);
@@ -168,29 +169,25 @@ function uebernehmen(d: State, offer: Offer, alt: Offer, nach: string | null, gl
   pruefNachDateien(d, offer);
 }
 
-/** Bieterpreise unverändert? (dieselbe Preisdatei erneut eingereicht) */
-export const gleichePreise = (offer: Offer, doc: GaebDoc) => {
+/** Positionen (OZ der Bieterdatei), deren Einheitspreis von den gespeicherten Bieterpositionen abweicht oder die nur in einer der beiden vorkommen. */
+export function preisAbweichungen(offer: Offer, doc: GaebDoc): string[] {
   const alt = new Map((offer.bidPos ?? []).map((p) => [ozKey(p.oz), p.ep]));
-  return alt.size > 0 && alt.size === doc.positions.length && doc.positions.every((p) => alt.has(ozKey(p.oz)) && alt.get(ozKey(p.oz)) === p.ep);
-};
+  const neu = new Set(doc.positions.map((p) => ozKey(p.oz)));
+  const diff = doc.positions.filter((p) => !alt.has(ozKey(p.oz)) || Math.abs((alt.get(ozKey(p.oz)) ?? 0) - (p.ep ?? 0)) > 0.005).map((p) => p.oz);
+  return [...diff, ...(offer.bidPos ?? []).filter((p) => !neu.has(ozKey(p.oz))).map((p) => p.oz)];
+}
 
 /**
- * GAEB-Preisdatei, die bei einem Angebot unter „Unterlagen“ ergänzt wird. `ersetzen`: Sie liefert die Preise dieses Angebots
- * (bisher ohne GAEB-Preise oder mit dem Angebot eingereicht); sonst ist sie ein neues Angebot desselben Bieters in der
- * nächsten Runde (Nachverhandlung). `nach` = nachgereicht am, null = mit dem Angebot.
+ * GAEB-Preisdatei, die bei einem Angebot unter „Unterlagen“ ergänzt wird und dessen Preise liefert
+ * (bisher ohne GAEB-Preise oder mit dem Angebot eingereicht). `nach` = nachgereicht am, null = mit dem Angebot.
+ * Eine Nachreichung ändert das Angebot nicht – Abweichungen werden vorher in der Oberfläche geprüft.
  */
-export function preisdateiErgaenzen(d: State, altId: string, parsed: ParsedBid, ersetzen: boolean, nach: string | null) {
+export function preisdateiUebernehmen(d: State, altId: string, parsed: ParsedBid, nach: string | null) {
   const alt = d.offers.find((o) => o.id === altId);
   if (!alt) return;
-  const { offer } = parsed;
-  offer.firma = alt.firma;
-  if (alt.ort) offer.ort = alt.ort;
-  if (ersetzen) { applyOffer(d, parsed, false, { alt, nach }); return; }
-  const k = firmaKey(alt.firma);
-  offer.runde = Math.min(3, Math.max(...d.offers.filter((o) => firmaKey(o.firma) === k).map((o) => o.runde)) + 1) as 2 | 3;
-  if (nach) offer.datum = nach;
-  offer.nr = Math.max(0, ...d.offers.map((o) => o.nr)) + 1;
-  applyOffer(d, parsed);
+  parsed.offer.firma = alt.firma;
+  if (alt.ort) parsed.offer.ort = alt.ort;
+  applyOffer(d, parsed, false, { alt, nach });
 }
 
 const ZUORD_WARN = /Ordnungszahl als das Soll-LV|geringer Übereinstimmung|nicht im Soll-LV|des Soll-LV sind in der Bieterdatei nicht bepreist/;
@@ -301,6 +298,9 @@ export function pruefNachDateien(d: State, offer: Offer) {
     else if (matches(u.label, names)) offer.pruef[u.id] = { s: 'ok', d: '', k: 'auto' };
     else delete offer.pruef[u.id];
   }
+  // nachgereichte GAEB-Preisdatei (Nachforderung) → Prüfzeile „Preise vollständig (GAEB)“
+  const gaeb = offer.dateien.find((x) => x.kat === GAEB_KAT && istNach(x));
+  if (gaeb) for (const u of d.unterlagen) if (PREIS_ZEILE.test(u.label.toLowerCase()) && frei(u.id)) offer.pruef[u.id] = { s: 'nach', d: gaeb.nach ?? '', n: (offer.pruef[u.id]?.s === 'nach' ? offer.pruef[u.id].n : undefined) ?? `GAEB-Preisdatei „${gaeb.name}“ nachgereicht.`, k: 'auto' };
   // nachgereichte Unterlagen ohne passende Zeile → neue Prüfzeile
   for (const n of offer.nachforderung) {
     if (d.unterlagen.some((u) => matches(u.label, [n.toLowerCase()]))) continue;
@@ -318,6 +318,7 @@ export function setNachgereicht(d: State, offer: Offer, name: string, nach: stri
   if (!f) return;
   const n = nachName(name);
   if (nach == null) delete f.nach; else f.nach = nach;
+  if (f.kat === GAEB_KAT) { pruefNachDateien(d, offer); return; } // gehört zur Prüfzeile „Preise vollständig (GAEB)“, siehe pruefNachDateien
   if (istNach(f)) { if (!offer.nachforderung.includes(n)) offer.nachforderung.push(n); }
   else if (!offer.dateien.some((x) => istNach(x) && nachName(x.name) === n)) offer.nachforderung = offer.nachforderung.filter((x) => x !== n);
   pruefNachDateien(d, offer);

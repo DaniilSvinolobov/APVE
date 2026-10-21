@@ -3,7 +3,7 @@ import type { Offer, State } from '../domain/types';
 import { expandZips, base, type RawFile } from '../import/zip';
 import { groupBids, isBidFile, isLvFile, kategorie } from '../import/files';
 import { analyzeGroup, docFiles } from '../import/analyze';
-import { addDateien, gleichePreise, istNach, preisdateiErgaenzen, removeDatei, setNachgereicht } from '../import/apply';
+import { addDateien, istNach, preisAbweichungen, preisdateiUebernehmen, removeDatei, setNachgereicht } from '../import/apply';
 import { docStore, type DocFile } from '../import/docStore';
 import { collect, fromInput } from '../components/DropZone';
 import { Chip, Icon, Seg } from '../components/ui';
@@ -31,38 +31,48 @@ export function OfferDateien({ o, up, onAdded }: { o: Offer; up: Up; onAdded: (o
       const gaeb = files.filter((f) => isBidFile(f.path) || isLvFile(f.path));
       const docs = files.filter((f) => !gaeb.includes(f)).filter((f, i, a) => a.findIndex((x) => base(x.path) === base(f.path)) === i);
       const nach = modus === 'nach' ? datum : null;
-      // GAEB-Preisdateien (x84, auch x83 mit Preisen): fehlende Preise dieses Angebots oder geänderte Preise (Nachverhandlung)
+      // GAEB-Preisdateien (x84, auch x83 mit Preisen) gehören zu diesem Angebot. Nachgereicht = Nachforderung, keine Nachverhandlung:
+      // Die Preise des Angebots ändern sich dadurch nicht, sie liefern nur fehlende bzw. nur als PDF lesbare Preise.
       const bids = groupBids(gaeb).flatMap((g) => g.bids);
       const ohnePreise = gaeb.filter((f) => !bids.includes(f));
+      const ablegen: RawFile[] = [];
       let preis = '';
-      let neuesAngebot = false;
+      let warn = false;
       if (bids.length) {
         const p = analyzeGroup({ root: '', files: bids, bids }, 0);
-        if (!p) preis = `Preisdatei nicht lesbar (${bids.map((f) => base(f.path)).join(', ')}).`;
+        if (!p) { preis = `Preisdatei nicht lesbar (${bids.map((f) => base(f.path)).join(', ')}).`; warn = true; }
         else {
-          const ersetzen = nach == null || o.preisQuelle === 'keine' || o.preisQuelle === 'pdf';
-          if (!ersetzen && gleichePreise(o, p.doc)) preis = `„${p.offer.quelle}“ enthält dieselben Preise wie das vorliegende Angebot – keine Nachverhandlung angelegt.`;
-          else {
-            up((d) => preisdateiErgaenzen(d, o.id, { ...p, offer: structuredClone(p.offer) }, ersetzen, nach));
-            neuesAngebot = !ersetzen;
-            preis = ersetzen
-              ? `Preise aus „${p.offer.quelle}“ übernommen${nach != null ? ' (Preisdatei nachgereicht)' : ''}.`
-              : `„${p.offer.quelle}“ als neues Angebot (Nachverhandlung) von ${o.firma} eingelesen – siehe Liste der Angebote.`;
+          const name = p.offer.quelle;
+          const diff = o.preisQuelle === 'keine' ? [] : preisAbweichungen(o, p.doc);
+          const liste = `${diff.slice(0, 5).join(', ')}${diff.length > 5 ? ' …' : ''}`;
+          const ersetzen = o.preisQuelle === 'keine' || (diff.length > 0 ? nach == null : o.preisQuelle === 'pdf');
+          if (ersetzen) {
+            up((d) => preisdateiUebernehmen(d, o.id, { ...p, offer: structuredClone(p.offer) }, nach));
+            preis = o.preisQuelle === 'keine' ? `Preise aus „${name}“ übernommen${nach != null ? ' (nachgereicht) – bitte mit dem eingereichten Angebot abgleichen' : ''}.`
+              : diff.length ? `Preise aus „${name}“ übernommen (mit dem Angebot eingereicht); abweichend von der bisherigen Preisquelle in ${diff.length} Position(en): ${liste}.`
+              : `„${name}“ stimmt mit den Preisen aus dem PDF überein – Preise jetzt aus der GAEB-Datei.`;
+          } else {
+            ablegen.push(...bids.filter((f) => base(f.path) === name));
+            if (diff.length) {
+              warn = true;
+              const text = `Nachgereichte Preisdatei „${name}“ weicht in ${diff.length} Position(en) vom eingereichten Angebot ab (${liste}). Die Preise wurden nicht übernommen – maßgeblich bleibt das Angebot; Preisänderungen durch Nachreichung sind unzulässig (§ 15 Abs. 3 VOB/A).${o.preisQuelle === 'pdf' ? ' Falls die Preise aus dem PDF falsch gelesen wurden: Datei mit „mit dem Angebot“ erneut hinzufügen.' : ' Geänderte Preise aus einer Nachverhandlung bitte oben unter „Angebote der Bieter“ als neues Angebot einlesen.'}`;
+              upOffer((_, x) => { x.warnungen = [...x.warnungen.filter((w) => !w.includes(`„${name}“`)), text]; });
+              preis = text;
+            } else preis = `„${name}“ stimmt mit den Preisen des Angebots überein.`;
           }
         }
       }
+      docs.push(...ablegen);
       if (docs.length) {
         upOffer((d, x) => addDateien(d, x, docs.map((f) => ({ name: base(f.path), kat: kategorie(f.path) })), nach));
         const neu = docFiles(docs, '').map((f) => docKat(f, nach != null));
         docStore.set(o.id, [...(docStore.get(o.id) ?? []).filter((x) => !neu.some((n) => n.name === x.name)), ...neu]);
-        onAdded(o.id);
+        if (docs.some((f) => !ablegen.includes(f))) onAdded(o.id);
       }
-      const ok = docs.length > 0 || (!!preis && !/nicht lesbar|dieselben/.test(preis));
-      setMsg({ ok: ok && !ohnePreise.length, text: [
+      setMsg({ ok: (docs.length > 0 || !!preis) && !warn && !ohnePreise.length, text: [
         docs.length ? `${docs.length} Datei(en) ${nach != null ? 'als nachgereicht ' : ''}hinzugefügt.` : bids.length ? '' : 'Keine Unterlagen hinzugefügt.',
         preis,
         ohnePreise.length ? `${ohnePreise.map((f) => base(f.path)).join(', ')} ohne Preise (LV-Datei) – nicht übernommen.` : '',
-        neuesAngebot && docs.length ? 'Die übrigen Dateien sind beim bisherigen Angebot abgelegt.' : '',
       ].filter(Boolean).join(' ') });
     } catch (e) {
       setMsg({ ok: false, text: `Fehler beim Einlesen: ${(e as Error).message}` });

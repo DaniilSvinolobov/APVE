@@ -117,6 +117,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const lvFremdText = lvFremd(s, cells);
   const visibleGroups = [...groups.entries()].filter(([, ps]) => !onlyAuff || ps.some((p) => cells.some((c) => isOut(c, p.oz))));
   const visibleOz = visibleGroups.flatMap(([k, ps]) => (open.has(k) || onlyAuff ? ps.map((p) => p.oz) : []));
+  const anyOpen = visibleOz.length > 0 || (zList.length > 0 && hasLv);
   const ncol = hasLv ? 4 : 1;
   const notes: { kind: 'warn' | 'info'; text: string }[] = [];
   if (lvFremdText) notes.push({ kind: 'warn', text: lvFremdText });
@@ -169,7 +170,9 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                     {hasLv && refHead.map(([k, l]) => <th key={k} colSpan={2} className="bh ref g0"><span className="bnr">{k === 'sch' ? 'eigenes LV' : 'gewertete Bieter'}</span>{l}</th>)}
                     {cells.map((c) => <th key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`bh g0 ${c.excluded ? 'dim' : ''}`}><span className="bnr">Nr. {c.offer.nr}</span>{c.offer.firma}</th>)}
                   </tr>
-                  {hasLv && <tr className="sub"><th className="sticky c0" /><th className="sticky c1" /><th /><th />{refHead.map(([k]) => <Fragment key={k}><th className="ref g0 r">EP €</th><th className="ref r">GP €</th></Fragment>)}{cells.map((c) => <Fragment key={c.offer.id}><th className="g0 r">EP €</th><th className="r">GP €</th></Fragment>)}</tr>}
+                  {hasLv && <tr className="sub"><th className="sticky c0" /><th className="sticky c1" /><th /><th />{anyOpen
+                    ? <>{refHead.map(([k]) => <Fragment key={k}><th className="ref g0 r">EP €</th><th className="ref r">GP €</th></Fragment>)}{cells.map((c) => <Fragment key={c.offer.id}><th className="g0 r">EP €</th><th className="r">GP €</th></Fragment>)}</>
+                    : <>{refHead.map(([k]) => <th key={k} colSpan={2} className="ref g0 r">Titelsumme €</th>)}{cells.map((c) => <th key={c.offer.id} colSpan={2} className="g0 r">Titelsumme €</th>)}</>}</tr>}
                 </thead>
                 <tbody>
                   {!hasLv && (
@@ -187,8 +190,8 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                         <tr className="titel" onClick={() => setOpen((o) => { const n = new Set(o); n.has(k) ? n.delete(k) : n.add(k); return n; })}>
                           <td className="sticky c0 left"><Icon name={isOpen ? 'down' : 'right'} /> {k}</td>
                           <td className="sticky c1 left"><b>{s.titles[k] || `Titel ${k}`}</b><small className="muted"> · {ps.length} Pos.</small></td><td /><td />
-                          {refHead.map(([rk]) => <Fragment key={rk}><td className="ref g0" /><td className="gp strong ref">{tr[rk] != null ? fmtNum(tr[rk]!) : ''}<Pct v={tr[rk]} to={tr} skip={rk} /></td></Fragment>)}
-                          {cells.map((c, i) => <Fragment key={c.offer.id}><td className="g0" /><td className={`gp strong ${sums[i] > 0 && sums[i] === min ? 'low' : sums[i] === max && !c.excluded ? 'high' : ''}`}>{fmtNum(sums[i])}<Pct v={sums[i]} to={tr} /></td></Fragment>)}
+                          {refHead.map(([rk]) => <td key={rk} colSpan={2} className="gp strong ref g0">{tr[rk] != null ? fmtNum(tr[rk]!) : ''}<Pct v={tr[rk]} to={tr} skip={rk} /></td>)}
+                          {cells.map((c, i) => <td key={c.offer.id} colSpan={2} className={`gp strong g0 ${sums[i] > 0 && sums[i] === min ? 'low' : sums[i] === max && !c.excluded ? 'high' : ''}`}>{fmtNum(sums[i])}<Pct v={sums[i]} to={tr} /></td>)}
                         </tr>
                         {isOpen && ps.map((p) => {
                           const st = peerStats(p.oz);
@@ -238,8 +241,8 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
                       <tr className="titel neu-kopf">
                         <td className="sticky c0 left">neu</td>
                         <td className="sticky c1 left"><b>Zusätzliche Positionen (nicht im LV)</b><small className="muted"> · {zList.length} Pos., in den Summen enthalten</small></td><td /><td />
-                        {refHead.map(([rk]) => <Fragment key={rk}><td className="ref g0" /><td className="ref" /></Fragment>)}
-                        {cells.map((c) => <Fragment key={c.offer.id}><td className="g0" /><td className="gp strong">{c.zusatz.length ? fmtNum(zSum(c)) : ''}</td></Fragment>)}
+                        {refHead.map(([rk]) => <td key={rk} colSpan={2} className="ref g0" />)}
+                        {cells.map((c) => <td key={c.offer.id} colSpan={2} className="gp strong g0">{c.zusatz.length ? fmtNum(zSum(c)) : ''}</td>)}
                       </tr>
                       {zList.map((r, i) => (
                         <tr key={i} className="neu">

@@ -19,6 +19,7 @@ export function kategorie(path: string): string {
   if (/qualifikation|\bpq\b/.test(n)) return 'Präqualifikation';
   if (/angebotsschreiben/.test(n)) return 'Angebotsschreiben';
   if (/^lv\b|leistungsverzeichnis/.test(n)) return 'LV (PDF)';
+  if (/\.[dpx]8\d$/.test(n)) return 'Preisdatei (GAEB)';
   if (/\.(aidf|lv|xml)$/.test(n)) return 'Plattformdatei';
   return 'Sonstiges';
 }

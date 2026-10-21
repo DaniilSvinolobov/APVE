@@ -169,12 +169,12 @@ function uebernehmen(d: State, offer: Offer, alt: Offer, nach: string | null, gl
   pruefNachDateien(d, offer);
 }
 
-/** Positionen (OZ der Bieterdatei), deren Einheitspreis von den gespeicherten Bieterpositionen abweicht oder die nur in einer der beiden vorkommen. */
-export function preisAbweichungen(offer: Offer, doc: GaebDoc): string[] {
-  const alt = new Map((offer.bidPos ?? []).map((p) => [ozKey(p.oz), p.ep]));
+/** Positionen (OZ der Bieterdatei), deren Einheitspreis von `ref` (gespeicherte Bieterpositionen) abweicht oder die nur in einer der beiden vorkommen. */
+export function preisAbweichungen(ref: { oz: string; ep: number | null }[] | undefined, doc: GaebDoc): string[] {
+  const alt = new Map((ref ?? []).map((p) => [ozKey(p.oz), p.ep]));
   const neu = new Set(doc.positions.map((p) => ozKey(p.oz)));
   const diff = doc.positions.filter((p) => !alt.has(ozKey(p.oz)) || Math.abs((alt.get(ozKey(p.oz)) ?? 0) - (p.ep ?? 0)) > 0.005).map((p) => p.oz);
-  return [...diff, ...(offer.bidPos ?? []).filter((p) => !neu.has(ozKey(p.oz))).map((p) => p.oz)];
+  return [...diff, ...(ref ?? []).filter((p) => !neu.has(ozKey(p.oz))).map((p) => p.oz)];
 }
 
 /**

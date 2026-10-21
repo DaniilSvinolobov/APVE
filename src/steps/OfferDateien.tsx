@@ -43,23 +43,34 @@ export function OfferDateien({ o, up, onAdded }: { o: Offer; up: Up; onAdded: (o
         if (!p) { preis = `Preisdatei nicht lesbar (${bids.map((f) => base(f.path)).join(', ')}).`; warn = true; }
         else {
           const name = p.offer.quelle;
-          const diff = o.preisQuelle === 'keine' ? [] : preisAbweichungen(o, p.doc);
-          const liste = `${diff.slice(0, 5).join(', ')}${diff.length > 5 ? ' …' : ''}`;
+          const diff = o.preisQuelle === 'keine' ? [] : preisAbweichungen(o.bidPos, p.doc);
           const ersetzen = o.preisQuelle === 'keine' || (diff.length > 0 ? nach == null : o.preisQuelle === 'pdf');
+          const texte: string[] = [];
           if (ersetzen) {
             up((d) => preisdateiUebernehmen(d, o.id, { ...p, offer: structuredClone(p.offer) }, nach));
-            preis = o.preisQuelle === 'keine' ? `Preise aus „${name}“ übernommen${nach != null ? ' (nachgereicht) – bitte mit dem eingereichten Angebot abgleichen' : ''}.`
-              : diff.length ? `Preise aus „${name}“ übernommen (mit dem Angebot eingereicht); abweichend von der bisherigen Preisquelle in ${diff.length} Position(en): ${liste}.`
-              : `„${name}“ stimmt mit den Preisen aus dem PDF überein – Preise jetzt aus der GAEB-Datei.`;
-          } else {
-            ablegen.push(...bids.filter((f) => base(f.path) === name));
-            if (diff.length) {
-              warn = true;
-              const text = `Nachgereichte Preisdatei „${name}“ weicht in ${diff.length} Position(en) vom eingereichten Angebot ab (${liste}). Die Preise wurden nicht übernommen – maßgeblich bleibt das Angebot; Preisänderungen durch Nachreichung sind unzulässig (§ 15 Abs. 3 VOB/A).${o.preisQuelle === 'pdf' ? ' Falls die Preise aus dem PDF falsch gelesen wurden: Datei mit „mit dem Angebot“ erneut hinzufügen.' : ' Geänderte Preise aus einer Nachverhandlung bitte oben unter „Angebote der Bieter“ als neues Angebot einlesen.'}`;
-              upOffer((_, x) => { x.warnungen = [...x.warnungen.filter((w) => !w.includes(`„${name}“`)), text]; });
-              preis = text;
-            } else preis = `„${name}“ stimmt mit den Preisen des Angebots überein.`;
+            texte.push(o.preisQuelle === 'keine' ? `Preise aus „${name}“ übernommen${nach != null ? ' (nachgereicht) – bitte mit dem eingereichten Angebot abgleichen' : ''}.`
+              : diff.length ? `Preise aus „${name}“ übernommen (mit dem Angebot eingereicht); abweichend von der bisherigen Preisquelle in ${diff.length} Position(en): ${diff.slice(0, 5).join(', ')}${diff.length > 5 ? ' …' : ''}.`
+              : `„${name}“ stimmt mit den Preisen aus dem PDF überein – Preise jetzt aus der GAEB-Datei.`);
           }
+          // jede weitere Preisdatei einzeln abgleichen (x84 und p84 können voneinander abweichen) und als Unterlage ablegen
+          const ref = ersetzen ? p.doc.positions : o.bidPos;
+          const weitere = ersetzen ? bids.filter((f) => base(f.path) !== name) : bids;
+          ablegen.push(...weitere);
+          const gleich: string[] = [];
+          for (const f of weitere) {
+            const n = base(f.path);
+            let q: ReturnType<typeof analyzeGroup> = null;
+            try { q = analyzeGroup({ root: '', files: [f], bids: [f] }, 0); } catch { /* unten gemeldet */ }
+            if (!q) { texte.push(`„${n}“ konnte nicht gelesen werden.`); warn = true; continue; }
+            const dq = preisAbweichungen(ref, q.doc);
+            if (!dq.length) { gleich.push(`„${n}“`); continue; }
+            warn = true;
+            const text = `Nachgereichte Preisdatei „${n}“ weicht in ${dq.length} Position(en) ${ersetzen ? `von „${name}“` : 'vom eingereichten Angebot'} ab (${dq.slice(0, 5).join(', ')}${dq.length > 5 ? ' …' : ''}). Die Preise wurden nicht übernommen – maßgeblich bleibt das Angebot; Preisänderungen durch Nachreichung sind unzulässig (§ 15 Abs. 3 VOB/A).${o.preisQuelle === 'pdf' ? ' Falls die Preise aus dem PDF falsch gelesen wurden: Datei mit „mit dem Angebot“ erneut hinzufügen.' : ' Geänderte Preise aus einer Nachverhandlung bitte oben unter „Angebote der Bieter“ als neues Angebot einlesen.'}`;
+            upOffer((_, x) => { x.warnungen = [...x.warnungen.filter((w) => !w.includes(`„${n}“`)), text]; });
+            texte.push(text);
+          }
+          if (gleich.length) texte.push(`${gleich.join(', ')} ${gleich.length > 1 ? 'stimmen' : 'stimmt'} mit den Preisen des Angebots überein.`);
+          preis = texte.join(' ');
         }
       }
       docs.push(...ablegen);

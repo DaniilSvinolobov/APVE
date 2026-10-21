@@ -90,8 +90,8 @@ export function summenCheck(doc: GaebDoc): { gaeb: number | null; positionen: nu
   return { gaeb: doc.total.net || titelSumme || null, positionen: round2(doc.positions.reduce((a, p) => a + (p.gp ?? 0), 0)) };
 }
 
-/** Fügt ein analysiertes Angebot in den State ein. */
-export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
+/** Fügt ein analysiertes Angebot in den State ein; `ersetzt`: liefert die Preise dieses vorhandenen Angebots (`nach` = Preisdatei nachgereicht am). */
+export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig, ersetzt?: { alt: Offer; nach: string | null }) {
   const { offer, doc } = parsed;
   if (!d.lv.length && doc.positions.length) {
     // Fallback: LV aus Bieterdatei ableiten (ohne Texte/Mengen aus der Ausschreibung)
@@ -113,9 +113,10 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig) {
   autoPruef(d, offer, sigFound, preise);
   const eroeff = d.project.eroeffnung.slice(0, 10);
   if (eroeff && offer.datum && offer.datum > eroeff && offer.runde === 1) offer.runde = 2;
-  ersetzeOhnePreise(d, offer);
+  if (ersetzt) uebernehmen(d, offer, ersetzt.alt, ersetzt.nach, true);
+  else ersetzeOhnePreise(d, offer);
   const dup = d.offers.filter((o) => o.firma.toLowerCase().replace(/\W/g, '') === offer.firma.toLowerCase().replace(/\W/g, ''));
-  if (dup.length && offer.runde === 1) offer.runde = (Math.min(3, Math.max(...dup.map((o) => o.runde)) + 1)) as 2 | 3;
+  if (!ersetzt && dup.length && offer.runde === 1) offer.runde = (Math.min(3, Math.max(...dup.map((o) => o.runde)) + 1)) as 2 | 3;
   if (d.offers.some((o) => o.nr === offer.nr)) offer.nr = Math.max(0, ...d.offers.map((o) => o.nr)) + 1;
   if (offer.nr === 0) offer.nr = 1;
   d.offers.push(offer);
@@ -133,13 +134,30 @@ function ersetzeOhnePreise(d: State, offer: Offer) {
   const k = firmaKey(offer.firma);
   const alt = k.length >= 4 ? d.offers.find((o) => o.preisQuelle === 'keine' && o !== offer && (firmaKey(o.firma).includes(k) || k.includes(firmaKey(o.firma)))) : undefined;
   if (!alt || firmaKey(alt.firma).length < 4) return;
+  uebernehmen(d, offer, alt, '', false);
+}
+
+const PREIS_ZEILE = /preise vollständig|gaeb/;
+
+/**
+ * Das neue Angebot tritt an die Stelle von `alt`: Nummer, Runde, Eingaben von Hand und Markierungen „nachgereicht“ bleiben.
+ * `nach` ≠ null = Preisdatei nachgereicht am ('' = unbekannt); `gleich` = auch Kennung, Datum, Nachlass usw. bleiben
+ * (Preisdatei direkt beim Angebot ergänzt), die automatisch vorbelegte Vollständigkeitsprüfung außer der Preiszeile ebenfalls.
+ */
+function uebernehmen(d: State, offer: Offer, alt: Offer, nach: string | null, gleich: boolean) {
   d.offers.splice(d.offers.indexOf(alt), 1);
   offer.nr = alt.nr;
   offer.runde = alt.runde;
-  if (alt.ort && !offer.ort) offer.ort = alt.ort;
-  for (const [id, p] of Object.entries(alt.pruef)) if (p.k !== 'auto') offer.pruef[id] = p;
-  for (const u of d.unterlagen) {
-    if (/preise vollständig|gaeb/.test(u.label.toLowerCase()) && alt.pruef[u.id]?.k !== 'user') offer.pruef[u.id] = { s: 'nach', d: '', n: 'Die Preisdatei wurde nachgereicht (Angebot zunächst ohne Preise eingelesen).', k: 'auto' };
+  if (alt.ort && (gleich || !offer.ort)) offer.ort = alt.ort;
+  if (gleich) {
+    Object.assign(offer, { id: alt.id, firma: alt.firma, datum: alt.datum || offer.datum, nachlass: alt.nachlass, nachlassLose: alt.nachlassLose, skonto: alt.skonto, status: alt.status, statusGrund: alt.statusGrund, nebenangebot: alt.nebenangebot, kiDocs: alt.kiDocs, eignung: alt.eignung });
+    if (offer.check && alt.check?.pdf) offer.check = { ...offer.check, pdf: alt.check.pdf };
+    offer.warnungen = [...offer.warnungen, ...alt.warnungen.filter((w) => !ZUORD_WARN.test(w) && !/Keine auswertbaren Preise|GAEB-Datei des Bieters enthält keine Preise|aus dem PDF|Kein Soll-LV/.test(w) && !offer.warnungen.includes(w))];
+  }
+  const preisZeile = (id: string) => PREIS_ZEILE.test(d.unterlagen.find((u) => u.id === id)?.label.toLowerCase() ?? '');
+  for (const [id, p] of Object.entries(alt.pruef)) if (p.k !== 'auto' || (gleich && !preisZeile(id))) offer.pruef[id] = p;
+  if (nach != null) for (const u of d.unterlagen) {
+    if (PREIS_ZEILE.test(u.label.toLowerCase()) && alt.pruef[u.id]?.k !== 'user') offer.pruef[u.id] = { s: 'nach', d: nach, n: alt.preisQuelle === 'pdf' ? 'Die GAEB-Preisdatei wurde nachgereicht (Preise zunächst aus dem PDF gelesen).' : 'Die Preisdatei wurde nachgereicht (Angebot zunächst ohne Preise eingelesen).', k: 'auto' };
   }
   for (const f of alt.dateien) {
     const neu = offer.dateien.find((x) => x.name === f.name);
@@ -148,6 +166,31 @@ function ersetzeOhnePreise(d: State, offer: Offer) {
   }
   offer.nachforderung = [...new Set([...offer.nachforderung, ...alt.nachforderung])];
   pruefNachDateien(d, offer);
+}
+
+/** Bieterpreise unverändert? (dieselbe Preisdatei erneut eingereicht) */
+export const gleichePreise = (offer: Offer, doc: GaebDoc) => {
+  const alt = new Map((offer.bidPos ?? []).map((p) => [ozKey(p.oz), p.ep]));
+  return alt.size > 0 && alt.size === doc.positions.length && doc.positions.every((p) => alt.has(ozKey(p.oz)) && alt.get(ozKey(p.oz)) === p.ep);
+};
+
+/**
+ * GAEB-Preisdatei, die bei einem Angebot unter „Unterlagen“ ergänzt wird. `ersetzen`: Sie liefert die Preise dieses Angebots
+ * (bisher ohne GAEB-Preise oder mit dem Angebot eingereicht); sonst ist sie ein neues Angebot desselben Bieters in der
+ * nächsten Runde (Nachverhandlung). `nach` = nachgereicht am, null = mit dem Angebot.
+ */
+export function preisdateiErgaenzen(d: State, altId: string, parsed: ParsedBid, ersetzen: boolean, nach: string | null) {
+  const alt = d.offers.find((o) => o.id === altId);
+  if (!alt) return;
+  const { offer } = parsed;
+  offer.firma = alt.firma;
+  if (alt.ort) offer.ort = alt.ort;
+  if (ersetzen) { applyOffer(d, parsed, false, { alt, nach }); return; }
+  const k = firmaKey(alt.firma);
+  offer.runde = Math.min(3, Math.max(...d.offers.filter((o) => firmaKey(o.firma) === k).map((o) => o.runde)) + 1) as 2 | 3;
+  if (nach) offer.datum = nach;
+  offer.nr = Math.max(0, ...d.offers.map((o) => o.nr)) + 1;
+  applyOffer(d, parsed);
 }
 
 const ZUORD_WARN = /Ordnungszahl als das Soll-LV|geringer Übereinstimmung|nicht im Soll-LV|des Soll-LV sind in der Bieterdatei nicht bepreist/;

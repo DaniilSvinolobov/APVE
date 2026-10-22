@@ -254,7 +254,7 @@ export function buildVermerk(s: State): Block[] {
   const diff = bud ? (sum / bud - 1) * 100 : null;
   B.push(T('budget', [
     `Im Rahmen des Bauvorhabens „${p.titel || '…'}“ wurden für ${listDe(s.lose.filter((l) => l.imBudget).map((l) => l.nr))} durch Unterzeichner Baukosten in Höhe von brutto ${bud ? fmtEUR(bud) : '[Gesamtbudget angeben]'} ermittelt.`,
-    bw.length ? `${listDe(bw.map((w) => `das Angebot des günstigsten Bieters für ${w.l.nr}, Fa. ${w.c.offer.firma} vom ${fmtDate(w.c.offer.datum)}`)).replace(/^d/, 'D')} ${bw.length > 1 ? 'unterschreiten' : 'unterschreitet'} diese Kostenermittlung${diff != null && diff > 0 ? ' nicht' : diff != null && diff < -10 ? ' deutlich' : ''} (Gesamt, brutto: ${fmtEUR(sum)}).`.replace('unterschreiten diese Kostenermittlung nicht', 'überschreiten diese Kostenermittlung').replace('unterschreitet diese Kostenermittlung nicht', 'überschreitet diese Kostenermittlung') : '',
+    bw.length ? `${listDe(bw.map((w) => `das Angebot des ${w.c.rank === 1 ? 'günstigsten' : 'für den Zuschlag vorgeschlagenen'} Bieters für ${w.l.nr}, Fa. ${w.c.offer.firma} vom ${fmtDate(w.c.offer.datum)}`)).replace(/^d/, 'D')} ${bw.length > 1 ? 'unterschreiten' : 'unterschreitet'} diese Kostenermittlung${diff != null && diff > 0 ? ' nicht' : diff != null && diff < -10 ? ' deutlich' : ''} (Gesamt, brutto: ${fmtEUR(sum)}).`.replace('unterschreiten diese Kostenermittlung nicht', 'überschreiten diese Kostenermittlung').replace('unterschreitet diese Kostenermittlung nicht', 'überschreitet diese Kostenermittlung') : '',
   ].filter(Boolean).join('\n')));
 
   B.push({ t: 'gap' });

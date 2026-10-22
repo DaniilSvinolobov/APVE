@@ -167,12 +167,17 @@ export function buildVermerk(s: State): Block[] {
   const nrs = (os: { nr: number }[]) => [...new Set(os.map((o) => o.nr))].sort((a, b) => a - b).map(String);
   const geprueft = nrs(vLose.flatMap((l) => engereWahl(s, allCells.get(l.id) ?? []).take.map((c) => c.offer)));
   const nichtEinzeln = nrs(vLose.flatMap((l) => engereWahl(s, allCells.get(l.id) ?? []).ranked.map((c) => c.offer))).filter((n) => !geprueft.includes(n));
+  // „aufgrund des Preisrangs“ nur, wenn kein übergangenes Angebot vor einem geprüften liegt (sonst von Hand gewählt)
+  const nachRang = vLose.every((l) => {
+    const { take, ranked } = engereWahl(s, allCells.get(l.id) ?? []);
+    return ranked.every((c) => take.includes(c) || take.every((x) => x.rankAll! < c.rankAll!));
+  });
   B.push(T('festlegungen', [
     formalAus.length
       ? `Aufgrund o.a. Prüfung ${formalAus.length > 1 ? 'wurden die Angebote' : 'wurde das Angebot'} Nr. ${listDe(nrs(formalAus))} von der weiteren Prüfung ausgeschlossen.`
       : 'Aufgrund o.a. Prüfung wurde kein Angebot von der weiteren Prüfung ausgeschlossen.',
     geprueft.length ? `Nachfolgend ${geprueft.length > 1 ? 'werden die Angebote' : 'wird das Angebot'} Nr. ${listDe(geprueft)} technisch und wirtschaftlich geprüft${nichtEinzeln.length ? ' (engere Wahl)' : ''}.` : '',
-    nichtEinzeln.length ? `${nichtEinzeln.length > 1 ? 'Die Angebote' : 'Das Angebot'} Nr. ${listDe(nichtEinzeln)} ${nichtEinzeln.length > 1 ? 'kommen' : 'kommt'} aufgrund des Preisrangs für den Zuschlag nicht in Betracht und ${nichtEinzeln.length > 1 ? 'werden' : 'wird'} nicht einzeln bewertet.` : '',
+    nichtEinzeln.length ? `${nichtEinzeln.length > 1 ? 'Die Angebote' : 'Das Angebot'} Nr. ${listDe(nichtEinzeln)} ${nachRang ? `${nichtEinzeln.length > 1 ? 'kommen' : 'kommt'} aufgrund des Preisrangs für den Zuschlag nicht in Betracht und ` : ''}${nichtEinzeln.length > 1 ? 'werden' : 'wird'} nicht einzeln bewertet.` : '',
     '',
     ...s.offers.filter((o) => !o.status).flatMap((o) => {
       const ps = pruefStatus(s, o);

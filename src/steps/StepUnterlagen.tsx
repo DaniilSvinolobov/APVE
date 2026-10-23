@@ -55,12 +55,12 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         }
         // Ein Fehler bei einem Angebot stoppt die übrigen nicht; nur ein falscher Zugangscode bricht alles ab.
         try {
-          const { results, fehler } = await pruefeAngebot(docs, sRef.current.unterlagen, getCode(), (t) => setKi((k) => ({ ...k, text: `Nr. ${o.nr} ${o.firma}: ${t}` })));
+          const { results, fehler, grund } = await pruefeAngebot(docs, sRef.current.unterlagen, getCode(), (t) => setKi((k) => ({ ...k, text: `Nr. ${o.nr} ${o.firma}: ${t}` })));
           up((d) => applyKi(d, id, results));
-          if (fehler.length) notes.push(`Nr. ${o.nr}: Datei nicht lesbar (bitte manuell ansehen): ${fehler.map((z) => z.split('/').pop()).join(', ')}`);
+          if (fehler.length) notes.push(`Nr. ${o.nr}: Nicht geprüft (bitte manuell ansehen): ${fehler.map((z) => z.split('/').pop()).join(', ')}${grund ? ` – ${grund}` : ''}`);
           const unsicher = results.filter((r) => r.sicherheit === 'niedrig');
           if (unsicher.length) notes.push(`Nr. ${o.nr}: Befund unsicher, bitte selbst prüfen: ${unsicher.map((r) => r.datei.split('/').pop()).join(', ')}`);
-          setInfo('ok', fehler.length ? `${fehler.length} Datei(en) nicht lesbar` : '');
+          setInfo('ok', fehler.length ? `${fehler.length} Datei(en) nicht geprüft: ${fehler.map((z) => z.split('/').pop()).join(', ')}` : '');
           geprueft++;
         } catch (e) {
           if (e instanceof KiError && e.status === 401) throw e;

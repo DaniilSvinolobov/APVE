@@ -9,6 +9,10 @@ import type { KiStatus } from '../ki/kiPruefung';
 
 type Up = (fn: (d: State) => void) => void;
 
+type KiBefund = NonNullable<State['offers'][number]['kiDocs']>[number];
+/** Dokumente, die der Nutzer zuerst ansehen sollte: nicht vollständig ausgefüllt, nicht unterschrieben, unklar oder unsicher. */
+const auffaellig = (k: KiBefund) => k.inhalt !== 'ausgefuellt' || k.unterschrift === 'nein' || k.unterschrift === 'unklar' || k.sicherheit === 'niedrig';
+
 /** Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen: Unterlagen × Angebote. */
 export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: Up; ki: { running: boolean; text: string; error: string }; runKi: (ids: string[]) => void; status: KiStatus | null }) {
   const [codeVal, setCodeVal] = useState('');
@@ -109,11 +113,32 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
       {s.offers.some((o) => o.kiDocs?.length) && (
         <details className="det" style={{ marginTop: 14 }}>
           <summary><b>Befunde je Dokument (Claude)</b></summary>
-          {s.offers.filter((o) => o.kiDocs?.length).map((o) => (
-            <div key={o.id} className="kidocs"><b>Nr. {o.nr} · {o.firma}</b>
-              <ul>{o.kiDocs!.map((k, i) => <li key={i}><span className="muted">{k.datei.split('/').pop()}</span> – {k.art}: <Chip kind={k.inhalt === 'ausgefuellt' ? 'ok' : k.inhalt === 'leer' ? 'bad' : 'warn'}>{k.inhalt === 'ausgefuellt' ? 'ausgefüllt' : k.inhalt}</Chip> <Chip kind={k.unterschrift === 'ja' || k.unterschrift === 'nicht_erforderlich' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'ohne Unterschrift' : 'Unterschrift unklar'}</Chip>{k.sicherheit === 'niedrig' && <> <Chip kind="warn">unsicher – bitte prüfen</Chip></>} {k.bemerkung}{k.handschrift && <div className="muted">Handschrift: {k.handschrift}</div>}</li>)}</ul>
-            </div>
-          ))}
+          {s.offers.filter((o) => o.kiDocs?.length).map((o) => {
+            const docs = [...o.kiDocs!].sort((x, y) => Number(auffaellig(y)) - Number(auffaellig(x)) || x.datei.localeCompare(y.datei, 'de', { numeric: true }));
+            const n = docs.filter(auffaellig).length;
+            return (
+              <div key={o.id} className="kidocs">
+                <div className="kihead"><b>Nr. {o.nr} · {o.firma}</b> <span className="muted">{docs.length} Dokumente</span> {n > 0 ? <Chip kind="warn">{n} auffällig</Chip> : <Chip kind="ok">keine Auffälligkeiten</Chip>}</div>
+                <table className="kitab">
+                  <thead><tr><th>Dokument</th><th>Inhalt</th><th>Unterschrift</th><th>Hinweis</th></tr></thead>
+                  <tbody>
+                    {docs.map((k, i) => (
+                      <tr key={i} className={auffaellig(k) ? 'kiauff' : ''}>
+                        <td className="name">{k.datei.split('/').pop()}<div className="muted">{k.art}</div></td>
+                        <td><Chip kind={k.inhalt === 'ausgefuellt' ? 'ok' : k.inhalt === 'leer' ? 'bad' : 'warn'}>{k.inhalt === 'ausgefuellt' ? 'ausgefüllt' : k.inhalt}</Chip></td>
+                        <td><Chip kind={k.unterschrift === 'ja' || k.unterschrift === 'nicht_erforderlich' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'ohne Unterschrift' : 'unklar'}</Chip></td>
+                        <td>
+                          {k.sicherheit === 'niedrig' && <Chip kind="warn">unsicher – bitte prüfen</Chip>}
+                          {k.bemerkung}
+                          {k.handschrift && <details className="hs"><summary>Handschrift anzeigen</summary>{k.handschrift}</details>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </details>
       )}
       <button className="btn small" style={{ marginTop: 12 }} onClick={() => up((d) => void d.unterlagen.push({ id: uid(), label: '' }))}><Icon name="plus" /> Zeile hinzufügen</button>

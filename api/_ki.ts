@@ -7,7 +7,7 @@
  *   BEDROCK_ACCESS_KEY_ID          Zugangsschlüssel eines IAM-Nutzers, der nur Bedrock aufrufen darf
  *   BEDROCK_SECRET_ACCESS_KEY      zugehöriger geheimer Schlüssel
  *   BEDROCK_REGION                 Standard eu-central-1 (Frankfurt); nur EU-Regionen (eu-…) sind zugelassen
- *   KI_MODEL                       Standard eu.anthropic.claude-opus-5-5 (EU-Inferenzprofil); global./us./… werden abgelehnt
+ *   KI_MODEL                       Standard eu.anthropic.claude-sonnet-4-6 (EU-Inferenzprofil); global./us./… werden abgelehnt
  *   KI_EFFORT                      low | medium | high (Standard high)
  */
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
@@ -19,7 +19,7 @@ export class KonfigFehler extends Error {}
 /** Region und Modell erzwingen die Verarbeitung in der EU; eine Fehlkonfiguration bricht ab, statt Daten außerhalb der EU zu senden. */
 export function kiConfig() {
   const region = process.env.BEDROCK_REGION || 'eu-central-1';
-  const model = process.env.KI_MODEL || 'eu.anthropic.claude-opus-5-5';
+  const model = process.env.KI_MODEL || 'eu.anthropic.claude-sonnet-4-6';
   if (!/^eu-[a-z]+-\d$/.test(region)) throw new KonfigFehler(`BEDROCK_REGION „${region}“ liegt nicht in der EU.`);
   if (/^(global|us|apac|jp|au|ca)\./.test(model)) throw new KonfigFehler(`KI_MODEL „${model}“ würde außerhalb der EU verarbeitet.`);
   const e = process.env.KI_EFFORT;

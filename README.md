@@ -54,8 +54,8 @@ Modell außerhalb der EU liegen würden.
 
 Einrichtung durch den Betreiber (einmalig):
 1. AWS-Konto anlegen, in der Konsole Region **Europe (Frankfurt) eu-central-1** wählen.
-2. *Amazon Bedrock → Model access*: Zugriff auf **Claude Opus 5.5** anfordern.
-3. *Bedrock → Inference profiles*: die ID des **EU**-Profils für Claude Opus 5.5 nachsehen (erwartet `eu.anthropic.claude-opus-5-5`;
+2. *Amazon Bedrock → Model access*: Zugriff auf **Claude Sonnet 4.6** anfordern (stärkere Modelle wie Opus 5.5 nach Bedarf; dann `KI_MODEL` anpassen).
+3. *Bedrock → Inference profiles*: die ID des **EU**-Profils für Claude Sonnet 4.6 nachsehen (erwartet `eu.anthropic.claude-sonnet-4-6`;
    weicht sie ab, als `KI_MODEL` eintragen).
 4. Zugang anlegen: entweder einen **Bedrock-API-Key** erzeugen oder einen IAM-Nutzer, der nur Bedrock aufrufen darf
    (`bedrock-mantle:CreateInference`), mit Zugangsschlüssel.
@@ -67,7 +67,7 @@ Einrichtung durch den Betreiber (einmalig):
 | `BEDROCK_API_KEY` | ja* | Bedrock-API-Key – bleibt auf dem Server |
 | `BEDROCK_ACCESS_KEY_ID`, `BEDROCK_SECRET_ACCESS_KEY` | ja* | *statt des API-Keys: Zugangsschlüssel des IAM-Nutzers |
 | `BEDROCK_REGION` | nein | Standard `eu-central-1`; nur `eu-…` zulässig |
-| `KI_MODEL` | nein | Standard `eu.anthropic.claude-opus-5-5`; Profile `global.`/`us.` u. Ä. werden abgelehnt |
+| `KI_MODEL` | nein | Standard `eu.anthropic.claude-sonnet-4-6`; Profile `global.`/`us.` u. Ä. werden abgelehnt |
 | `KI_EFFORT` | nein | `low`/`medium`/`high` (Standard `high`, gründlichste Prüfung) |
 | `APP_ACCESS_CODE` | empfohlen | Zugangscode; verhindert, dass Fremde auf Ihre Kosten die Funktion nutzen (wird Nutzern einmalig abgefragt) |
 | `ANTHROPIC_API_KEY` | nein | nur für die Internetrecherche in Schritt 4 (Bedrock hat keine Websuche); ohne Key ist sie ausgeschaltet |

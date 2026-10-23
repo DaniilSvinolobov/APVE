@@ -42,18 +42,33 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
     setKi({ running: true, text: 'Dokumente werden geprüft …', error: '' });
     try {
       const notes: string[] = [];
+      let geprueft = 0, gesamt = 0;
       for (const id of offerIds) {
         const o = sRef.current.offers.find((x) => x.id === id);
         if (!o) continue;
+        gesamt++;
+        const setInfo = (s: 'ok' | 'skip' | 'fehler', t: string) => up((d) => { const x = d.offers.find((y) => y.id === id); if (x) x.kiInfo = { s, t }; });
         const docs = offerDocs(o);
-        if (!docs.length) { notes.push(`Nr. ${o.nr}: Originaldateien nicht mehr verfügbar – bitte den Ordner erneut einlesen.`); continue; }
-        const { results, fehler } = await pruefeAngebot(docs, sRef.current.unterlagen, getCode(), (t) => setKi((k) => ({ ...k, text: `Nr. ${o.nr} ${o.firma}: ${t}` })));
-        up((d) => applyKi(d, id, results));
-        if (fehler.length) notes.push(`Nr. ${o.nr}: Datei nicht lesbar (bitte manuell ansehen): ${fehler.map((z) => z.split('/').pop()).join(', ')}`);
-        const unsicher = results.filter((r) => r.sicherheit === 'niedrig');
-        if (unsicher.length) notes.push(`Nr. ${o.nr}: Befund unsicher, bitte selbst prüfen: ${unsicher.map((r) => r.datei.split('/').pop()).join(', ')}`);
+        if (!docs.length) {
+          const t = 'Originaldateien nicht mehr verfügbar – bitte den Ordner erneut einlesen.';
+          notes.push(`Nr. ${o.nr}: ${t}`); setInfo('skip', t); continue;
+        }
+        // Ein Fehler bei einem Angebot stoppt die übrigen nicht; nur ein falscher Zugangscode bricht alles ab.
+        try {
+          const { results, fehler } = await pruefeAngebot(docs, sRef.current.unterlagen, getCode(), (t) => setKi((k) => ({ ...k, text: `Nr. ${o.nr} ${o.firma}: ${t}` })));
+          up((d) => applyKi(d, id, results));
+          if (fehler.length) notes.push(`Nr. ${o.nr}: Datei nicht lesbar (bitte manuell ansehen): ${fehler.map((z) => z.split('/').pop()).join(', ')}`);
+          const unsicher = results.filter((r) => r.sicherheit === 'niedrig');
+          if (unsicher.length) notes.push(`Nr. ${o.nr}: Befund unsicher, bitte selbst prüfen: ${unsicher.map((r) => r.datei.split('/').pop()).join(', ')}`);
+          setInfo('ok', fehler.length ? `${fehler.length} Datei(en) nicht lesbar` : '');
+          geprueft++;
+        } catch (e) {
+          if (e instanceof KiError && e.status === 401) throw e;
+          const t = e instanceof Error ? e.message : String(e);
+          notes.push(`Nr. ${o.nr}: Prüfung fehlgeschlagen – ${t}`); setInfo('fehler', t);
+        }
       }
-      setKi({ running: false, text: 'Prüfung abgeschlossen.', error: notes.join(' · ') });
+      setKi({ running: false, text: `Prüfung abgeschlossen: ${geprueft} von ${gesamt} Angebot(en) geprüft.`, error: notes.join(' · ') });
     } catch (e) {
       if (e instanceof KiError && e.status === 401) setCode('');
       setKi({ running: false, text: '', error: e instanceof Error ? e.message : String(e) });

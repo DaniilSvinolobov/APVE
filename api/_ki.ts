@@ -10,7 +10,7 @@
  *   KI_MODEL                       Standard eu.anthropic.claude-opus-5-5 (EU-Inferenzprofil); global./us./… werden abgelehnt
  *   KI_EFFORT                      low | medium | high (Standard high)
  */
-import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk';
+import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk';
 
 export const kiEnabled = () => !!(process.env.BEDROCK_API_KEY || (process.env.BEDROCK_ACCESS_KEY_ID && process.env.BEDROCK_SECRET_ACCESS_KEY));
 
@@ -27,11 +27,13 @@ export function kiConfig() {
   return { region, model, effort };
 }
 
+/** Bedrock Runtime (wie der Playground): akzeptiert die EU-Inferenzprofile (eu.anthropic.…), auf die auch die Kontingente gelten. */
 export function kiClient(region: string) {
   const apiKey = process.env.BEDROCK_API_KEY;
-  return apiKey
-    ? new AnthropicBedrockMantle({ awsRegion: region, apiKey })
-    : new AnthropicBedrockMantle({ awsRegion: region, awsAccessKey: process.env.BEDROCK_ACCESS_KEY_ID, awsSecretAccessKey: process.env.BEDROCK_SECRET_ACCESS_KEY });
+  if (apiKey) return new AnthropicBedrock({ awsRegion: region, apiKey });
+  const awsAccessKey = process.env.BEDROCK_ACCESS_KEY_ID, awsSecretKey = process.env.BEDROCK_SECRET_ACCESS_KEY;
+  if (awsAccessKey && awsSecretKey) return new AnthropicBedrock({ awsRegion: region, awsAccessKey, awsSecretKey });
+  throw new KonfigFehler('Kein Bedrock-Zugang konfiguriert.');
 }
 
 /** JSON-Objekt aus der Antwort lesen (Bedrock kennt keine erzwungenen Ausgabeformate; ggf. Codeblock oder Begleittext entfernen). */

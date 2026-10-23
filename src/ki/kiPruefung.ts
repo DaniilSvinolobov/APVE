@@ -25,10 +25,13 @@ export function b64(data: Uint8Array): string {
 export class KiError extends Error { constructor(msg: string, public status = 0) { super(msg); } }
 
 /** Dokumente eines Angebots prüfen lassen (Zugang liegt serverseitig, Nutzer brauchen keinen Key). Große Dateien werden in Teile zerlegt. */
-export async function pruefeAngebot(docs: DocFile[], zeilen: { id: string; label: string }[], code: string, onProgress?: (t: string) => void): Promise<{ results: KiDoc[]; fehler: string[] }> {
+export async function pruefeAngebot(docs: DocFile[], zeilen: { id: string; label: string }[], code: string, onProgress?: (t: string) => void): Promise<{ results: KiDoc[]; fehler: string[]; grund: string }> {
   const teile: Teil[] = [];
   const fehler: string[] = [];
+  let grund = '';
   for (const d of docs) {
+    // leere Dateien und Formate, die Claude nicht lesen kann (Word, Excel …), nicht senden – sie würden die ganze Anfrage ablehnen lassen
+    if (!d.data.length || !/\.(pdf|png|jpe?g)$/i.test(d.path)) { fehler.push(d.path); continue; }
     try { teile.push(...(await zerlegen(d))); }
     catch { fehler.push(d.path); }
   }
@@ -43,21 +46,29 @@ export async function pruefeAngebot(docs: DocFile[], zeilen: { id: string; label
   let n = 0;
   for (const batch of batches) {
     onProgress?.(`Teil ${n + 1}–${n + batch.length} von ${teile.length} (${docs.length} Dateien) …`);
-    const r = await fetch('/api/pruefen', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...(code ? { 'x-access-code': code } : {}) },
-      body: JSON.stringify({ docs: batch.map((t) => ({ path: t.label, mime: t.mime, data: b64(t.data) })), zeilen }),
-    });
-    const j = (await r.json().catch(() => ({}))) as { dokumente?: KiDoc[]; error?: string };
-    if (!r.ok) throw new KiError(j.error ?? `Fehler ${r.status}`, r.status);
-    // Befund dem gesendeten Teil zuordnen (über den Namen, sonst über die Reihenfolge) und auf die Originaldatei zurückführen
-    (j.dokumente ?? []).forEach((k, i) => {
-      const t = batch.find((x) => x.label === k.datei) ?? batch.find((x) => x.label.endsWith(k.datei)) ?? batch[i];
-      if (t) roh.push({ ...k, datei: t.datei, bemerkung: t.label !== t.datei ? `${t.label.slice(t.datei.length).trim()} ${k.bemerkung}` : k.bemerkung });
-    });
+    try {
+      const r = await fetch('/api/pruefen', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(code ? { 'x-access-code': code } : {}) },
+        body: JSON.stringify({ docs: batch.map((t) => ({ path: t.label, mime: t.mime, data: b64(t.data) })), zeilen }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { dokumente?: KiDoc[]; error?: string };
+      if (!r.ok) throw new KiError(j.error ?? `Fehler ${r.status}`, r.status);
+      // Befund dem gesendeten Teil zuordnen (über den Namen, sonst über die Reihenfolge) und auf die Originaldatei zurückführen
+      (j.dokumente ?? []).forEach((k, i) => {
+        const t = batch.find((x) => x.label === k.datei) ?? batch.find((x) => x.label.endsWith(k.datei)) ?? batch[i];
+        if (t) roh.push({ ...k, datei: t.datei, bemerkung: t.label !== t.datei ? `${t.label.slice(t.datei.length).trim()} ${k.bemerkung}` : k.bemerkung });
+      });
+    } catch (e) {
+      // Ein gescheiterter Teil soll die übrigen Dateien des Angebots nicht mitreißen; nur ein falscher Zugangscode bricht ab.
+      if (e instanceof KiError && e.status === 401) throw e;
+      fehler.push(...batch.map((t) => t.datei));
+      grund ||= e instanceof Error ? e.message : String(e);
+    }
     n += batch.length;
   }
-  return { results: zusammenfuehren(roh), fehler };
+  if (!roh.length && grund) throw new KiError(grund);
+  return { results: zusammenfuehren(roh), fehler: [...new Set(fehler)], grund };
 }
 
 const SICHER = ['niedrig', 'mittel', 'hoch'] as const;

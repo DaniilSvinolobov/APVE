@@ -110,39 +110,59 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
           </tbody>
         </table>
       </div>
-      {s.offers.some((o) => o.kiDocs?.length) && (
-        <details className="det" style={{ marginTop: 14 }}>
-          <summary><b>Befunde je Dokument (Claude)</b></summary>
-          {s.offers.filter((o) => o.kiDocs?.length).map((o) => {
-            const docs = [...o.kiDocs!].sort((x, y) => Number(auffaellig(y)) - Number(auffaellig(x)) || x.datei.localeCompare(y.datei, 'de', { numeric: true }));
-            const n = docs.filter(auffaellig).length;
-            return (
-              <div key={o.id} className="kidocs">
-                <div className="kihead"><b>Nr. {o.nr} · {o.firma}</b> <span className="muted">{docs.length} Dokumente</span> {n > 0 ? <Chip kind="warn">{n} auffällig</Chip> : <Chip kind="ok">keine Auffälligkeiten</Chip>}</div>
-                <table className="kitab">
-                  <thead><tr><th>Dokument</th><th>Inhalt</th><th>Unterschrift</th><th>Hinweis</th></tr></thead>
-                  <tbody>
-                    {docs.map((k, i) => (
-                      <tr key={i} className={auffaellig(k) ? 'kiauff' : ''}>
-                        <td className="name">{k.datei.split('/').pop()}<div className="muted">{k.art}</div></td>
-                        <td><Chip kind={k.inhalt === 'ausgefuellt' ? 'ok' : k.inhalt === 'leer' ? 'bad' : 'warn'}>{k.inhalt === 'ausgefuellt' ? 'ausgefüllt' : k.inhalt}</Chip></td>
-                        <td><Chip kind={k.unterschrift === 'ja' || k.unterschrift === 'nicht_erforderlich' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'ohne Unterschrift' : 'unklar'}</Chip></td>
-                        <td>
-                          {k.sicherheit === 'niedrig' && <Chip kind="warn">unsicher – bitte prüfen</Chip>}
-                          {k.bemerkung}
-                          {k.handschrift && <details className="hs"><summary>Handschrift anzeigen</summary>{k.handschrift}</details>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-        </details>
-      )}
+      {s.offers.some((o) => o.kiDocs?.length) && <KiBefunde s={s} />}
       <button className="btn small" style={{ marginTop: 12 }} onClick={() => up((d) => void d.unterlagen.push({ id: uid(), label: '' }))}><Icon name="plus" /> Zeile hinzufügen</button>
       <p className="tip" style={{ marginTop: 14 }}><b>Gut zu wissen:</b> Fehlende Erklärungen oder Nachweise dürfen nachgefordert werden, bevor ein Angebot ausgeschlossen wird (§ 16a VOB/A). Ausschlüsse tragen Sie je Los im Schritt „Wertung“ ein.</p>
     </section>
+  );
+}
+
+const byName = (x: KiBefund, y: KiBefund) => x.datei.localeCompare(y.datei, 'de', { numeric: true });
+const inhaltChip = (k: KiBefund) => <Chip kind={k.inhalt === 'ausgefuellt' ? 'ok' : k.inhalt === 'leer' ? 'bad' : 'warn'}>{k.inhalt === 'ausgefuellt' ? 'ausgefüllt' : k.inhalt}</Chip>;
+const unterschriftChip = (k: KiBefund) => <Chip kind={k.unterschrift === 'ja' || k.unterschrift === 'nicht_erforderlich' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'ohne Unterschrift' : 'unklar'}</Chip>;
+
+/** Befunde der KI in der Reihenfolge der Prüfpunkte oben, je Angebot. */
+function KiBefunde({ s }: { s: State }) {
+  const mit = s.offers.filter((o) => o.kiDocs?.length);
+  const [sel, setSel] = useState('');
+  const o = mit.find((x) => x.id === sel) ?? mit[0];
+  if (!o) return null;
+  const docs = o.kiDocs!;
+  const bekannt = new Set(s.unterlagen.map((u) => u.id));
+  const rest = docs.filter((k) => !k.zeilen?.some((z) => bekannt.has(z))).sort(byName);
+  const n = docs.filter(auffaellig).length;
+  const zeile = (k: KiBefund, key: string, erste?: React.ReactNode) => (
+    <tr key={key} className={auffaellig(k) ? 'kiauff' : ''}>
+      {erste}
+      <td className="name">{k.datei.split('/').pop()}<div className="muted">{k.art}</div></td>
+      <td>{inhaltChip(k)}</td>
+      <td>{unterschriftChip(k)}</td>
+      <td>
+        {k.sicherheit === 'niedrig' && <Chip kind="warn">unsicher – bitte prüfen</Chip>}
+        {k.bemerkung}
+        {k.handschrift && <details className="hs"><summary>Handschrift anzeigen</summary>{k.handschrift}</details>}
+      </td>
+    </tr>
+  );
+  return (
+    <details className="det" style={{ marginTop: 14 }} open>
+      <summary><b>Befunde je Dokument (Claude)</b></summary>
+      <div className="row" style={{ margin: '10px 0' }}>
+        {mit.map((x) => <button key={x.id} className={`pill btnpill ${x.id === o.id ? 'on' : ''}`} onClick={() => setSel(x.id)}>Nr. {x.nr} · {x.firma}</button>)}
+      </div>
+      <div className="kihead"><span className="muted">{docs.length} Dokumente</span> {n > 0 ? <Chip kind="warn">{n} auffällig</Chip> : <Chip kind="ok">keine Auffälligkeiten</Chip>}</div>
+      <table className="kitab">
+        <thead><tr><th>Prüfpunkt</th><th>Dokument</th><th>Inhalt</th><th>Unterschrift</th><th>Hinweis</th></tr></thead>
+        <tbody>
+          {s.unterlagen.map((u) => {
+            const ds = docs.filter((k) => k.zeilen?.includes(u.id)).sort(byName);
+            if (!ds.length) return <tr key={u.id} className="kileer"><td className="zeile">{u.label}</td><td colSpan={4}>{o.pruef?.[u.id]?.s === 'entf' ? 'entfällt' : 'kein Dokument zugeordnet'}</td></tr>;
+            return ds.map((k, i) => zeile(k, `${u.id}-${i}`, i === 0 ? <td className="zeile" rowSpan={ds.length}>{u.label}</td> : undefined));
+          })}
+          {rest.length > 0 && <tr className="kirest"><th colSpan={5}>Weitere Dokumente ohne Zuordnung zu einem Prüfpunkt</th></tr>}
+          {rest.map((k, i) => zeile(k, `rest-${i}`, <td />))}
+        </tbody>
+      </table>
+    </details>
   );
 }

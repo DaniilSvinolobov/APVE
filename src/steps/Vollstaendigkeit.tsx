@@ -14,6 +14,9 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
   const [codeVal, setCodeVal] = useState('');
   const needCode = !!status?.code && !getCode();
   const [consent, setConsentState] = useState(hasConsent());
+  // Nach einem abgebrochenen oder teilweise gescheiterten Lauf nur die noch fehlenden Angebote prüfen, nicht wieder alle
+  const offen = s.offers.filter((o) => !(o.kiInfo?.s === 'ok' || o.kiDocs)).map((o) => o.id);
+  const nurOffene = offen.length > 0 && offen.length < s.offers.length;
   const set = (oi: number, id: string, st: PStatus | '') =>
     up((d) => { const o = d.offers[oi]; if (!o.pruef) o.pruef = {}; if (st) o.pruef[id] = { s: st, d: o.pruef[id]?.d ?? '', k: 'user' }; else delete o.pruef[id]; });
   return (
@@ -36,8 +39,8 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
       ) : status?.enabled ? (
         <div className="kibox">
           <div className="row">
-            <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(s.offers.map((o) => o.id))}>
-              <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : 'Dokumente automatisch prüfen (Claude)'}
+            <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(nurOffene ? offen : s.offers.map((o) => o.id))}>
+              <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : nurOffene ? `Noch nicht geprüfte Angebote prüfen (${offen.length})` : 'Dokumente automatisch prüfen (Claude)'}
             </button>
             <span className="muted">Beim Einlesen läuft die Prüfung automatisch: Claude öffnet jede Unterlage, liest auch Handschrift und beurteilt, ob sie ausgefüllt und unterschrieben ist. Unsichere Befunde bleiben offen.</span>
             <button className="link danger" onClick={() => { setConsent(false); setConsentState(false); }}>Prüfung deaktivieren</button>
@@ -69,6 +72,11 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
                       <button className="link" onClick={() => up((d) => { const x = d.offers[oi]; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>Rest = vorhanden</button>
                     </div>
                     {ps.fehlt.length > 0 ? <Chip kind="bad">{ps.fehlt.length} fehlt</Chip> : ps.nurPdf.length > 0 ? <Chip kind="warn">Preise nur als PDF</Chip> : ps.ungeprueft > 0 ? <Chip kind="warn">{ps.ungeprueft} offen</Chip> : <Chip kind="ok">vollständig</Chip>}
+                    {status?.enabled && consent && (o.kiInfo?.s === 'ok' || o.kiDocs
+                      ? <div className="muted" style={{ fontSize: 11, marginTop: 4 }} title={o.kiInfo?.t || undefined}>KI geprüft{o.kiInfo?.t ? ' (mit Hinweis)' : ''}</div>
+                      : o.kiInfo
+                        ? <div style={{ fontSize: 11, marginTop: 4, color: '#b42318' }} title={o.kiInfo.t}>KI: {o.kiInfo.s === 'skip' ? 'übersprungen' : 'Fehler'} – {o.kiInfo.t.slice(0, 80)}</div>
+                        : <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>KI: noch nicht geprüft</div>)}
                   </th>
                 );
               })}

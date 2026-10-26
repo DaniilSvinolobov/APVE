@@ -1,10 +1,10 @@
-import type { PStatus, State } from '../domain/types';
+import type { HsEintrag, PStatus, State } from '../domain/types';
 import { PSTATUS } from '../domain/types';
 import { pruefStatus } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { Chip, Icon } from '../components/ui';
 import { useState } from 'react';
-import { getCode, hasConsent, setCode, setConsent } from '../ki/kiApply';
+import { getCode, hasConsent, mitStempel, setCode, setConsent } from '../ki/kiApply';
 import type { KiStatus } from '../ki/kiPruefung';
 
 type Up = (fn: (d: State) => void) => void;
@@ -118,8 +118,77 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
 }
 
 const byName = (x: KiBefund, y: KiBefund) => x.datei.localeCompare(y.datei, 'de', { numeric: true });
+const kurz = (k: KiBefund) => k.datei.split('/').pop() ?? k.datei;
 const inhaltChip = (k: KiBefund) => <Chip kind={k.inhalt === 'ausgefuellt' ? 'ok' : k.inhalt === 'leer' ? 'bad' : 'warn'}>{k.inhalt === 'ausgefuellt' ? 'ausgefüllt' : k.inhalt}</Chip>;
-const unterschriftChip = (k: KiBefund) => <Chip kind={k.unterschrift === 'ja' || k.unterschrift === 'nicht_erforderlich' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'ohne Unterschrift' : 'unklar'}</Chip>;
+const unterschriftChip = (k: KiBefund) => (
+  <>
+    <Chip kind={k.unterschrift === 'ja' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : k.unterschrift === 'nicht_erforderlich' ? 'info' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'keine Unterschrift nötig' : 'unklar'}</Chip>
+    {k.stempel && <div className="muted" style={{ fontSize: 11 }}>mit Firmenstempel</div>}
+  </>
+);
+
+/**
+ * Leere Vorlage, die durch eine ausgefüllte Fassung ersetzt ist: ein Bieter gibt oft das leere Formblatt der Vergabestelle
+ * zusätzlich zum ausgefüllten ab. Solche Dateien werden nicht gewertet und nicht als auffällig gezählt.
+ * Liefert die Namen der ausgefüllten Dokumente, sonst null (dann bleibt die leere Datei ein echter Befund).
+ */
+function ersetztDurch(k: KiBefund, docs: KiBefund[]): string[] | null {
+  if (!(k.vorlage || k.inhalt === 'leer') || k.unterschrift === 'ja' || !k.zeilen?.length) return null;
+  const voll = (x: KiBefund) => x !== k && !x.vorlage && x.inhalt !== 'leer';
+  const durch = new Set<string>();
+  for (const z of k.zeilen) {
+    const andere = docs.filter((x) => voll(x) && x.zeilen?.includes(z));
+    if (!andere.length) return null;
+    andere.forEach((x) => durch.add(kurz(x)));
+  }
+  // bevorzugt die Fassung nennen, die alle Prüfpunkte der Vorlage abdeckt (z. B. 213.pdf statt jedes unterschriebenen Dokuments)
+  const passend = docs.filter((x) => voll(x) && k.zeilen!.every((z) => x.zeilen?.includes(z))).map(kurz);
+  return passend.length ? passend : [...durch];
+}
+
+/** Handschrift als Liste; ältere Befunde („S. 1: Ort ‚…'; S. 2: …“) werden in Einträge zerlegt. */
+function hsEintraege(h: KiBefund['handschrift']): HsEintrag[] {
+  if (!h) return [];
+  if (Array.isArray(h)) return h;
+  const out: HsEintrag[] = [];
+  let seite: number | undefined;
+  for (const teil of h.split(/;\s*/)) {
+    const m = /^\s*S\.\s*(\d+)\s*:\s*(.*)$/s.exec(teil);
+    if (m) seite = Number(m[1]);
+    const rest = (m ? m[2] : teil).trim();
+    if (!rest) continue;
+    const f = /^([^‚'"„]{1,40}?)\s+[‚'"„](.*?)['‘"“]?$/s.exec(rest);
+    out.push(f ? { seite, feld: f[1].trim(), wert: f[2].trim() } : { seite, feld: '', wert: rest });
+  }
+  return out;
+}
+
+/** Handschriftliche Eintragungen übersichtlich: je Seite eine Gruppe, je Eintrag Feld und Wert. */
+function Handschrift({ h }: { h: KiBefund['handschrift'] }) {
+  const es = hsEintraege(h);
+  if (!es.length) return null;
+  const seiten = [...new Set(es.map((e) => e.seite ?? 0))].sort((a, b) => a - b);
+  return (
+    <details className="hs">
+      <summary>Handschrift anzeigen ({es.length} {es.length === 1 ? 'Eintragung' : 'Eintragungen'})</summary>
+      <table className="hstab">
+        <colgroup><col className="s" /><col className="f" /><col /></colgroup>
+        <tbody>
+          {seiten.flatMap((sn) => {
+            const auf = es.filter((e) => (e.seite ?? 0) === sn);
+            return auf.map((e, i) => (
+              <tr key={`${sn}-${i}`} className={i === 0 ? 'neu' : ''}>
+                {i === 0 && <th rowSpan={auf.length}>{sn ? `S. ${sn}` : '–'}</th>}
+                <td className="feld">{e.feld || '–'}</td>
+                <td>{e.wert}</td>
+              </tr>
+            ));
+          })}
+        </tbody>
+      </table>
+    </details>
+  );
+}
 
 /** Befunde der KI in der Reihenfolge der Prüfpunkte oben, je Angebot. */
 function KiBefunde({ s }: { s: State }) {
@@ -127,20 +196,23 @@ function KiBefunde({ s }: { s: State }) {
   const [sel, setSel] = useState('');
   const o = mit.find((x) => x.id === sel) ?? mit[0];
   if (!o) return null;
-  const docs = o.kiDocs!;
+  const docs = o.kiDocs!.map(mitStempel);
   const bekannt = new Set(s.unterlagen.map((u) => u.id));
-  const rest = docs.filter((k) => !k.zeilen?.some((z) => bekannt.has(z))).sort(byName);
-  const n = docs.filter(auffaellig).length;
+  const ersetzt = new Map(docs.flatMap((k) => { const d = ersetztDurch(k, docs); return d ? [[k, d] as const] : []; }));
+  const aktiv = docs.filter((k) => !ersetzt.has(k));
+  const rest = aktiv.filter((k) => !k.zeilen?.some((z) => bekannt.has(z))).sort(byName);
+  const n = aktiv.filter(auffaellig).length;
   const zeile = (k: KiBefund, key: string, erste?: React.ReactNode) => (
-    <tr key={key} className={auffaellig(k) ? 'kiauff' : ''}>
+    <tr key={key} className={ersetzt.has(k) ? 'kivorlage' : auffaellig(k) ? 'kiauff' : ''}>
       {erste}
-      <td className="name">{k.datei.split('/').pop()}<div className="muted">{k.art}</div></td>
+      <td className="name">{kurz(k)}<div className="muted">{k.art}</div></td>
       <td>{inhaltChip(k)}</td>
       <td>{unterschriftChip(k)}</td>
       <td>
         {k.sicherheit === 'niedrig' && <Chip kind="warn">unsicher – bitte prüfen</Chip>}
+        {ersetzt.has(k) && <Chip kind="info">leere Vorlage – ersetzt durch {ersetzt.get(k)!.join(', ')}</Chip>}
         {k.bemerkung}
-        {k.handschrift && <details className="hs"><summary>Handschrift anzeigen</summary>{k.handschrift}</details>}
+        <Handschrift h={k.handschrift} />
       </td>
     </tr>
   );
@@ -150,17 +222,19 @@ function KiBefunde({ s }: { s: State }) {
       <div className="row" style={{ margin: '10px 0' }}>
         {mit.map((x) => <button key={x.id} className={`pill btnpill ${x.id === o.id ? 'on' : ''}`} onClick={() => setSel(x.id)}>Nr. {x.nr} · {x.firma}</button>)}
       </div>
-      <div className="kihead"><span className="muted">{docs.length} Dokumente</span> {n > 0 ? <Chip kind="warn">{n} auffällig</Chip> : <Chip kind="ok">keine Auffälligkeiten</Chip>}</div>
+      <div className="kihead"><span className="muted">{aktiv.length} Dokumente{ersetzt.size > 0 && ` (+ ${ersetzt.size} leere ${ersetzt.size === 1 ? 'Vorlage' : 'Vorlagen'})`}</span> {n > 0 ? <Chip kind="warn">{n} auffällig</Chip> : <Chip kind="ok">keine Auffälligkeiten</Chip>}</div>
       <table className="kitab">
         <thead><tr><th>Prüfpunkt</th><th>Dokument</th><th>Inhalt</th><th>Unterschrift</th><th>Hinweis</th></tr></thead>
         <tbody>
           {s.unterlagen.map((u) => {
-            const ds = docs.filter((k) => k.zeilen?.includes(u.id)).sort(byName);
+            const ds = aktiv.filter((k) => k.zeilen?.includes(u.id)).sort(byName);
             if (!ds.length) return <tr key={u.id} className="kileer"><td className="zeile">{u.label}</td><td colSpan={4}>{o.pruef?.[u.id]?.s === 'entf' ? 'entfällt' : 'kein Dokument zugeordnet'}</td></tr>;
             return ds.map((k, i) => zeile(k, `${u.id}-${i}`, i === 0 ? <td className="zeile" rowSpan={ds.length}>{u.label}</td> : undefined));
           })}
           {rest.length > 0 && <tr className="kirest"><th colSpan={5}>Weitere Dokumente ohne Zuordnung zu einem Prüfpunkt</th></tr>}
           {rest.map((k, i) => zeile(k, `rest-${i}`, <td />))}
+          {ersetzt.size > 0 && <tr className="kirest"><th colSpan={5}>Leere Vorlagen der Vergabeunterlagen – durch ausgefüllte Fassung ersetzt, nicht gewertet</th></tr>}
+          {[...ersetzt.keys()].sort(byName).map((k, i) => zeile(k, `vorl-${i}`, <td />))}
         </tbody>
       </table>
     </details>

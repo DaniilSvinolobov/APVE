@@ -16,6 +16,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [onlyAuff, setOnlyAuff] = useState(false);
   const [basis, setBasis] = useState<'min' | 'schaetz' | 'beide'>('min');
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const cellsAll = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
   if (!los) return <section className="card"><h2>Preisspiegel</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden (Schritt 2).</p></section>;
@@ -103,6 +104,14 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
     downloadCsv(`Preisspiegel_${los.nr}_Runde${rd}.csv`, [head, ...rows]);
   };
 
+  /* PDF wird im Browser erzeugt; Modul erst bei Bedarf laden */
+  const exportPdf = async () => {
+    setPdfBusy(true);
+    try { const { downloadPreisspiegelPdf } = await import('../storage/preisspiegelPdf'); await downloadPreisspiegelPdf(s, los, rd, basis); }
+    catch (e) { alert(`PDF konnte nicht erstellt werden: ${e instanceof Error ? e.message : e}`); }
+    finally { setPdfBusy(false); }
+  };
+
   /* Positionen der Bieter, die im Soll-LV nicht stehen: eine Zeile je Position, gleiche Texte verschiedener Bieter stehen in einer Zeile */
   const normTxt = (t: string) => t.toLowerCase().replace(/[^a-z0-9äöüß]+/g, ' ').trim();
   const zRows = new Map<string, { oz: string; kurz: string; einheit: string; menge: number | null; per: Map<string, (typeof cells)[number]['zusatz'][number]> }>();
@@ -140,6 +149,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
           <div><h2>Preisspiegel</h2><p className="lead">Titel anklicken für Einzelpositionen; Einheitspreise lassen sich direkt korrigieren.</p></div>
           <div className="row">
             <button className="btn" onClick={exportCsv}><Icon name="download" /> Excel (CSV)</button>
+            <button className="btn" onClick={exportPdf} disabled={pdfBusy || cells.length === 0}><Icon name="download" /> {pdfBusy ? 'PDF wird erstellt …' : 'PDF'}</button>
           </div>
         </div>
         <Tabs value={los.id} onChange={setLosId} items={s.lose.map((l) => ({ value: l.id, label: l.nr, sub: l.name }))} />

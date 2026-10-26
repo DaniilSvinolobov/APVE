@@ -377,3 +377,14 @@ select.pst.pdf{background:var(--warn-l);border-color:#f3d28a}
 .eignung .hinweise{margin:6px 0;padding-left:20px;font-size:13px}
 .eignung .quellen a{margin-right:12px;word-break:break-all}
 .eignung .small{font-size:12px;margin:0}
+
+/* Befunde je Dokument (KI) */
+.kidocs{margin-top:14px}.kihead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+table.kitab th,table.kitab td{text-align:left;vertical-align:top;font-size:12.5px}
+table.kitab th{color:var(--muted);font-weight:600}
+table.kitab tr.kiauff td{background:#fffaf0}
+table.kitab td.name{font-weight:600;word-break:break-word;min-width:160px;max-width:260px}table.kitab td.name .muted{font-weight:400}
+table.kitab details.hs{margin-top:4px}table.kitab details.hs summary{cursor:pointer;color:var(--muted);font-size:12px}
+table.kitab td.zeile{background:#f7f9ff;font-weight:600;min-width:170px;border-right:1px solid var(--line2)}
+table.kitab tr.kileer td{color:var(--muted);font-size:12px;padding-top:5px;padding-bottom:5px}
+table.kitab tr.kirest th{background:#f2f4f8;color:var(--muted);font-size:12px}

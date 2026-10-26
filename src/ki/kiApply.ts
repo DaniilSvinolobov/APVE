@@ -18,7 +18,7 @@ export function applyKi(d: State, offerId: string, results: KiDoc[]) {
   const o = d.offers.find((x) => x.id === offerId);
   if (!o) return;
   if (!o.pruef) o.pruef = {};
-  o.kiDocs = results.map((r) => ({ datei: r.datei, art: r.art, inhalt: r.inhalt, unterschrift: r.unterschrift, handschrift: r.handschrift, sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
+  o.kiDocs = results.map((r) => ({ datei: r.datei, art: r.art, zeilen: r.zeilen, inhalt: r.inhalt, unterschrift: r.unterschrift, handschrift: r.handschrift, sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
   const best: Record<string, { s: PStatus; n: string }> = {};
   for (const r of results) {
     if (r.sicherheit === 'niedrig') continue; // unsichere Befunde nicht eintragen – die Zeile bleibt offen und wird von Hand geprüft

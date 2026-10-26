@@ -50,6 +50,9 @@ export interface Eignung {
   recherche?: { text: string; quellen: { url: string; titel: string }[]; stand: string };
 }
 
+/** Handschriftliche Eintragung in einem Dokument (Befund der KI-Prüfung). */
+export interface HsEintrag { seite?: number; feld: string; wert: string }
+
 export interface Offer {
   id: string;
   nr: number; // Angebot Nr.
@@ -67,7 +70,7 @@ export interface Offer {
   prices: Record<string, PriceEntry>; // [OZ ohne Punkte]
   summen: Record<string, number | null>; // [losId] netto, wenn ohne LV erfasst
   pruef: Record<string, { s: PStatus; d: string; n?: string; k?: 'auto' | 'ki' | 'user' }>; // Vollständigkeitsprüfung [Zeilen-ID]; n = Hinweis, k = Quelle
-  kiDocs?: { datei: string; art: string; zeilen?: string[]; inhalt: string; unterschrift: string; handschrift?: string; sicherheit?: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI)
+  kiDocs?: { datei: string; art: string; zeilen?: string[]; vorlage?: boolean; inhalt: string; unterschrift: string; stempel?: boolean; handschrift?: string | HsEintrag[]; sicherheit?: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI); handschrift als Text = ältere Prüfung
   kiInfo?: { s: 'ok' | 'skip' | 'fehler'; t: string }; // Stand der letzten KI-Prüfung dieses Angebots (geprüft / übersprungen / Fehler)
   eignung?: Eignung; // Referenzauswertung und Recherche (KI, optional)
   textErg: { oz: string; text: string }[];

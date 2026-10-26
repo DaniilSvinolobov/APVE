@@ -388,3 +388,9 @@ table.kitab details.hs{margin-top:4px}table.kitab details.hs summary{cursor:poin
 table.kitab td.zeile{background:#f7f9ff;font-weight:600;min-width:170px;border-right:1px solid var(--line2)}
 table.kitab tr.kileer td{color:var(--muted);font-size:12px;padding-top:5px;padding-bottom:5px}
 table.kitab tr.kirest th{background:#f2f4f8;color:var(--muted);font-size:12px}
+table.kitab tr.kivorlage td{color:var(--muted)}table.kitab tr.kivorlage td.name{font-weight:400}
+table.hstab{border-collapse:collapse;margin-top:6px;width:100%;font-size:12px}
+table.hstab th,table.hstab td{padding:3px 8px 3px 0;border:0;vertical-align:top;text-align:left}
+table.hstab tr.neu th,table.hstab tr.neu td{border-top:1px solid var(--line2)}
+table.hstab th{color:var(--muted);font-weight:600;white-space:nowrap;width:1%}
+table.hstab td.feld{color:var(--muted);white-space:nowrap;width:1%;max-width:180px}

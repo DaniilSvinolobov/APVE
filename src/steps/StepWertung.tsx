@@ -25,7 +25,8 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 
   const detail: Cell[] = [];
   const hrl = cells.length ? Math.min(...cells.map((c) => c.offer.runde)) : 1;
-  const first = engereWahl(s, cells).take;
+  const ew = engereWahl(s, cells);
+  const first = ew.take;
   detail.push(...first, ...cells.filter((c) => c.offer.runde > hrl && c.rankAll).sort((a, b) => a.offer.runde - b.offer.runde || a.rankAll! - b.rankAll!));
 
   return (
@@ -108,6 +109,31 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
               {eligible.map((c) => <option key={c.offer.id} value={c.offer.id}>Nr. {c.offer.nr} · {c.offer.firma} ({c.offer.runde === 1 ? 'Haupt' : 'NV'})</option>)}
             </select>
           </label>
+        </section>
+      )}
+
+      {ew.ranked.length > 1 && (
+        <section className="card">
+          <div className="row"><h2>Im Vermerk einzeln geprüfte Angebote</h2>
+            {ew.manuell && <button className="btn small ghost" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Automatisch wählen</button>}
+          </div>
+          <p className="lead">{ew.manuell ? 'Von Hand gewählt.' : `Automatisch: die ${Math.max(1, s.project.engereWahl)} günstigsten Angebote${s.zuschlag[los.id] ? ' und der abweichend gewählte Zuschlagsempfänger' : ''}.`} Diese Bieter erhalten in Abschnitt 4 einen eigenen Prüfungstext; die übrigen werden nur genannt.</p>
+          <div className="stack">
+            {ew.ranked.map((c) => {
+              const on = ew.take.includes(c);
+              return (
+                <label className="mini big" key={c.offer.id}>
+                  <input type="checkbox" checked={on} disabled={on && ew.take.length === 1} onChange={(e) => up((d) => {
+                    const ids = ew.take.map((x) => x.offer.id).filter((id) => id !== c.offer.id);
+                    if (e.target.checked) ids.push(c.offer.id);
+                    d.engere = { ...(d.engere ?? {}), [los.id]: ids };
+                  })} />
+                  Rang {c.rankAll} · Nr. {c.offer.nr} · {c.offer.firma} <span className="muted">({fmtEur(c.gross)} brutto{c.excluded ? ', ausgeschlossen' : ''})</span>
+                </label>
+              );
+            })}
+          </div>
+          {win && win.offer.runde === hrl && !ew.take.includes(win) && <FlagList items={[{ kind: 'warn', text: `Der vorgeschlagene Zuschlagsempfänger ${win.offer.firma} ist nicht ausgewählt – im Vermerk fehlt dann die Begründung.` }]} />}
         </section>
       )}
 

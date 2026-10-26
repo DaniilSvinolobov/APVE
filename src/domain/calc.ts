@@ -208,12 +208,18 @@ export function finalRound(cells: Cell[]): number {
   return r.length ? Math.max(...r) : Math.max(1, ...cells.map((c) => c.offer.runde));
 }
 
-/** Angebote der ersten Runde, die einzeln technisch und wirtschaftlich geprüft werden (engere Wahl): nach Submissionsrang, ohne zurückgezogene und formal ausgeschlossene. */
-export function engereWahl(s: State, cells: Cell[]): { take: Cell[]; ranked: Cell[] } {
-  if (!cells.length) return { take: [], ranked: [] };
+/** Angebote der ersten Runde, die einzeln technisch und wirtschaftlich geprüft werden (engere Wahl): nach Submissionsrang, ohne zurückgezogene und formal ausgeschlossene.
+ *  Automatisch die ersten N (Projekteinstellung) und ein abweichend gewählter Zuschlagsempfänger; sonst die von Hand gewählten Angebote (manuell = true). */
+export function engereWahl(s: State, cells: Cell[]): { take: Cell[]; ranked: Cell[]; manuell: boolean } {
+  if (!cells.length) return { take: [], ranked: [], manuell: false };
   const hr = Math.min(...cells.map((c) => c.offer.runde));
   const ranked = cells.filter((c) => c.offer.runde === hr && c.rankAll && !c.offer.status).sort((a, b) => a.rankAll! - b.rankAll!);
-  return { take: ranked.slice(0, Math.max(1, s.project.engereWahl)), ranked };
+  const losId = cells[0].los.id;
+  const wahl = s.engere?.[losId];
+  const manuell = wahl ? ranked.filter((c) => wahl.includes(c.offer.id)) : [];
+  if (manuell.length) return { take: manuell, ranked, manuell: true };
+  const forced = s.zuschlag[losId];
+  return { take: ranked.filter((c, i) => i < Math.max(1, s.project.engereWahl) || c.offer.id === forced), ranked, manuell: false };
 }
 
 export function zuschlagCell(s: State, los: Los, cells: Cell[]): Cell | undefined {

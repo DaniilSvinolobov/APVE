@@ -137,6 +137,7 @@ export interface State {
   bew: Record<string, Bew>;
   texte: Record<string, string>;
   zuschlag: Record<string, string>; // [losId] -> offerId ('' = automatisch)
+  engere?: Record<string, string[]>; // [losId] -> offerIds der im Vermerk einzeln geprüften Angebote (erste Runde); fehlt = automatisch
   nvGrund?: Record<string, string>; // [losId] Anlass der Nachverhandlung (Text für den Vermerk)
   anlagen: Anlage[];
   logo: string; // data-URL

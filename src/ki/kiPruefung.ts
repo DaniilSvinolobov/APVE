@@ -87,9 +87,11 @@ function zusammenfuehren(roh: KiDoc[]): KiDoc[] {
       datei: ks[0].datei,
       art: ks[0].art,
       zeilen: [...new Set(ks.flatMap((k) => k.zeilen))],
+      vorlage: ks.every((k) => k.vorlage),
       inhalt,
       unterschrift,
-      handschrift: ks.map((k) => k.handschrift).filter(Boolean).join('; '),
+      stempel: ks.some((k) => k.stempel),
+      handschrift: ks.flatMap((k) => k.handschrift ?? []),
       sicherheit: SICHER[Math.min(...ks.map((k) => SICHER.indexOf(k.sicherheit ?? 'niedrig')))],
       bemerkung: ks.map((k) => k.bemerkung).filter(Boolean).join(' · '),
     };

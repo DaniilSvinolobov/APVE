@@ -13,8 +13,12 @@ export interface KiDoc { datei: string; art: string; zeilen: string[]; vorlage?:
 
 const rankS: Record<PStatus, number> = { ok: 5, nach: 4, teil: 3, unsign: 2, leer: 1, fehlt: 0, entf: -1, pdf: 0 };
 
+/** Ein Firmenstempel gilt als Zeichnung (auch für Befunde älterer Prüfungen, in denen das noch nicht galt). */
+export const mitStempel = <T extends { stempel?: boolean; unterschrift: string }>(k: T): T => (k.stempel && k.unterschrift !== 'ja' ? { ...k, unterschrift: 'ja' } : k);
+
 /** Überträgt KI-Befunde in die Vollständigkeitstabelle (Eintragungen des Nutzers bleiben unangetastet). */
-export function applyKi(d: State, offerId: string, results: KiDoc[]) {
+export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
+  const results = roh.map(mitStempel);
   const o = d.offers.find((x) => x.id === offerId);
   if (!o) return;
   if (!o.pruef) o.pruef = {};

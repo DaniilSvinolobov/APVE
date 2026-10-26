@@ -55,9 +55,9 @@ export function EignungKi({ s, up, o, b, setBew, ctx }: { s: State; up: Up; o: O
     setBusy(art); setMsg(null);
     try {
       if (art === 'referenzen') {
-        const { ergebnis, ausgelassen } = await referenzenAuswerten(s, o, getCode());
+        const { ergebnis, ausgelassen, grund } = await referenzenAuswerten(s, o, getCode());
         up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) x.eignung = { ...x.eignung, referenzen: ergebnis }; });
-        setMsg({ ok: true, text: `${ergebnis.liste.length} Referenz(en) ausgewertet.${ausgelassen.length ? ` Nicht lesbar, bitte manuell prüfen: ${ausgelassen.join(', ')}.` : ''}` });
+        setMsg({ ok: !ausgelassen.length, text: `${ergebnis.liste.length} Referenz(en) ausgewertet.${ausgelassen.length ? ` Nicht ausgewertet, bitte manuell prüfen: ${ausgelassen.join(', ')}${grund ? ` (${grund})` : ''}.` : ''}` });
       } else {
         const r = await recherchieren(s, o, getCode());
         up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) x.eignung = { ...x.eignung, recherche: r }; });
@@ -85,6 +85,7 @@ export function EignungKi({ s, up, o, b, setBew, ctx }: { s: State; up: Up; o: O
         )}
         {text && <button className="btn primary" disabled={b.qualifikation.includes(text)} onClick={() => setBew({ qualifikation: b.qualifikation.trim() ? `${b.qualifikation.trim()}\n${text}` : text })}><Icon name="arrow" /> In „Qualifikation / Referenzen“ übernehmen</button>}
       </div>
+      {ctx.consent.referenzen && !docs.length && <p className="muted small">Keine Referenzunterlagen im Arbeitsspeicher. Dateien mit „Referenz“ im Namen (oder von der KI-Dokumentprüfung als Referenz erkannte) werden ausgewertet – nach einem Neuladen der Seite den Angebotsordner in Schritt 2 erneut laden.</p>}
       {msg && <p className={msg.ok ? 'okbox slim' : 'warnbox slim'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
 
       {e?.referenzen && (

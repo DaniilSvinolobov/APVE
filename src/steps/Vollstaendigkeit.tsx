@@ -4,7 +4,7 @@ import { pruefStatus } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { Chip, Icon } from '../components/ui';
 import { useState } from 'react';
-import { getCode, hasConsent, setCode, setConsent } from '../ki/kiApply';
+import { getCode, hasConsent, mitStempel, setCode, setConsent } from '../ki/kiApply';
 import type { KiStatus } from '../ki/kiPruefung';
 
 type Up = (fn: (d: State) => void) => void;
@@ -172,6 +172,7 @@ function Handschrift({ h }: { h: KiBefund['handschrift'] }) {
     <details className="hs">
       <summary>Handschrift anzeigen ({es.length} {es.length === 1 ? 'Eintragung' : 'Eintragungen'})</summary>
       <table className="hstab">
+        <colgroup><col className="s" /><col className="f" /><col /></colgroup>
         <tbody>
           {seiten.flatMap((sn) => {
             const auf = es.filter((e) => (e.seite ?? 0) === sn);
@@ -195,7 +196,7 @@ function KiBefunde({ s }: { s: State }) {
   const [sel, setSel] = useState('');
   const o = mit.find((x) => x.id === sel) ?? mit[0];
   if (!o) return null;
-  const docs = o.kiDocs!;
+  const docs = o.kiDocs!.map(mitStempel);
   const bekannt = new Set(s.unterlagen.map((u) => u.id));
   const ersetzt = new Map(docs.flatMap((k) => { const d = ersetztDurch(k, docs); return d ? [[k, d] as const] : []; }));
   const aktiv = docs.filter((k) => !ersetzt.has(k));

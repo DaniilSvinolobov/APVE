@@ -74,7 +74,8 @@ export default async function handler(req: Req, res: Res) {
     if (e instanceof KonfigFehler) return res.status(500).json({ error: `KI-Konfiguration: ${e.message}` });
     if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return res.status(500).json({ error: 'KI-Zugang des Betreibers ist ungültig oder ohne Berechtigung.' });
     if (e instanceof Anthropic.RateLimitError) return res.status(429).json({ error: 'KI-Limit erreicht – bitte später erneut versuchen.' });
-    if (e instanceof Anthropic.APIError) return res.status(502).json({ error: `KI-Fehler (${e.status}).` });
+    if (e instanceof Anthropic.APIError) return res.status(502).json({ error: `KI-Fehler (${e.status}): ${e.message.slice(0, 200)}` });
+    console.error('eignung:', e instanceof Error ? e.message : e); // nur die Fehlermeldung, keine Dokumentinhalte
     return res.status(500).json({ error: 'Antwort der Prüfung war nicht lesbar.' });
   }
 }
@@ -109,6 +110,7 @@ async function referenzen(raw: unknown, lose: string[]) {
     messages: [{ role: 'user', content }],
   });
   if (r.stop_reason === 'refusal') throw new Eingabe('Die Auswertung wurde von Claude abgelehnt. Bitte manuell prüfen.', 422);
+  if (r.stop_reason === 'max_tokens') throw new Eingabe('Die Antwort war zu lang (zu viele Referenzen in einer Anfrage). Bitte die Referenzunterlagen aufteilen.', 422);
   const text = r.content.filter((x): x is Anthropic.TextBlock => x.type === 'text').map((x) => x.text).join('');
   const j = jsonAus(text) as { referenzen?: unknown; hinweise?: unknown; fazit?: unknown };
   const liste = Array.isArray(j.referenzen) ? (j.referenzen as Record<string, unknown>[]) : [];

@@ -119,7 +119,7 @@ tr:hover .pos-tools,.pos-tools:focus-within{opacity:1}
 .preis tbody tr:not(.titel):hover td{background:#fafbfe}
 /* Markierungen – je Bedeutung eine eigene Farbe (siehe Legende) */
 td.low{background:var(--ok-l)!important;color:#067a53!important}
-td.high,td.high input.epin{color:#7c3aed!important;font-style:italic}
+td.high,td.high input.epin{color:#7c3aed!important;font-style:italic}td.high input{font-style:normal}
 td.out .pct{color:var(--warn);font-weight:700}
 td.out .pct::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#f59e0b;margin-right:4px;vertical-align:1px}
 td.mabw{box-shadow:inset 3px 0 0 #3b82f6}
@@ -362,7 +362,8 @@ select.pst.teil{background:var(--warn-l);border-color:#f3d28a}select.pst.unsign{
 
 .foot{text-align:center;color:var(--muted);font-size:12.5px;padding:0 0 28px}.foot a{color:var(--muted)}
 .stepno{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;font-size:14px;margin-right:8px;vertical-align:2px}
-.numwrap.berechnet input{font-style:italic}
+/* Kursiv wird im Eingabefeld rechts abgeschnitten – berechnete Werte daher grau statt kursiv */
+.numwrap.berechnet input{color:var(--muted)}
 .preis .ref{background:#f9fafc;color:var(--muted)}
 .pct{display:block;font-size:10.5px;line-height:1.2;color:var(--muted);font-weight:400}
 

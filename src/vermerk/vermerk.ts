@@ -1,5 +1,5 @@
 import type { Los, State } from '../domain/types';
-import { angemessenheit, auffaelligkeiten, computeLos, eignungsNachweis, engereWahl, finalRound, getBew, kostenOf, nuOf, offerBrutto, pruefStatus, schaetzSumme, unterlageZeile, zuschlagCell, type Cell } from '../domain/calc';
+import { angemessenheit, bieterPq, auffaelligkeiten, computeLos, eignungsNachweis, engereWahl, finalRound, getBew, kostenOf, nuOf, offerBrutto, pruefStatus, schaetzSumme, unterlageZeile, zuschlagCell, type Cell } from '../domain/calc';
 import { PSTATUS, type Nachunternehmer, type Offer } from '../domain/types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
 import { kmFuerVermerk } from '../geo/entfernung';
@@ -333,7 +333,8 @@ export function offeneUnterlagen(s: State, o: Offer): string[] {
 const faName = (f: string) => (/^(Fa\.|Firma)\s/i.test(f) || /büro|^Ing/i.test(f) ? f : `Fa. ${f}`);
 const nuZeile = (x: Nachunternehmer) => {
   const det = [x.leistung.trim(), x.oz.trim() ? `OZ ${x.oz.trim()}` : ''].filter(Boolean).join(', ');
-  return `- ${x.firma.trim() ? faName(x.firma.trim()) : '[Unternehmen angeben]'}${det ? ` (${det})` : ''}${x.art === 'beide' ? '; der Bieter beruft sich insoweit auch auf dessen Kapazitäten (VVB 235)' : ''}`;
+  const pq = x.pq?.trim() ? `, präqualifiziert unter der Nr. ${x.pq.trim()}` : '';
+  return `- ${x.firma.trim() ? faName(x.firma.trim()) : '[Unternehmen angeben]'}${det ? ` (${det}${pq})` : pq ? ` (${pq.slice(2)})` : ''}${x.art === 'beide' ? '; der Bieter beruft sich insoweit auch auf dessen Kapazitäten (VVB 235)' : ''}`;
 };
 
 /** Abschnitt „Nachweise und Eignungsprüfung“ für ein Angebot: Eignungsnachweis und Nachunternehmereinsatz. */
@@ -342,7 +343,7 @@ export function eignungText(s: State, o: Offer): string {
   const eg = eignungsNachweis(s, o);
   const z124 = unterlageZeile(s, '124');
   const nach = z124 && o.pruef?.[z124.id]?.s === 'nach' ? o.pruef[z124.id].d : null;
-  if (eg === 'pq') L.push(`Der Bieter ist präqualifiziert unter der Nr. ${o.pq!.trim()}.`);
+  if (eg === 'pq') L.push(`Der Bieter ist präqualifiziert unter der Nr. ${bieterPq(o)}.`);
   else if (eg === '124') L.push(`Der Bieter hat mit dem Dokument Eigenerklärung zur Eignung (VVB 124) den Eignungsnachweis erbracht${nach != null ? ` (nachgereicht${nach ? ` am ${fmtDate(nach)}` : ''})` : ''}.`);
   else L.push('Ein Eignungsnachweis (Präqualifikation oder Eigenerklärung zur Eignung, VVB 124) wurde nicht festgestellt. [bitte prüfen]');
   const nu = nuOf(s, o);

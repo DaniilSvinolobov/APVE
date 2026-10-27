@@ -57,7 +57,7 @@ export interface RechercheProfil {
 
 /** Nachunternehmer (VVB 233) bzw. Unternehmen, auf deren Kapazitäten sich der Bieter beruft (VVB 235). */
 /** art: nu = VVB 233, kapazitaet = VVB 235, beide = dasselbe Unternehmen für dieselbe Leistung in 233 und 235. */
-export interface Nachunternehmer { oz: string; leistung: string; firma: string; art?: 'nu' | 'kapazitaet' | 'beide' }
+export interface Nachunternehmer { oz: string; leistung: string; firma: string; art?: 'nu' | 'kapazitaet' | 'beide'; pq?: string } // pq = Präqualifikation dieses Unternehmens
 
 /** Handschriftliche Eintragung in einem Dokument (Befund der KI-Prüfung). */
 export interface HsEintrag { seite?: number; feld: string; wert: string }

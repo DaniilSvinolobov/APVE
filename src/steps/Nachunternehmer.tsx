@@ -1,5 +1,5 @@
 import type { Nachunternehmer, Offer, State } from '../domain/types';
-import { eignungsNachweis, nuOf } from '../domain/calc';
+import { eignungsNachweis, nuOf, pqFremd } from '../domain/calc';
 import { Chip, Icon } from '../components/ui';
 
 type Up = (fn: (d: State) => void) => void;
@@ -20,15 +20,32 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
   });
   const setPq = (v: string) => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) { x.pq = v; delete x.pqQuelle; } });
   const ausKi = o.nuQuelle !== 'user' && !!liste?.length;
+  const fremd = pqFremd(o);
+  // ältere Prüfung: PQ-Nummer aus 233/235 dem gewählten Unternehmen zuordnen und beim Bieter entfernen
+  const pqVerschieben = (i: number) => up((d) => {
+    const x = d.offers.find((y) => y.id === o.id);
+    if (!x) return;
+    const l = (nuOf(d, x) ?? []).map((n) => ({ ...n }));
+    if (l[i]) l[i].pq = x.pq?.trim();
+    x.nu = l; x.nuQuelle = 'user';
+    delete x.pq; delete x.pqQuelle;
+  });
   return (
     <div className="nubox">
       <div className="grid g2">
         <label className="field"><span className="field-label">Präqualifikation (Nr.)</span>
           <input value={o.pq ?? ''} onChange={(e) => setPq(e.target.value)} placeholder="leer = nicht präqualifiziert" />
-          {o.pqQuelle && o.pq?.trim() && <span className="field-hint"><Chip kind="info">KI – bitte prüfen</Chip> gelesen aus „{o.pqQuelle}“</span>}
+          {o.pqQuelle && o.pq?.trim() && !fremd && <span className="field-hint"><Chip kind="info">KI – bitte prüfen</Chip> gelesen aus „{o.pqQuelle}“</span>}
           <span className="field-hint">{eg === 'pq' ? 'Im Vermerk: „präqualifiziert unter der Nr. …“' : eg === '124' ? 'Im Vermerk: Eignungsnachweis mit Eigenerklärung (VVB 124)' : 'Weder PQ-Nummer noch VVB 124 (vorhanden) – im Vermerk als offen markiert.'}</span>
         </label>
       </div>
+      {fremd && (
+        <div className="warnbox slim">
+          <Icon name="alert" /> Die Nummer {o.pq?.trim()} stammt aus „{o.pqQuelle}“ (Verzeichnis der Nachunternehmer bzw. anderer Unternehmen) und gehört nicht dem Bieter. Sie wird im Vermerk nicht als Präqualifikation des Bieters verwendet.
+          {liste && liste.length > 0 && <div className="row" style={{ marginTop: 6 }}>Zuordnen zu: {liste.map((n, i) => <button key={i} className="btn small" onClick={() => pqVerschieben(i)}>{n.firma || `Zeile ${i + 1}`}</button>)}</div>}
+          <div className="row" style={{ marginTop: 6 }}><button className="link" onClick={() => setPq('')}>Beim Bieter entfernen</button></div>
+        </div>
+      )}
       <div className="row" style={{ marginTop: 8 }}>
         <b>Nachunternehmer (VVB 233) / andere Unternehmen (VVB 235)</b>
         {ausKi && <Chip kind="info">KI – bitte prüfen</Chip>}
@@ -37,16 +54,17 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
       </div>
       {liste && liste.length > 0 && (
         <table className="matrix nutab">
-          <thead><tr><th className="left">OZ / Leistungsbereich</th><th className="left">Teilleistung</th><th className="left">Unternehmen</th><th className="left">Art</th><th /></tr></thead>
+          <thead><tr><th className="left">OZ / Leistungsbereich</th><th className="left">Teilleistung</th><th className="left">Unternehmen</th><th className="left">PQ-Nr.</th><th className="left">Art</th><th /></tr></thead>
           <tbody>
             {liste.map((n, i) => (
               <tr key={i}>
                 <td className="left"><input className="plain wide" value={n.oz} onChange={(e) => edit((l) => void (l[i].oz = e.target.value))} aria-label="OZ / Leistungsbereich" /></td>
                 <td className="left"><input className="plain wide" value={n.leistung} onChange={(e) => edit((l) => void (l[i].leistung = e.target.value))} aria-label="Teilleistung" /></td>
                 <td className="left"><input className="plain wide" value={n.firma} onChange={(e) => edit((l) => void (l[i].firma = e.target.value))} aria-label="Unternehmen" /></td>
+                <td className="left"><input className="plain wide" value={n.pq ?? ''} onChange={(e) => edit((l) => void (l[i].pq = e.target.value))} placeholder="–" aria-label="PQ-Nummer des Unternehmens" /></td>
                 <td className="left">
                   <select value={n.art ?? 'nu'} onChange={(e) => edit((l) => void (l[i].art = e.target.value as Nachunternehmer['art']))} aria-label="Art">
-                    <option value="nu">Nachunternehmer (233)</option><option value="beide">Nachunternehmer + Kapazitäten (233/235)</option><option value="kapazitaet">nur Kapazitäten (235)</option>
+                    <option value="nu">Nachunternehmer (233)</option><option value="beide">NU + Kapazitäten (233/235)</option><option value="kapazitaet">Kapazitäten (235)</option>
                   </select>
                 </td>
                 <td><button className="icon-btn" title="Zeile entfernen" onClick={() => edit((l) => void l.splice(i, 1))}><Icon name="trash" /></button></td>

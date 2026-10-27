@@ -423,3 +423,33 @@ export function eignungsNachweis(s: State, o: Offer): 'pq' | '124' | null {
   const p = z && o.pruef?.[z.id];
   return p && (p.s === 'ok' || p.s === 'nach') ? '124' : null;
 }
+
+/** Position, zu der beim Bieter eine detaillierte Angebotskalkulation angefordert werden sollte (avg = Mittel der übrigen Angebote, schaetz = LV-Schätzpreis). */
+export interface AufklPos { oz: string; kurz: string; ep: number; avg: number | null; schaetz: number | null }
+
+/** Positionen eines Angebots, deren EP deutlich (Projekteinstellung „abweichung“) vom Mittel der übrigen Angebote derselben Runde
+ *  und vom LV-Schätzpreis abweicht – bei beiden Vergleichswerten in dieselbe Richtung, sonst gegenüber dem vorhandenen.
+ *  ohne = Angebote, die nicht als Vergleich dienen (z. B. Ausschluss empfohlen, weil ihre Preise das Mittel verzerren). */
+export function aufklaerungsPositionen(s: State, los: Los, cells: Cell[], c: Cell, ohne: string[] = []): AufklPos[] {
+  if (!c.complete) return [];
+  const peers = cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded && !ohne.includes(x.offer.id));
+  const th = s.project.abweichung / 100;
+  // nur Positionen mit spürbarem Gewicht (mind. 50 € bzw. 0,05 % der Angebotssumme)
+  const minDelta = Math.max(50, (c.sumNet ?? 0) * 0.0005);
+  const out: AufklPos[] = [];
+  for (const p of losPositions(s, los)) {
+    if (p.bedarf) continue;
+    const ep = c.offer.prices[zkey(p.oz)]?.ep;
+    if (ep == null) continue;
+    const pe = peers.map((x) => x.offer.prices[zkey(p.oz)]?.ep).filter((v): v is number => v != null);
+    const avg = pe.length ? pe.reduce((a, b) => a + b, 0) / pe.length : null;
+    const schaetz = s.schaetz?.[zkey(p.oz)] ?? null;
+    const refs = [avg, schaetz].filter((r): r is number => r != null && r > 0);
+    if (!refs.length) continue;
+    const dir = refs.map((r) => (ep > r * (1 + th) ? 1 : ep < r * (1 - th) ? -1 : 0));
+    if (dir.some((d) => d === 0 || d !== dir[0])) continue;
+    if (Math.abs((p.menge ?? 0) * (ep - refs[0])) < minDelta) continue;
+    out.push({ oz: p.oz, kurz: p.kurz, ep, avg, schaetz });
+  }
+  return out.sort((a, b) => a.oz.localeCompare(b.oz, 'de', { numeric: true }));
+}

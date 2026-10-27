@@ -137,11 +137,11 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
 
   return (
     <div className="stack">
-      {!hasLv && <p className="infobox"><Icon name="alert" /> Das eigene LV fehlt noch – bitte im Schritt „Vergabe“ laden. Ohne LV wird es aus der ersten Bieterdatei abgeleitet (ohne Texte und Mengen der Ausschreibung).</p>}
+      {!hasLv && <p className="infobox"><Icon name="alert" /> Eigenes LV fehlt – bitte im Schritt „Vergabe“ laden. Sonst wird es aus der ersten Bieterdatei abgeleitet.</p>}
 
       <section className="card" id="bieter-card">
         <h2>Angebote der Bieter</h2>
-        <p className="lead">Ordner oder ZIP-Dateien der Bieter, so wie sie ankommen – mehrere Bieter auf einmal.{!hasLv && ' Das eigene LV wird im Schritt „Vergabe“ geladen.'}</p>
+        <p className="lead">Ordner oder ZIP-Dateien, so wie sie ankommen – auch mehrere Bieter auf einmal.</p>
         <DropZone busy={busy} onFiles={processBids} title="Ordner oder ZIP-Dateien der Bieter hierher ziehen" hint="Daten verlassen Ihren Browser nicht" folder />
         {msg && <p className={msg.ok ? 'okbox' : 'warnbox'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
         <div className="status"><Chip kind={s.offers.length ? 'ok' : 'info'}>{s.offers.length} Angebot(e) geladen</Chip></div>
@@ -205,20 +205,20 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
             </div>
             {o.check && (
               <div className="row offer-check">
-                <span className="muted">Summe laut Bieterdatei: <b>{fmtNum(o.check.gaeb ?? o.check.positionen)} €</b></span>
+                <span className="muted">Summe Bieterdatei: <b>{fmtNum(o.check.gaeb ?? o.check.positionen)} €</b></span>
                 {summenFlags(s, o).map((f, k) => <Chip key={k} kind={f.kind}>{f.text}</Chip>)}
               </div>
             )}
-            {o.runde > 1 && o.lose.length > 1 && <p className="infobox"><Icon name="alert" /> Nachverhandlungen betreffen meist nur einzelne Lose – bitte oben die Lose abwählen, die nicht nachverhandelt wurden.</p>}
+            {o.runde > 1 && o.lose.length > 1 && <p className="infobox"><Icon name="alert" /> Nicht nachverhandelte Lose bitte abwählen.</p>}
             {o.warnungen.map((w, k) => <p key={k} className="warnbox slim"><Icon name="alert" /> {w}</p>)}
             {o.nachforderung.length > 0 && <p className="infobox"><Icon name="file" /> Nachgereicht / nachgefordert: {o.nachforderung.join(', ')}</p>}
             {o.textErg.length > 0 && (
-              <details className="det"><summary><Chip kind="warn">{o.textErg.length} Bieter-Textergänzung(en)</Chip> – Hinweis: Eigene Texte des Bieters im LV prüfen (können Änderungen der Vergabeunterlagen sein)</summary>
+              <details className="det"><summary><Chip kind="warn">{o.textErg.length} Textergänzung(en) des Bieters</Chip> – auf Änderungen der Vergabeunterlagen prüfen</summary>
                 <ul>{o.textErg.map((t, k) => <li key={k}><b>Pos. {t.oz}:</b> {t.text}</li>)}</ul></details>
             )}
             {o.lvPdf?.map((l, k) => (
               <details className="det" key={k} open={l.befunde.some((b) => b.kind !== 'info')}>
-                <summary><Chip kind={l.befunde.some((b) => b.kind !== 'info') ? 'warn' : 'ok'}>LV-PDF {l.befunde.some((b) => b.kind !== 'info') ? 'weicht ab' : 'stimmt überein'}</Chip> – {l.name} mit der GAEB-Preisdatei abgeglichen</summary>
+                <summary><Chip kind={l.befunde.some((b) => b.kind !== 'info') ? 'warn' : 'ok'}>LV-PDF {l.befunde.some((b) => b.kind !== 'info') ? 'weicht ab' : 'stimmt überein'}</Chip> – {l.name}</summary>
                 {l.befunde.map((b, j) => <p key={j} className={b.kind === 'info' ? 'infobox' : 'warnbox slim'}><Icon name={b.kind === 'info' ? 'check' : 'alert'} /> {b.text}</p>)}
               </details>
             ))}

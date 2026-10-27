@@ -36,7 +36,7 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
         <label className="field"><span className="field-label">Präqualifikation (Nr.)</span>
           <input value={o.pq ?? ''} onChange={(e) => setPq(e.target.value)} placeholder="leer = nicht präqualifiziert" />
           {o.pqQuelle && o.pq?.trim() && !fremd && <span className="field-hint"><Chip kind="info">KI – bitte prüfen</Chip> gelesen aus „{o.pqQuelle}“</span>}
-          <span className="field-hint">{eg === 'pq' ? 'Im Vermerk: „präqualifiziert unter der Nr. …“' : eg === '124' ? 'Im Vermerk: Eignungsnachweis mit Eigenerklärung (VVB 124)' : 'Weder PQ-Nummer noch VVB 124 (vorhanden) – im Vermerk als offen markiert.'}</span>
+          <span className="field-hint">{eg === 'pq' ? 'Im Vermerk: präqualifiziert' : eg === '124' ? 'Im Vermerk: Eigenerklärung (VVB 124)' : 'Weder PQ-Nr. noch VVB 124 – im Vermerk offen'}</span>
         </label>
       </div>
       {fremd && (

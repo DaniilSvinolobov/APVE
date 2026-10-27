@@ -135,8 +135,8 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
   return (
     <section className="card" id="lv-card">
       <h2>Eigenes LV (Ausschreibung)</h2>
-      <p className="lead">LV als GAEB-Datei (X81/X83, optional X82 mit Schätzpreisen) oder nur als PDF. Die Angaben unten werden daraus vorbelegt.</p>
-      <DropZone busy={busy} onFiles={process} title="LV hierher ziehen (X81 · X82 · X83 · PDF)" hint="Auch P8x, D8x, PDF und ZIP · Daten bleiben im Browser" folder={false} />
+      <p className="lead">GAEB-Datei (X81/X83, X82 mit Schätzpreisen) oder PDF – die Angaben unten werden daraus vorbelegt.</p>
+      <DropZone busy={busy} onFiles={process} title="LV hierher ziehen (X81 · X82 · X83 · PDF)" hint="Auch P8x, D8x und ZIP · Daten bleiben im Browser" folder={false} />
       {msg && <p className={msg.ok ? 'okbox' : 'warnbox'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
       <div className="status">
         <Chip kind={hasLv ? 'ok' : 'warn'}>{hasLv ? `LV: ${s.lv.length} Positionen, ${s.lose.length} Los/Lose${s.lvInfo?.lv ? ` (${s.lvInfo.lv})` : ''}` : 'LV fehlt'}</Chip>
@@ -153,7 +153,7 @@ export function LvKarte({ s, up }: { s: State; up: Up }) {
             <button className="icon-btn" title="PDF entfernen" onClick={() => up((d) => { if (d.lvInfo?.schaetz === n) removeSchaetz(d); d.lvPruef = d.lvPruef?.filter((b) => !vonPdf(b, n)); d.lvInfo = { ...d.lvInfo, pdfs: (d.lvInfo.pdfs ?? []).filter((x) => x !== n) }; })}><Icon name="trash" /></button></li>)}
         </ul>
       )}
-      {hasLv && <p className="filehint">Weitere Dateien oben ablegen: X82 ergänzt Schätzpreise, PDF wird abgeglichen, neue X81/X83 ersetzt das LV.</p>}
+      {hasLv && <p className="filehint">Nachladen: X82 = Schätzpreise, PDF = Abgleich, X81/X83 = neues LV.</p>}
       {befunde.length > 0 && (
         <div className="lvpruef">
           <h3>Prüfung des LV</h3>

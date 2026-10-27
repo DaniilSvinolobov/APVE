@@ -1,6 +1,6 @@
 import type { Los, State } from '../domain/types';
-import { auffaelligkeiten, computeLos, engereWahl, finalRound, getBew, kostenOf, offerBrutto, pruefStatus, zuschlagCell, type Cell } from '../domain/calc';
-import { PSTATUS } from '../domain/types';
+import { angemessenheit, auffaelligkeiten, computeLos, eignungsNachweis, engereWahl, finalRound, getBew, kostenOf, nuOf, offerBrutto, pruefStatus, schaetzSumme, unterlageZeile, zuschlagCell, type Cell } from '../domain/calc';
+import { PSTATUS, type Nachunternehmer, type Offer } from '../domain/types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
 import { kmFuerVermerk } from '../geo/entfernung';
 
@@ -34,7 +34,7 @@ export function anlagenList(s: State): { key: string; titel: string; custom?: bo
   const def: Record<string, string> = {
     eroeffnung: `Niederschrift über die (Er)Öffnung der Angebote vom ${fmtDate(s.project.eroeffnung)}`,
     mitteilung1: `Mitteilung über das Ergebnis nach Öffnung der Angebote vom ${fmtDate(s.project.eroeffnung)}`,
-    preisspiegel1: `Preisspiegel Angebote ${range(r1)}`,
+    preisspiegel1: `Preisspiegel Angebote ${range(r1)}${s.project.datum ? ` vom ${fmtDate(s.project.datum)}` : ''}`,
     mitteilung2: 'Mitteilung über das Ergebnis nach Öffnung der Angebote (Nachverhandlung)',
     preisspiegel2: `Preisspiegel Angebote ${range(r2)} (Nachverhandlung)`,
     vollstaendigkeit: 'Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen',
@@ -55,7 +55,7 @@ export function buildVermerk(s: State): Block[] {
   const allCells = new Map(s.lose.map((l) => [l.id, computeLos(s, l)]));
   const hr = s.offers.length ? Math.min(...s.offers.map((o) => o.runde)) : 1;
   const r1 = s.offers.filter((o) => o.runde === hr);
-  const vergabe = /VOB/.test(p.verfahren);
+  const vergabe = /VOB|Ausschreibung/.test(p.verfahren);
   const hasR2 = s.offers.some((o) => o.runde > hr);
 
   /* Kopf */
@@ -63,6 +63,7 @@ export function buildVermerk(s: State): Block[] {
     t: 'meta',
     lines: [
       { v: p.titel || 'Maßnahme', bold: true },
+      ...(p.massnahmeNr?.trim() ? [{ k: 'Maßnahmennummer:', v: p.massnahmeNr.trim(), bold: true }] : []),
       { k: 'Vergabenummer:', v: p.nummer || '–', bold: true },
       ...s.lose.map((l, i) => ({ k: i === 0 ? 'Leistung:' : '', v: `${l.nr}: ${l.name}`, bold: true })),
       { v: 'Prüfbericht und Vergabevorschlag (Vergabevermerk)', bold: true },
@@ -159,7 +160,31 @@ export function buildVermerk(s: State): Block[] {
 
   B.push({ t: 'h', n: '4.3', text: 'Rechnerische Prüfung der Angebote', lvl: 2 });
   const errs = s.lose.flatMap((l) => (allCells.get(l.id) ?? []).filter((c) => c.rechenDiff != null && Math.abs(c.rechenDiff) > 0.01 && !c.mengeAbw.length));
-  B.push(T('rechnerisch', `${errs.length ? `Bei folgenden Angeboten wurden Rechenfehler festgestellt: ${errs.map((c) => `Angebot Nr. ${c.offer.nr} (${c.los.nr})`).join(', ')}.` : 'Alle Angebote wurden nachgerechnet, es wurden keine Fehler festgestellt.'}\n${aNr('preisspiegel1')}`));
+  const gewertet = (l: Los) => (allCells.get(l.id) ?? []).filter((c) => c.offer.runde === hr && c.rankAll && !c.offer.status).sort((a, b) => a.rankAll! - b.rankAll!);
+  const offenPos = s.lose.flatMap((l) => gewertet(l).filter((c) => s.lv.length && (c.missing || c.zero)).map((c) => `Im Angebot Nr. ${c.offer.nr}${s.lose.length > 1 ? ` (${l.nr})` : ''} ${c.missing ? `${c.missing === 1 ? 'ist 1 Position' : `sind ${c.missing} Positionen`} nicht verpreist` : ''}${c.missing && c.zero ? ', ' : ''}${c.zero ? `${c.zero === 1 ? 'ist 1 Position' : `sind ${c.zero} Positionen`} mit 0,00 € verpreist` : ''}.`));
+  B.push(T('rechnerisch', [
+    errs.length ? `Bei folgenden Angeboten wurden Rechenfehler festgestellt: ${errs.map((c) => `Angebot Nr. ${c.offer.nr} (${c.los.nr})`).join(', ')}.` : 'Alle Angebote wurden nachgerechnet, es wurden keine Fehler festgestellt.',
+    s.lv.length ? (offenPos.length ? offenPos.join('\n') : 'Alle Positionen der Angebote waren ordnungsgemäß verpreist.') : '',
+    aNr('preisspiegel1'),
+    'Nach abgeschlossener rechnerischer Prüfung ergibt sich folgendes Angebotsergebnis der Bieter:',
+  ].filter(Boolean).join('\n')));
+  const mwf = 1 + p.mwst / 100;
+  for (const l of s.lose) {
+    const cs = gewertet(l);
+    if (!cs.length) continue;
+    const k = kostenOf(s, l);
+    const kNet = schaetzSumme(s, l) ?? (k == null ? null : p.kostenBasis === 'brutto' ? round2(k / mwf) : k);
+    const kBr = k != null && p.kostenBasis === 'brutto' ? k : kNet == null ? null : round2(kNet * mwf);
+    if (s.lose.length > 1) B.push({ t: 'h', n: '', text: `${l.nr}: ${l.name}`, lvl: 3 });
+    B.push({
+      t: 'tab',
+      cols: [{ h: 'Angebot', w: 56 }, { h: 'geprüfte Angebotssumme\nnetto (EUR)', w: 22, a: 'r' }, { h: '\nbrutto (EUR)', w: 22, a: 'r' }],
+      rows: [
+        ...cs.map((c) => [`${c.offer.nr}_${c.offer.firma}`, fmtNum(c.net ?? 0), fmtNum(c.gross ?? 0)]),
+        ...(kNet != null ? [[`Verpreistes Leistungsverzeichnis (Kostenvoranschlag${p.ersteller ? ` ${p.ersteller}` : ''})`, fmtNum(kNet), kBr != null ? fmtNum(kBr) : '–']] : []),
+      ],
+    });
+  }
 
   B.push({ t: 'h', n: '4.4', text: 'Festlegungen aufgrund der formalen und rechnerischen Prüfung', lvl: 2 });
   const sep = s.lose.filter((l) => !l.imVermerk);
@@ -187,14 +212,25 @@ export function buildVermerk(s: State): Block[] {
         out.push(`Für das Angebot Nr. ${o.nr} ${ps.nach.length > 1 ? 'fehlten die Unterlagen' : 'fehlte die Unterlage'} ${listDe(ps.nach.map((x) => x.label))}; ${ps.nach.length > 1 ? 'diese wurden' : 'diese wurde'} nachträglich durch die ${p.vergabestelle || 'Vergabestelle'} bei Fa. ${o.firma} angefordert${ds.length === 1 ? ` und am ${fmtDate(ds[0])} nachgereicht` : ''}.`);
       } else if (!Object.keys(o.pruef ?? {}).length && o.nachforderung.length) out.push(`Für das Angebot Nr. ${o.nr} fehlten Unterlagen (${o.nachforderung.join(', ')}); diese wurden nachträglich durch die ${p.vergabestelle || 'Vergabestelle'} bei Fa. ${o.firma} angefordert.`);
       if (o.preisQuelle === 'pdf') out.push(`Das Angebot Nr. ${o.nr} (Fa. ${o.firma}) enthält die Preise nur im Leistungsverzeichnis als PDF; die beigefügte GAEB-Datei ist nicht bepreist. Die Preise wurden aus dem PDF übernommen und rechnerisch geprüft.`);
-      if (ps.fehlt.length) out.push(`Beim Angebot Nr. ${o.nr} fehlen weiterhin: ${listDe(ps.fehlt)}.`);
+      out.push(...offeneUnterlagen(s, o));
       return out;
     }),
     ...(sep.length ? ['', `Die Angebote für ${listDe(sep.map((l) => l.nr))} werden durch die ${p.auftraggeber || 'Auftraggeberin'} technisch und wirtschaftlich geprüft und nachfolgend nicht weiter im Vergabevermerk aufgeführt.`] : []),
-  ].join('\n').replace(/\n{3,}/g, '\n\n')));
+  ].join('\n').replace(/\n{3,}/g, '\n\n').trim()));
 
-  /* 4.5 ff. je Los */
+  /* 4.5 Nachweise und Eignung (je einzeln geprüftem Angebot) */
   let n = 5;
+  const eigOffers = [...new Map(vLose.flatMap((l) => engereWahl(s, allCells.get(l.id) ?? []).take.map((c) => [c.offer.id, c.offer] as const))).values()].sort((a, b) => a.nr - b.nr);
+  if (eigOffers.length) {
+    B.push({ t: 'h', n: `4.${n}`, text: 'Nachweise und Eignungsprüfung', lvl: 2 });
+    for (const o of eigOffers) {
+      B.push({ t: 'h', n: '', text: `Angebot Nr. ${o.nr}, ${o.firma}`, lvl: 3 });
+      B.push(T(`eignung:${o.id}`, eignungText(s, o)));
+    }
+    n++;
+  }
+
+  /* 4.6 ff. je Los */
   for (const l of vLose) {
     const cells = allCells.get(l.id) ?? [];
     if (!cells.length) continue;
@@ -203,6 +239,8 @@ export function buildVermerk(s: State): Block[] {
     const { take, ranked } = engereWahl(s, cells);
     const eng = ranked.length > take.length;
     B.push({ t: 'h', n: `4.${n}`, text: `Technische und wirtschaftliche Prüfung der Angebote ${l.nr}${eng ? ' (Engere Wahl)' : ''}`, lvl: 2 });
+    const ang = angemessenText(s, l, take);
+    if (ang) B.push(T(`angem:${l.id}`, ang));
     take.forEach((c, i) => {
       B.push({ t: 'h', n: `4.${n}.${i + 1}`, text: `Prüfung und Wertung des Angebotes auf Rang ${c.rankAll}, ${c.offer.firma}`, lvl: 3 });
       B.push(T(`bew:${c.offer.id}|${l.id}`, bewText(s, l, cells, c)));
@@ -250,11 +288,11 @@ export function buildVermerk(s: State): Block[] {
   B.push({ t: 'h', n: '6.', text: 'Einordnung in das Gesamtbudget des Bauvorhabens', lvl: 1 });
   const bw = winners.filter((w) => w.l.imBudget);
   const sum = round2(bw.reduce((a, w) => a + (w.c.gross ?? 0), 0));
-  const bud = p.budgetBrutto;
+  const bud = p.budgetBrutto ?? budgetAusKosten(s);
   const diff = bud ? (sum / bud - 1) * 100 : null;
   B.push(T('budget', [
-    `Im Rahmen des Bauvorhabens „${p.titel || '…'}“ wurden für ${listDe(s.lose.filter((l) => l.imBudget).map((l) => l.nr))} durch Unterzeichner Baukosten in Höhe von brutto ${bud ? fmtEUR(bud) : '[Gesamtbudget angeben]'} ermittelt.`,
-    bw.length ? `${listDe(bw.map((w) => `das Angebot des ${w.c.rank === 1 ? 'günstigsten' : 'für den Zuschlag vorgeschlagenen'} Bieters für ${w.l.nr}, Fa. ${w.c.offer.firma} vom ${fmtDate(w.c.offer.datum)}`)).replace(/^d/, 'D')} ${bw.length > 1 ? 'unterschreiten' : 'unterschreitet'} diese Kostenermittlung${diff != null && diff > 0 ? ' nicht' : diff != null && diff < -10 ? ' deutlich' : ''} (Gesamt, brutto: ${fmtEUR(sum)}).`.replace('unterschreiten diese Kostenermittlung nicht', 'überschreiten diese Kostenermittlung').replace('unterschreitet diese Kostenermittlung nicht', 'überschreitet diese Kostenermittlung') : '',
+    `Im Rahmen des Bauvorhabens „${p.titel || '…'}“ wurden für ${listDe(s.lose.filter((l) => l.imBudget).map((l) => l.nr))} durch Unterzeichner Baukosten in Höhe von brutto ${bud ? fmtEUR(bud) : '[Gesamtbudget angeben]'}${p.budgetBrutto == null && bud ? ` (Kostenvoranschlag${p.kostenDatum ? ` vom ${fmtDate(p.kostenDatum)}` : ''})` : ''} ermittelt.`,
+    bw.length ? `${listDe(bw.map((w) => `das Angebot des ${w.c.rank === 1 ? 'günstigsten' : 'für den Zuschlag vorgeschlagenen'} Bieters für ${w.l.nr}, Fa. ${w.c.offer.firma} vom ${fmtDate(w.c.offer.datum)}`)).replace(/^d/, 'D')} ${bw.length > 1 ? 'unterschreiten' : 'unterschreitet'} diese Kostenermittlung${diff != null && diff > 0 ? ' nicht' : diff != null && diff < -10 ? ' deutlich' : ''}${diff != null && Math.abs(diff) >= 0.005 ? ` um ca. ${pctDe(Math.abs(diff))} %` : ''} (Gesamt, brutto: ${fmtEUR(sum)}).`.replace('unterschreiten diese Kostenermittlung nicht', 'überschreiten diese Kostenermittlung').replace('unterschreitet diese Kostenermittlung nicht', 'überschreitet diese Kostenermittlung') : '',
   ].filter(Boolean).join('\n')));
 
   B.push({ t: 'gap' });
@@ -279,6 +317,70 @@ export function buildVermerk(s: State): Block[] {
   }
   void finalRound; void hasR2; void getBew;
   return B;
+}
+
+/** Offene Punkte der Vollständigkeitsprüfung als Sätze, getrennt nach Befund (fehlt, nicht ausgefüllt, teilweise, nicht unterschrieben). */
+export function offeneUnterlagen(s: State, o: Offer): string[] {
+  const rows = s.unterlagen.map((u) => ({ u, p: o.pruef?.[u.id] })).filter((r) => r.p);
+  const z234 = unterlageZeile(s, '234');
+  const lab = (st: string) => rows.filter((r) => r.p!.s === st).map((r) => r.u.label + (r.u.id === z234?.id && st === 'leer' ? ' (keine Bietergemeinschaft vorgesehen)' : ''));
+  const out: string[] = [];
+  const mehr = (l: string[]) => l.length > 1;
+  const fehlt = lab('fehlt'), leer = lab('leer'), teil = lab('teil'), unsign = lab('unsign');
+  if (fehlt.length) out.push(`Beim Angebot Nr. ${o.nr} ${mehr(fehlt) ? 'fehlen' : 'fehlt'} weiterhin: ${listDe(fehlt)}.`);
+  if (leer.length) out.push(`Beim Angebot Nr. ${o.nr} ${mehr(leer) ? 'wurden folgende Unterlagen' : 'wurde folgende Unterlage'} unausgefüllt eingereicht: ${listDe(leer)}.`);
+  if (teil.length) out.push(`Beim Angebot Nr. ${o.nr} ${mehr(teil) ? 'sind folgende Unterlagen' : 'ist folgende Unterlage'} nur teilweise ausgefüllt: ${listDe(teil)}.`);
+  if (unsign.length) out.push(`Beim Angebot Nr. ${o.nr} ${mehr(unsign) ? 'sind folgende Unterlagen' : 'ist folgende Unterlage'} nicht unterschrieben: ${listDe(unsign)}.`);
+  return out;
+}
+
+/** „Fa. Straat 1“ – ohne doppeltes „Fa.“ und ohne „Fa.“ vor Büros („Vermessungsbüro …“). */
+const faName = (f: string) => (/^(Fa\.|Firma)\s/i.test(f) || /büro|^Ing/i.test(f) ? f : `Fa. ${f}`);
+const nuZeile = (x: Nachunternehmer) => {
+  const det = [x.leistung.trim(), x.oz.trim() ? `OZ ${x.oz.trim()}` : ''].filter(Boolean).join(', ');
+  return `- ${x.firma.trim() ? faName(x.firma.trim()) : '[Unternehmen angeben]'}${det ? ` (${det})` : ''}`;
+};
+
+/** Abschnitt „Nachweise und Eignungsprüfung“ für ein Angebot: Eignungsnachweis und Nachunternehmereinsatz. */
+export function eignungText(s: State, o: Offer): string {
+  const L: string[] = [];
+  const eg = eignungsNachweis(s, o);
+  const z124 = unterlageZeile(s, '124');
+  const nach = z124 && o.pruef?.[z124.id]?.s === 'nach' ? o.pruef[z124.id].d : null;
+  if (eg === 'pq') L.push(`Der Bieter ist präqualifiziert unter der Nr. ${o.pq!.trim()}.`);
+  else if (eg === '124') L.push(`Der Bieter hat mit dem Dokument Eigenerklärung zur Eignung (VVB 124) den Eignungsnachweis erbracht${nach != null ? ` (nachgereicht${nach ? ` am ${fmtDate(nach)}` : ''})` : ''}.`);
+  else L.push('Ein Eignungsnachweis (Präqualifikation oder Eigenerklärung zur Eignung, VVB 124) wurde nicht festgestellt. [bitte prüfen]');
+  const nu = nuOf(s, o);
+  const eigen = nu?.filter((x) => x.art !== 'kapazitaet') ?? [];
+  const kap = nu?.filter((x) => x.art === 'kapazitaet') ?? [];
+  if (!nu) L.push('Angaben zum Nachunternehmereinsatz (VVB 233): [bitte ergänzen]');
+  else if (!eigen.length) L.push('Ein Nachunternehmereinsatz ist nicht vorgesehen.');
+  else L.push('Folgender Nachunternehmereinsatz wurde vorgesehen:', ...eigen.map(nuZeile));
+  if (kap.length) L.push('Der Bieter beruft sich auf die Kapazitäten folgender Unternehmen (VVB 235):', ...kap.map(nuZeile));
+  return L.join('\n');
+}
+
+/** Kostenvoranschlag brutto aller Lose „im Budget“ (Ersatz, wenn kein Gesamtbudget eingetragen ist). */
+export function budgetAusKosten(s: State): number | null {
+  const ls = s.lose.filter((l) => l.imBudget);
+  const ks = ls.map((l) => kostenOf(s, l));
+  if (!ls.length || ks.some((k) => k == null)) return null;
+  const f = s.project.kostenBasis === 'brutto' ? 1 : 1 + s.project.mwst / 100;
+  return round2(ks.reduce<number>((a, k) => a + (k ?? 0) * f, 0));
+}
+
+/** Einleitung zur Angemessenheit der Preise je Los: Lage der geprüften Angebote zum Kostenvoranschlag. */
+export function angemessenText(s: State, l: Los, take: Cell[]): string {
+  const k = kostenOf(s, l);
+  const cs = take.filter((c) => c.complete && c.gross != null);
+  if (!k || !cs.length) return '';
+  const basis = s.project.kostenBasis;
+  const anteil = cs.map((c) => ((basis === 'brutto' ? c.gross! : c.net!) / k) * 100);
+  const lo = Math.min(...anteil), hi = Math.max(...anteil);
+  const L = [`Der Kostenvoranschlag (LV-Schätzpreis) für ${l.nr} beträgt ${basis} ${fmtEUR(k)}. ${cs.length > 1 ? `Die geprüften Angebote liegen zwischen ${pctDe(lo)} % und ${pctDe(hi)} %` : `Das geprüfte Angebot liegt bei ${pctDe(lo)} %`} des Schätzpreises (${basis}).`];
+  const t = s.project.schwelle;
+  if (cs.length > 1 && hi < 100 - t) L.push(`Insgesamt liegen die geprüften Angebote mit mehr als ${pctDe(t)} % Abweichung deutlich unter dem geschätzten Preis.`);
+  return L.join('\n');
 }
 
 const ord = ['günstigste', 'zweitgünstigste', 'drittgünstigste', 'viertgünstigste', 'fünftgünstigste'];
@@ -309,7 +411,17 @@ export function bewText(s: State, l: Los, cells: Cell[], c: Cell, nv = false): s
       else L.push('Alle Einheitspreise wurden durch den Bieter bestätigt.');
     }
   } else {
-    if (b.qualifikation) L.push(b.qualifikation);
+    // Angemessenheit der Preise: Lage zum Kostenvoranschlag, Titel und Positionen mit deutlicher Abweichung vom LV-Schätzpreis
+    if (c.dKosten != null && Math.abs(c.dKosten) >= 0.005) L.push('', `Das Angebot liegt ca. ${pctDe(Math.abs(c.dKosten))} % ${c.dKosten < 0 ? 'unter' : 'über'} dem Kostenvoranschlag.`);
+    const ang = angemessenheit(s, l, c);
+    if (ang.titel.length) {
+      L.push(`Folgende Titelpreise weichen deutlich von den geschätzten Preisen ab:`);
+      for (const t of ang.titel) L.push(`- Titel ${t.oz}${t.name ? ` „${t.name}“` : ''}: ${fmtEUR(t.sum)} netto (${pctDe(t.pct)} % des geschätzten Titelpreises von ${fmtEUR(t.schaetz)} netto)`);
+    }
+    if (ang.pos.length) {
+      L.push(`Positionen mit deutlicher Abweichung vom geschätzten Einheitspreis:`);
+      for (const x of ang.pos.slice(0, 8)) L.push(`- ${x.oz}${x.kurz ? ` „${x.kurz}“` : ''} (${pctDe(x.pct)} % des geschätzten Preises)`);
+    }
     const km = kmFuerVermerk(s, o, b);
     if (km) L.push(`Durch die Entfernung zur Baustelle (ca. ${km} km) fallen für o.g. Fachfirma zusätzliche Fahrt- und Betriebskosten an, welche bei der Kalkulation der Einheitspreise berücksichtigt wurden.`);
     const a = auffaelligkeiten(s, l, cells, c);
@@ -323,6 +435,7 @@ export function bewText(s: State, l: Los, cells: Cell[], c: Cell, nv = false): s
     } else if (b.erlaeuterung) L.push('', b.erlaeuterung);
     if (a.hoch.length) L.push('', `Die Einheitspreise unter Position ${listDe(a.hoch.slice(0, 3).map((x) => x.oz))} wurden überdurchschnittlich hochpreisig angeboten.`);
     if (b.aufklaerung === 'angemessen') L.push(`Der Preis wurde aufgeklärt und als angemessen bewertet${b.aufklaerungNotiz ? ` (${b.aufklaerungNotiz})` : ''}.`);
+    if (b.qualifikation.trim()) L.push('', 'Fachliche Auswertung:', b.qualifikation.trim());
   }
   if (b.zusatz.trim()) L.push('', b.zusatz.trim());
   L.push('', `Mit einer Gesamtsumme von brutto ${fmtEUR(c.gross)} unterbreitet ${name} in rechnerischer, fachlich-technischer und wirtschaftlicher Hinsicht das ${ord[rk - 1] ?? `${rk}.-günstigste`} Angebot${nv ? '' : ` für ${l.nr}`}.`);

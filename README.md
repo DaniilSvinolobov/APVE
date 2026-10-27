@@ -47,6 +47,11 @@ handschriftliche Eintragungen werden mit Seitenzahl wiedergegeben. Jeder Befund 
 Befunde werden **nicht** in die Tabelle eingetragen, die Zeile bleibt offen und ist von Hand zu prüfen. Große Dateien werden im Browser
 in Teile zerlegt (max. 20 Seiten bzw. ca. 2,8 MB je Teil, übergroße Einzelseiten als Bild), sodass keine Datei übersprungen wird.
 Die Ergebnisse stehen in der Vollständigkeitstabelle (Markierung „KI“, Begründung als Tooltip) und bleiben manuell änderbar.
+Zusätzlich liest Claude aus dem **VVB 233/235 die Nachunternehmer** (OZ/Leistungsbereich, Teilleistung, Unternehmen), eine
+**Präqualifikationsnummer** und aus dem Kopf der Formblätter **Vergabenummer, Maßnahmennummer und Vergabeart** (nur leere Felder in
+Schritt 1). Die Nachunternehmer stehen in Schritt 4 je Bieter in einer Tabelle zum Prüfen und Korrigieren (Handschrift wird nicht immer
+richtig gelesen, z. B. „Versicherung“ statt „Verkehrssicherung“); von Hand bearbeitete Listen überschreibt eine neue Prüfung nicht.
+Bei Befunden älterer Prüfungen wird die Liste aus den handschriftlichen Eintragungen im VVB 233 abgeleitet.
 **Nutzer der App brauchen dafür keinen eigenen Key.**
 
 Claude läuft über **Amazon Bedrock in der EU** (Standard: Frankfurt, EU-Inferenzprofil). Die Function bricht ab, wenn Region oder
@@ -97,7 +102,13 @@ Die Vercel-Variablennamen `AWS_*` sind reserviert, daher die eigenen Namen.
 
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,
-Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen) mit Vollständigkeitsprüfung als Anlage,
+Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen) mit Vollständigkeitsprüfung als Anlage.
+Inhalte der Wertungsschritte der bisherigen Vergabeempfehlungen sind in Abschnitt 4 enthalten: Tabelle der geprüften Angebotssummen
+netto/brutto mit dem verpreisten LV (4.3), offene Unterlagen getrennt nach fehlt / unausgefüllt / teilweise / nicht unterschrieben (4.4),
+**Nachweise und Eignungsprüfung** je einzeln geprüftem Bieter mit Eignungsnachweis (VVB 124 bzw. PQ-Nummer) und Nachunternehmereinsatz (4.5),
+je Los die Lage der Angebote zum Kostenvoranschlag sowie je Bieter Titel und Positionen mit deutlicher Abweichung vom LV-Schätzpreis
+(Schwelle „Abweichung“) und die fachliche Auswertung. Ohne eingetragenes Gesamtbudget nennt Abschnitt 6 den Kostenvoranschlag.
+Alle Texte bleiben im Vermerk editierbar.
 Segoe UI Light 11 pt, Logo und „Seite x von y“ auf jeder Seite. Als PDF über „Drucken“ (Chrome/Edge) speichern.
 Texte sind anklickbar und editierbar.
 

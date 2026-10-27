@@ -333,7 +333,7 @@ export function offeneUnterlagen(s: State, o: Offer): string[] {
 const faName = (f: string) => (/^(Fa\.|Firma)\s/i.test(f) || /büro|^Ing/i.test(f) ? f : `Fa. ${f}`);
 const nuZeile = (x: Nachunternehmer) => {
   const det = [x.leistung.trim(), x.oz.trim() ? `OZ ${x.oz.trim()}` : ''].filter(Boolean).join(', ');
-  return `- ${x.firma.trim() ? faName(x.firma.trim()) : '[Unternehmen angeben]'}${det ? ` (${det})` : ''}`;
+  return `- ${x.firma.trim() ? faName(x.firma.trim()) : '[Unternehmen angeben]'}${det ? ` (${det})` : ''}${x.art === 'beide' ? '; der Bieter beruft sich insoweit auch auf dessen Kapazitäten (VVB 235)' : ''}`;
 };
 
 /** Abschnitt „Nachweise und Eignungsprüfung“ für ein Angebot: Eignungsnachweis und Nachunternehmereinsatz. */

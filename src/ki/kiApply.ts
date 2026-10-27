@@ -1,3 +1,4 @@
+import { nuZusammen } from '../domain/calc';
 import type { HsEintrag, Nachunternehmer, Offer, PStatus, State } from '../domain/types';
 import { applyKopf, verfahrenAus } from '../import/kopfdaten';
 import { docStore, type DocFile } from '../import/docStore';
@@ -23,7 +24,7 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
   const o = d.offers.find((x) => x.id === offerId);
   if (!o) return;
   if (!o.pruef) o.pruef = {};
-  o.kiDocs = results.map((r) => ({ datei: r.datei, art: r.art, zeilen: r.zeilen, vorlage: r.vorlage, inhalt: r.inhalt, unterschrift: r.unterschrift, stempel: r.stempel, handschrift: r.handschrift, ...(r.nachunternehmer?.length ? { nachunternehmer: r.nachunternehmer } : {}), sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
+  o.kiDocs = results.map((r) => ({ datei: r.datei, art: r.art, zeilen: r.zeilen, vorlage: r.vorlage, inhalt: r.inhalt, unterschrift: r.unterschrift, stempel: r.stempel, handschrift: r.handschrift, ...(r.nachunternehmer?.length ? { nachunternehmer: r.nachunternehmer } : {}), ...(r.pq?.trim() ? { pq: r.pq.trim() } : {}), sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
   const best: Record<string, { s: PStatus; n: string }> = {};
   for (const r of results) {
     if (r.sicherheit === 'niedrig') continue; // unsichere Befunde nicht eintragen – die Zeile bleibt offen und wird von Hand geprüft
@@ -45,9 +46,14 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
   if (o.nuQuelle !== 'user') {
     const nuDocs = results.filter((r) => r.sicherheit !== 'niedrig' && r.nachunternehmer?.length);
     const nu = nuDocs.flatMap((r) => r.nachunternehmer!);
-    if (nu.length) { o.nu = nu; o.nuQuelle = 'ki'; }
+    if (nu.length) { o.nu = nuZusammen(nu); o.nuQuelle = 'ki'; }
   }
-  if (!o.pq?.trim()) { const pq = results.find((r) => r.pq?.trim())?.pq?.trim(); if (pq) o.pq = pq; }
+  // PQ-Nummer: nur aus sicheren Befunden, mit Fundstelle; eine von Hand eingetragene Nummer bleibt
+  if (!o.pq?.trim() || o.pqQuelle) {
+    const r = results.find((x) => x.sicherheit !== 'niedrig' && x.pq?.trim());
+    if (r) { o.pq = r.pq!.trim(); o.pqQuelle = r.datei.split('/').pop(); }
+    else if (o.pqQuelle) { delete o.pq; delete o.pqQuelle; }
+  }
   // Kopf der Formblätter (Vergabenummer usw.) belegt nur leere Felder des Vorhabens
   const kopf = Object.assign({}, ...results.filter((r) => r.sicherheit !== 'niedrig').map((r) => r.kopf ?? {}).reverse()) as NonNullable<KiDoc['kopf']>;
   const verf = kopf.vergabeart ? verfahrenAus(kopf.vergabeart) : null;

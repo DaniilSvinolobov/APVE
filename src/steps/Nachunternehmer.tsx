@@ -14,17 +14,18 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
   const edit = (fn: (l: Nachunternehmer[]) => void) => up((d) => {
     const x = d.offers.find((y) => y.id === o.id);
     if (!x) return;
-    const l = (x.nu ?? nuOf(d, x) ?? []).map((n) => ({ ...n }));
+    const l = (nuOf(d, x) ?? []).map((n) => ({ ...n })); // dieselbe (zusammengeführte) Liste wie in der Anzeige
     fn(l);
     x.nu = l; x.nuQuelle = 'user';
   });
-  const setPq = (v: string) => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) x.pq = v; });
+  const setPq = (v: string) => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) { x.pq = v; delete x.pqQuelle; } });
   const ausKi = o.nuQuelle !== 'user' && !!liste?.length;
   return (
     <div className="nubox">
       <div className="grid g2">
         <label className="field"><span className="field-label">Präqualifikation (Nr.)</span>
           <input value={o.pq ?? ''} onChange={(e) => setPq(e.target.value)} placeholder="leer = nicht präqualifiziert" />
+          {o.pqQuelle && o.pq?.trim() && <span className="field-hint"><Chip kind="info">KI – bitte prüfen</Chip> gelesen aus „{o.pqQuelle}“</span>}
           <span className="field-hint">{eg === 'pq' ? 'Im Vermerk: „präqualifiziert unter der Nr. …“' : eg === '124' ? 'Im Vermerk: Eignungsnachweis mit Eigenerklärung (VVB 124)' : 'Weder PQ-Nummer noch VVB 124 (vorhanden) – im Vermerk als offen markiert.'}</span>
         </label>
       </div>
@@ -45,7 +46,7 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
                 <td className="left"><input className="plain wide" value={n.firma} onChange={(e) => edit((l) => void (l[i].firma = e.target.value))} aria-label="Unternehmen" /></td>
                 <td className="left">
                   <select value={n.art ?? 'nu'} onChange={(e) => edit((l) => void (l[i].art = e.target.value as Nachunternehmer['art']))} aria-label="Art">
-                    <option value="nu">Nachunternehmer</option><option value="kapazitaet">Kapazitäten (Eignungsleihe)</option>
+                    <option value="nu">Nachunternehmer (233)</option><option value="beide">Nachunternehmer + Kapazitäten (233/235)</option><option value="kapazitaet">nur Kapazitäten (235)</option>
                   </select>
                 </td>
                 <td><button className="icon-btn" title="Zeile entfernen" onClick={() => edit((l) => void l.splice(i, 1))}><Icon name="trash" /></button></td>

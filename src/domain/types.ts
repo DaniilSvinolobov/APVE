@@ -111,10 +111,12 @@ export interface Bew {
   nichtGewertet: string; // Begründung, warum das Angebot nicht in die engere Wahl kommt (leer = automatischer Text)
 }
 
-/** E-Mail an den Auftraggeber: Ausschluss vorab empfehlen und Angebotskalkulation zu auffälligen Positionen nachfordern lassen. */
+/** E-Mail an den Auftraggeber während der Prüfung (nur Text, ändert weder Wertung noch Vergabevermerk). */
+export type AnfrageModus = 'ohne' | 'nach' | 'aus'; // nicht erwähnen | Angebotskalkulation nachfordern | Ausschluss empfehlen
 export interface Anfrage {
   anrede: string; // leer = „Sehr geehrte Damen und Herren,“
-  ausschluss: Record<string, string>; // [offerId] Begründung der Ausschlussempfehlung (Schlüssel vorhanden = empfohlen, leer = automatischer Text)
+  modus: Record<string, AnfrageModus>; // [offerId]; fehlt = „nach“, wenn auffällige Positionen erkannt wurden, sonst „ohne“
+  grund: Record<string, string>; // [offerId] Begründung der Ausschlussempfehlung (leer = automatischer Text)
   pos: Record<string, string>; // [offerId] Positionen von Hand (kommagetrennt); fehlt = automatisch
 }
 

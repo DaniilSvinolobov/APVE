@@ -28,9 +28,9 @@ Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
 | `gaeb/` | Parser GAEB 90 / 2000 / DA XML | nein |
 | `import/` | Einlesen und Zuordnen, siehe Datenfluss; `docStore.ts` hält Originaldateien nur im Arbeitsspeicher | nein |
 | `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Zerlegen großer Dateien in `teile.ts`, Aufruf von `api/pruefen.ts` → Bedrock EU über `api/_ki.ts`) und Eignungsprüfung (`kiEignung.ts` → `api/eignung.ts`: Referenzen, Recherche) | nein |
-| `vermerk/` | Aufbau und Texte des Vergabevermerks; `anfrage.ts` = E-Mail-Text „Angebotskalkulation anfordern“ | nein |
+| `vermerk/` | Aufbau und Texte des Vergabevermerks; `anfrage.ts` = E-Mail-Text „Rückfrage an den Auftraggeber“ | nein |
 | `geo/` | geschätzte Entfernung Bieter → Baustelle (`entfernung.ts`, Hook `useGeo` lädt die PLZ-Tabelle `plzDaten.ts` als eigenen Chunk nach) | Hook |
-| `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen; `Nachunternehmer.tsx` (PQ-Nummer und Nachunternehmer je Bieter prüfen/korrigieren); `Anfrage.tsx` (Angebotskalkulation anfordern, in der Wertung) | ja |
+| `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen; `Nachunternehmer.tsx` (PQ-Nummer und Nachunternehmer je Bieter prüfen/korrigieren); `Anfrage.tsx` (Rückfrage an den Auftraggeber, in der Wertung) | ja |
 | `components/` | wiederverwendbare UI-Bausteine (`ui.tsx`, `DropZone.tsx`) | ja |
 | `storage/` | Browser-Speicher (`projectStore.ts`), Export CSV/JSON (`exportCsv.ts`), Preisspiegel als PDF (`preisspiegelPdf.ts`, pdf-lib + Schrift Inter, im Browser erzeugt) | nein |
 

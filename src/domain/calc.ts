@@ -4,7 +4,7 @@ import { fmtEur, round2 } from './fmt';
 export const zkey = (oz: string) => oz.replace(/\./g, '');
 export const bewKey = (offerId: string, losId: string) => `${offerId}|${losId}`;
 export const emptyBew = () => ({
-  ausschluss: '', aufklaerung: '' as const, aufklaerungNotiz: '', qualifikation: '', km: null, auskoemm: false, erlaeuterung: '', zusatz: '',
+  ausschluss: '', aufklaerung: '' as const, aufklaerungNotiz: '', qualifikation: '', km: null, auskoemm: false, erlaeuterung: '', zusatz: '', nichtGewertet: '',
 });
 export const getBew = (s: State, offerId: string, losId: string) => ({ ...emptyBew(), ...(s.bew[bewKey(offerId, losId)] ?? {}) });
 
@@ -298,16 +298,29 @@ export function offerBrutto(s: State, o: Offer): number | null {
 
 /** Abweichung eines Angebots von den LV-Schätzpreisen: Titel und Positionen außerhalb der Schwelle (Projekteinstellung „abweichung“). */
 export interface Angemessen {
-  titel: { oz: string; name: string; sum: number; schaetz: number; pct: number }[]; // pct = Angebot in % des geschätzten Titelpreises
-  pos: { oz: string; kurz: string; ep: number; schaetz: number; pct: number; delta: number }[];
+  titel: { oz: string; name: string; sum: number; schaetz: number; pct: number; peer: number | null }[]; // pct = Angebot in % des geschätzten Titelpreises; peer = Mittel der übrigen Angebote
+  pos: { oz: string; kurz: string; ep: number; schaetz: number; pct: number; delta: number; peer: number | null }[];
 }
 
-export function angemessenheit(s: State, los: Los, c: Cell): Angemessen {
+/** Mittel der übrigen wertbaren Angebote derselben Runde (EP einer Position bzw. Summe eines Titels); null ohne Vergleichsangebote. */
+function peerMittel(s: State, los: Los, cells: Cell[], c: Cell) {
+  const peers = cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded);
+  const ep = (oz: string) => { const v = peers.map((x) => x.offer.prices[zkey(oz)]?.ep).filter((e): e is number => e != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const titel = (tk: string) => {
+    if (!peers.length) return null;
+    const pos = losPositions(s, los).filter((p) => !p.bedarf && titelKey(p.oz) === tk);
+    return peers.map((x) => pos.reduce((a, p) => a + round2((p.menge ?? 0) * (x.offer.prices[zkey(p.oz)]?.ep ?? 0)), 0)).reduce((a, b) => a + b, 0) / peers.length;
+  };
+  return { ep, titel };
+}
+
+export function angemessenheit(s: State, los: Los, c: Cell, cells: Cell[] = []): Angemessen {
   const res: Angemessen = { titel: [], pos: [] };
   if (!c.complete || !Object.keys(s.schaetz ?? {}).length) return res;
   const th = s.project.abweichung / 100;
   const losSchaetz = schaetzSumme(s, los) ?? 0;
   const t = new Map<string, { me: number; sch: number }>();
+  const pm = peerMittel(s, los, cells, c);
   for (const p of losPositions(s, los)) {
     if (p.bedarf) continue;
     const me = c.offer.prices[zkey(p.oz)]?.ep;
@@ -322,11 +335,11 @@ export function angemessenheit(s: State, los: Los, c: Cell): Angemessen {
     const delta = round2(m * (me - sch));
     // nur Positionen mit spürbarem Gewicht (mind. 0,5 % des geschätzten Lospreises bzw. 100 €)
     if (Math.abs(delta) < Math.max(100, losSchaetz * 0.005)) continue;
-    if (me > sch * (1 + th) || me < sch * (1 - th)) res.pos.push({ oz: p.oz, kurz: p.kurz, ep: me, schaetz: sch, pct: (me / sch) * 100, delta });
+    if (me > sch * (1 + th) || me < sch * (1 - th)) res.pos.push({ oz: p.oz, kurz: p.kurz, ep: me, schaetz: sch, pct: (me / sch) * 100, delta, peer: pm.ep(p.oz) });
   }
   for (const [oz, x] of t) {
     if (x.sch <= 0 || Math.abs(x.me - x.sch) < Math.max(200, losSchaetz * 0.01)) continue;
-    if (x.me > x.sch * (1 + th) || x.me < x.sch * (1 - th)) res.titel.push({ oz, name: s.titles[oz] ?? '', sum: round2(x.me), schaetz: round2(x.sch), pct: (x.me / x.sch) * 100 });
+    if (x.me > x.sch * (1 + th) || x.me < x.sch * (1 - th)) res.titel.push({ oz, name: s.titles[oz] ?? '', sum: round2(x.me), schaetz: round2(x.sch), pct: (x.me / x.sch) * 100, peer: pm.titel(oz) });
   }
   res.titel.sort((a, b) => a.oz.localeCompare(b.oz, 'de', { numeric: true }));
   res.pos.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));

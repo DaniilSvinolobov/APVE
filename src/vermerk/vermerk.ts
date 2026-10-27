@@ -192,17 +192,12 @@ export function buildVermerk(s: State): Block[] {
   const nrs = (os: { nr: number }[]) => [...new Set(os.map((o) => o.nr))].sort((a, b) => a - b).map(String);
   const geprueft = nrs(vLose.flatMap((l) => engereWahl(s, allCells.get(l.id) ?? []).take.map((c) => c.offer)));
   const nichtEinzeln = nrs(vLose.flatMap((l) => engereWahl(s, allCells.get(l.id) ?? []).ranked.map((c) => c.offer))).filter((n) => !geprueft.includes(n));
-  // „aufgrund des Preisrangs“ nur, wenn kein übergangenes Angebot vor einem geprüften liegt (sonst von Hand gewählt)
-  const nachRang = vLose.every((l) => {
-    const { take, ranked } = engereWahl(s, allCells.get(l.id) ?? []);
-    return ranked.every((c) => take.includes(c) || take.every((x) => x.rankAll! < c.rankAll!));
-  });
   B.push(T('festlegungen', [
     formalAus.length
       ? `Aufgrund o.a. Prüfung ${formalAus.length > 1 ? 'wurden die Angebote' : 'wurde das Angebot'} Nr. ${listDe(nrs(formalAus))} von der weiteren Prüfung ausgeschlossen.`
       : 'Aufgrund o.a. Prüfung wurde kein Angebot von der weiteren Prüfung ausgeschlossen.',
     geprueft.length ? `Nachfolgend ${geprueft.length > 1 ? 'werden die Angebote' : 'wird das Angebot'} Nr. ${listDe(geprueft)} technisch und wirtschaftlich geprüft${nichtEinzeln.length ? ' (engere Wahl)' : ''}.` : '',
-    nichtEinzeln.length ? `${nichtEinzeln.length > 1 ? 'Die Angebote' : 'Das Angebot'} Nr. ${listDe(nichtEinzeln)} ${nachRang ? `${nichtEinzeln.length > 1 ? 'kommen' : 'kommt'} aufgrund des Preisrangs für den Zuschlag nicht in Betracht und ` : ''}${nichtEinzeln.length > 1 ? 'werden' : 'wird'} nicht einzeln bewertet.` : '',
+    ...vLose.flatMap((l) => engereText(s, l, allCells.get(l.id) ?? [], vLose.length > 1)),
     '',
     ...s.offers.filter((o) => !o.status).flatMap((o) => {
       const ps = pruefStatus(s, o);
@@ -383,6 +378,80 @@ export function angemessenText(s: State, l: Los, take: Cell[]): string {
   return L.join('\n');
 }
 
+/** Auffallend hohe und niedrige Titel- und Einheitspreise eines Angebots als Absätze für den Vermerk. */
+export function preisAuffaelligkeiten(s: State, l: Los, cells: Cell[], c: Cell, erlaeuterung = ''): string[] {
+  const ang = angemessenheit(s, l, c, cells);
+  const a = auffaelligkeiten(s, l, cells, c);
+  const hatSchaetz = Object.keys(s.schaetz ?? {}).length > 0;
+  const hatPeers = cells.some((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded);
+  const L: string[] = [];
+  const name = (oz: string, t: string) => `${oz}${t ? ` „${t}“` : ''}`;
+  const peerT = (v: number | null, me: number) => (v ? `; ${me > v ? 'über' : 'unter'} dem Mittel der übrigen Bieter von ${fmtEUR(round2(v))}` : '');
+  const peerP = (v: number | null) => (v ? `; Mittel der übrigen Bieter ${fmtEUR(round2(v))}` : '');
+  const tHoch = ang.titel.filter((t) => t.pct > 100), tNied = ang.titel.filter((t) => t.pct < 100);
+  const pHoch = ang.pos.filter((x) => x.pct > 100).slice(0, 6), pNied = ang.pos.filter((x) => x.pct < 100).slice(0, 6);
+  const tz = (t: (typeof tHoch)[number]) => `- Titel ${name(t.oz, t.name)}: ${fmtEUR(t.sum)} netto = ${pctDe(t.pct)} % des geschätzten Titelpreises von ${fmtEUR(t.schaetz)} netto${peerT(t.peer, t.sum)}`;
+  const pz = (x: (typeof pHoch)[number]) => `- Pos. ${name(x.oz, x.kurz)}: EP ${fmtEUR(x.ep)} = ${pctDe(x.pct)} % des geschätzten Preises von ${fmtEUR(x.schaetz)}${peerP(x.peer)}`;
+  // Vergleich mit den übrigen Bietern für Positionen, die nicht schon gegenüber dem Schätzpreis genannt sind
+  const schon = new Set(ang.pos.map((x) => x.oz));
+  const gue = a.guenstig.filter((x) => !schon.has(x.oz)).slice(0, 5), hoch = a.hoch.filter((x) => !schon.has(x.oz)).slice(0, 5);
+  const titelNied = a.titel.filter((t) => !ang.titel.some((x) => x.oz === t.oz)).slice(0, 4);
+  if (tHoch.length) L.push('', 'Deutlich über den geschätzten Preisen liegen die Titelpreise folgender Titel:', ...tHoch.map(tz));
+  if (pHoch.length) L.push('', 'Auffallend hohe Einheitspreise:', ...pHoch.map(pz));
+  if (hoch.length) L.push('', `Überdurchschnittlich hochpreisig im Vergleich zu den übrigen Bietern: ${listDe(hoch.map((x) => `Pos. ${x.oz} (EP ${fmtEUR(x.ep)}, Mittel ${fmtEUR(round2(x.avg))})`))}.`);
+  if (tNied.length) L.push('', 'Deutlich unter den geschätzten Preisen liegen die Titelpreise folgender Titel:', ...tNied.map(tz));
+  if (pNied.length) L.push('', 'Auffallend niedrige Einheitspreise:', ...pNied.map(pz));
+  if (gue.length || titelNied.length) {
+    const platz = c.rankAll === 1 ? 'erste' : c.rankAll === 2 ? 'zweite' : `${c.rankAll}.`;
+    L.push('', `Fa. ${c.offer.firma} bietet gegenüber den übrigen Bietern diverse Leistungen mit sehr niedrigen Preisen an, auf Grund derer der ${platz} Platz in der Rangfolge erreicht wird.`);
+    if (titelNied.length) L.push(`Es handelt sich hierbei insbesondere um Leistungen unter Titel ${listDe(titelNied.map((t) => name(t.oz, t.name)))}.`);
+    if (gue.length) L.push(`Überdurchschnittlich günstig im Vergleich zu den übrigen Bietern: ${listDe(gue.map((x) => `Pos. ${x.oz} (EP ${fmtEUR(x.ep)}, Mittel ${fmtEUR(round2(x.avg))})`))}.`);
+  }
+  if (erlaeuterung.trim()) L.push(erlaeuterung.trim());
+  if (!L.length) {
+    if (hatSchaetz || hatPeers) L.push('', `Auffallend hohe oder niedrige Titel- bzw. Einheitspreise wurden ${hatSchaetz ? `gegenüber den geschätzten Preisen${hatPeers ? ' und ' : ''}` : ''}${hatPeers ? 'gegenüber den übrigen Angeboten' : ''} nicht festgestellt (Schwelle ${pctDe(s.project.abweichung)} %).`);
+    else L.push('', 'Eine Prüfung der Einzelpreise auf auffallend hohe oder niedrige Preise war mangels LV-Schätzpreisen und weiterer Angebote nicht möglich.');
+  }
+  return L;
+}
+
+/**
+ * Engere Wahl eines Loses: Festlegung (z. B. Abstimmung mit der Vergabestelle) und je nicht einzeln geprüftem Angebot der Grund.
+ * Ohne Eingabe wird der Grund aus den Preisen formuliert; liegt ein übergangenes Angebot preislich vor einem geprüften, bleibt er offen.
+ */
+export function engereText(s: State, l: Los, cells: Cell[], mitLos: boolean): string[] {
+  const { take, ranked } = engereWahl(s, cells);
+  const raus = ranked.filter((c) => !take.includes(c));
+  if (!raus.length) return [];
+  const notiz = s.engereNotiz?.[l.id]?.trim();
+  const L: string[] = ['', ...(mitLos ? [`${l.nr}:`] : [])];
+  if (notiz) L.push(/[.!?]$/.test(notiz) ? notiz : `${notiz}.`);
+  L.push(`In die engere Wahl ${take.length > 1 ? 'kommen die Angebote' : 'kommt das Angebot'} Nr. ${listDe(take.map((c) => c.offer.nr).sort((a, b) => a - b).map(String))}.`);
+  for (const c of raus) L.push(nichtGewertetText(s, c, take));
+  return L;
+}
+
+/** Satz zu einem Angebot, das nicht in die engere Wahl kommt: Grund von Hand, sonst Abstand zu den geprüften Angeboten und zum Kostenvoranschlag. */
+export function nichtGewertetText(s: State, c: Cell, take: Cell[]): string {
+  const wer = `Das Angebot Nr. ${c.offer.nr} der Fa. ${c.offer.firma}`;
+  const grund = getBew(s, c.offer.id, c.los.id).nichtGewertet.trim();
+  if (grund) return `${wer} wird nicht weiter gewertet: ${/[.!?]$/.test(grund) ? grund : `${grund}.`}`;
+  const auto = nichtGewertetAuto(s, c, take);
+  return auto ? `${wer} ${auto}` : `${wer} wird nicht weiter gewertet. [Begründung angeben]`;
+}
+
+/** Automatische Begründung (ohne Subjekt) oder '' , wenn das Angebot nicht teurer ist als alle geprüften. */
+export function nichtGewertetAuto(s: State, c: Cell, take: Cell[]): string {
+  const ref = take.filter((x) => x.gross != null && x.gross > 0);
+  if (c.gross == null || !ref.length || ref.some((x) => x.gross! >= c.gross!)) return '';
+  const pcts = ref.map((x) => (c.gross! / x.gross! - 1) * 100);
+  const lo = Math.min(...pcts), hi = Math.max(...pcts);
+  const spanne = ref.length > 1 && Math.round(lo) !== Math.round(hi) ? `ca. ${fmtNum(lo, 0)} % bis ${fmtNum(hi, 0)} %` : `ca. ${fmtNum(hi, 0)} %`;
+  const wen = ref.length > 1 ? `den Angeboten Nr. ${listDe(ref.map((x) => String(x.offer.nr)))}` : `dem Angebot Nr. ${ref[0].offer.nr}`;
+  const ks = c.dKosten != null && c.dKosten > 0.5 ? ` und ca. ${fmtNum(c.dKosten, 0)} % über dem Kostenvoranschlag` : '';
+  return `liegt mit brutto ${fmtEUR(c.gross)} ${spanne} über ${wen}${ks}. Es kommt für den Zuschlag nicht in Betracht und wird aus der weiteren Wertung genommen.`;
+}
+
 const ord = ['günstigste', 'zweitgünstigste', 'drittgünstigste', 'viertgünstigste', 'fünftgünstigste'];
 
 /** Bewertungstext für ein Angebot (Abschnitt 4.5.x / Nachverhandlung). */
@@ -411,30 +480,15 @@ export function bewText(s: State, l: Los, cells: Cell[], c: Cell, nv = false): s
       else L.push('Alle Einheitspreise wurden durch den Bieter bestätigt.');
     }
   } else {
-    // Angemessenheit der Preise: Lage zum Kostenvoranschlag, Titel und Positionen mit deutlicher Abweichung vom LV-Schätzpreis
+    // Angemessenheit der Preise: Lage zum Kostenvoranschlag, auffallend hohe und niedrige Titel- und Einheitspreise
+    // (gegenüber LV-Schätzpreis und den übrigen Angeboten) – jedes einzeln geprüfte Angebot erhält dazu eine Aussage
     if (c.dKosten != null && Math.abs(c.dKosten) >= 0.005) L.push('', `Das Angebot liegt ca. ${pctDe(Math.abs(c.dKosten))} % ${c.dKosten < 0 ? 'unter' : 'über'} dem Kostenvoranschlag.`);
-    const ang = angemessenheit(s, l, c);
-    if (ang.titel.length) {
-      L.push(`Folgende Titelpreise weichen deutlich von den geschätzten Preisen ab:`);
-      for (const t of ang.titel) L.push(`- Titel ${t.oz}${t.name ? ` „${t.name}“` : ''}: ${fmtEUR(t.sum)} netto (${pctDe(t.pct)} % des geschätzten Titelpreises von ${fmtEUR(t.schaetz)} netto)`);
-    }
-    if (ang.pos.length) {
-      L.push(`Positionen mit deutlicher Abweichung vom geschätzten Einheitspreis:`);
-      for (const x of ang.pos.slice(0, 8)) L.push(`- ${x.oz}${x.kurz ? ` „${x.kurz}“` : ''} (${pctDe(x.pct)} % des geschätzten Preises)`);
-    }
+    L.push(...preisAuffaelligkeiten(s, l, cells, c, b.erlaeuterung));
     const km = kmFuerVermerk(s, o, b);
     if (km) L.push(`Durch die Entfernung zur Baustelle (ca. ${km} km) fallen für o.g. Fachfirma zusätzliche Fahrt- und Betriebskosten an, welche bei der Kalkulation der Einheitspreise berücksichtigt wurden.`);
-    const a = auffaelligkeiten(s, l, cells, c);
-    const platz = c.rankAll === 1 ? 'erste' : c.rankAll === 2 ? 'zweite' : `${c.rankAll}.`;
-    if (a.guenstig.length || a.titel.length) {
-      L.push('', `${name} bietet diverse Leistungen mit sehr niedrigen Einheitspreisen an, auf Grund derer der ${platz} Platz in der Rangfolge erreicht wird.`);
-      if (b.erlaeuterung) L.push(b.erlaeuterung);
-      else if (a.titel.length) L.push(`Es handelt sich hierbei insbesondere um Leistungen unter Titel ${listDe(a.titel.slice(0, 4).map((t) => t.oz))}.`);
-      if (a.guenstig.length) L.push(`Die Einheitspreise unter Pos. ${listDe(a.guenstig.slice(0, 5).map((x) => x.oz))} wurden überdurchschnittlich günstig angeboten.`);
-      if (b.auskoemm) L.push('Durch Unterzeichner wurde eine Auskömmlichkeitserklärung empfohlen.');
-    } else if (b.erlaeuterung) L.push('', b.erlaeuterung);
-    if (a.hoch.length) L.push('', `Die Einheitspreise unter Position ${listDe(a.hoch.slice(0, 3).map((x) => x.oz))} wurden überdurchschnittlich hochpreisig angeboten.`);
+    if (b.auskoemm) L.push('Durch Unterzeichner wurde eine Auskömmlichkeitserklärung empfohlen.');
     if (b.aufklaerung === 'angemessen') L.push(`Der Preis wurde aufgeklärt und als angemessen bewertet${b.aufklaerungNotiz ? ` (${b.aufklaerungNotiz})` : ''}.`);
+    else if (b.aufklaerung === '' && c.flags.some((f) => f.text.includes('Aufklärung prüfen'))) L.push(`Der Angebotspreis ist auffallend niedrig; eine Aufklärung beim Bieter ist angezeigt. [Ergebnis der Aufklärung ergänzen]`);
     if (b.qualifikation.trim()) L.push('', 'Fachliche Auswertung:', b.qualifikation.trim());
   }
   if (b.zusatz.trim()) L.push('', b.zusatz.trim());

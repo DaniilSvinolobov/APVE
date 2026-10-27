@@ -101,6 +101,7 @@ export interface Bew {
   auskoemm: boolean;
   erlaeuterung: string;
   zusatz: string;
+  nichtGewertet: string; // Begründung, warum das Angebot nicht in die engere Wahl kommt (leer = automatischer Text)
 }
 
 export interface Anlage {
@@ -149,6 +150,7 @@ export interface State {
   zuschlag: Record<string, string>; // [losId] -> offerId ('' = automatisch)
   engere?: Record<string, string[]>; // [losId] -> offerIds der im Vermerk einzeln geprüften Angebote (erste Runde); fehlt = automatisch
   nvGrund?: Record<string, string>; // [losId] Anlass der Nachverhandlung (Text für den Vermerk)
+  engereNotiz?: Record<string, string>; // [losId] Festlegung zur engeren Wahl, z. B. Abstimmung mit der Vergabestelle (Text für den Vermerk)
   anlagen: Anlage[];
   logo: string; // data-URL
   schaetz: Record<string, number>; // LV-Schätzpreis (EP netto) je Position [OZ ohne Punkte], aus GAEB 82

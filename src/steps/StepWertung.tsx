@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import type { Bew, State } from '../domain/types';
 import { angemessenheit, auffaelligkeiten, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
-import { bewText } from '../vermerk/vermerk';
+import { bewText, nichtGewertetAuto } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
 import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
 import { EignungEinwilligung, EignungKi, useEignung } from './EignungKi';
@@ -115,22 +115,35 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 
       {ew.ranked.length > 1 && (
         <section className="card">
-          <div className="row"><h2>Im Vermerk einzeln geprüfte Angebote</h2>
+          <div className="row"><h2>Engere Wahl – im Vermerk einzeln geprüfte Angebote</h2>
             {ew.manuell && <button className="btn small ghost" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Automatisch wählen</button>}
           </div>
-          <p className="lead">{ew.manuell ? 'Von Hand gewählt.' : `Automatisch: die ${Math.max(1, s.project.engereWahl)} günstigsten Angebote${s.zuschlag[los.id] ? ' und der abweichend gewählte Zuschlagsempfänger' : ''}.`} Diese Bieter erhalten in Abschnitt 4 einen eigenen Prüfungstext; die übrigen werden nur genannt.</p>
+          <p className="lead">Haken = kommt in die engere Wahl und erhält in Abschnitt 4 einen eigenen Prüfungstext. {ew.manuell ? 'Von Hand gewählt.' : `Automatisch: die ${Math.max(1, s.project.engereWahl)} günstigsten Angebote${s.zuschlag[los.id] ? ' und der abweichend gewählte Zuschlagsempfänger' : ''} – Haken setzen oder entfernen, um selbst zu wählen.`} Für jedes Angebot ohne Haken steht im Vermerk (4.4), warum es nicht weiter gewertet wird.</p>
+          <label className="field wide"><span className="field-label">Festlegung zur engeren Wahl (optional, für den Vermerk)</span>
+            <textarea rows={2} value={s.engereNotiz?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.engereNotiz = { ...(d.engereNotiz ?? {}), [los.id]: e.target.value }))} placeholder="z. B. In Abstimmung mit der Vergabestelle am 05.06.2026 wurde festgelegt, die weitere Angebotsprüfung auf die drei preisgünstigsten Bieter zu beschränken." />
+          </label>
           <div className="stack">
             {ew.ranked.map((c) => {
               const on = ew.take.includes(c);
+              const b = getBew(s, c.offer.id, los.id);
+              const auto = on ? '' : nichtGewertetAuto(s, c, ew.take);
               return (
-                <label className="mini big" key={c.offer.id}>
-                  <input type="checkbox" checked={on} disabled={on && ew.take.length === 1} onChange={(e) => up((d) => {
-                    const ids = ew.take.map((x) => x.offer.id).filter((id) => id !== c.offer.id);
-                    if (e.target.checked) ids.push(c.offer.id);
-                    d.engere = { ...(d.engere ?? {}), [los.id]: ids };
-                  })} />
-                  Rang {c.rankAll} · Nr. {c.offer.nr} · {c.offer.firma} <span className="muted">({fmtEur(c.gross)} brutto{c.excluded ? ', ausgeschlossen' : ''})</span>
-                </label>
+                <div key={c.offer.id}>
+                  <label className="mini big">
+                    <input type="checkbox" checked={on} disabled={on && ew.take.length === 1} onChange={(e) => up((d) => {
+                      const ids = ew.take.map((x) => x.offer.id).filter((id) => id !== c.offer.id);
+                      if (e.target.checked) ids.push(c.offer.id);
+                      d.engere = { ...(d.engere ?? {}), [los.id]: ids };
+                    })} />
+                    Rang {c.rankAll} · Nr. {c.offer.nr} · {c.offer.firma} <span className="muted">({fmtEur(c.gross)} brutto{c.dKosten != null ? `, ${fmtPct(c.dKosten)} zum Kostenvoranschlag` : ''}{c.excluded ? ', ausgeschlossen' : ''})</span>
+                  </label>
+                  {!on && (
+                    <label className="field wide" style={{ margin: '4px 0 8px 26px' }}><span className="field-label">Warum nicht weiter gewertet?</span>
+                      <textarea rows={2} value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={auto ? `Automatisch: … ${auto}` : 'Begründung angeben (z. B. liegt über dem geschätzten Preis und weit über den Angeboten der anderen Bieter)'} />
+                      <span className="field-hint">{b.nichtGewertet.trim() ? 'Ihr Text erscheint im Vermerk.' : auto ? 'Leer lassen = automatischer Text (siehe Platzhalter).' : 'Das Angebot ist günstiger als ein gewähltes – bitte Grund angeben.'}</span>
+                    </label>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -146,7 +159,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
           {detail.map((c) => {
             const b = getBew(s, c.offer.id, los.id);
             const a = auffaelligkeiten(s, los, cells, c);
-            const ang = angemessenheit(s, los, c);
+            const ang = angemessenheit(s, los, c, cells);
             const nv = c.offer.runde > hrl;
             const e = entfernung(s, c.offer);
             return (

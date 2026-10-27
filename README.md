@@ -107,7 +107,10 @@ Inhalte der Wertungsschritte der bisherigen Vergabeempfehlungen sind in Abschnit
 netto/brutto mit dem verpreisten LV (4.3), offene Unterlagen getrennt nach fehlt / unausgefüllt / teilweise / nicht unterschrieben (4.4),
 **Nachweise und Eignungsprüfung** je einzeln geprüftem Bieter mit Eignungsnachweis (VVB 124 bzw. PQ-Nummer) und Nachunternehmereinsatz (4.5),
 je Los die Lage der Angebote zum Kostenvoranschlag sowie je Bieter Titel und Positionen mit deutlicher Abweichung vom LV-Schätzpreis
-(Schwelle „Abweichung“) und die fachliche Auswertung. Ohne eingetragenes Gesamtbudget nennt Abschnitt 6 den Kostenvoranschlag.
+(Schwelle „Abweichung“), jeweils getrennt nach auffallend hoch und auffallend niedrig und mit dem Mittel der übrigen Bieter, und die
+fachliche Auswertung. Gibt es nichts Auffälliges, steht das ausdrücklich im Text. **Engere Wahl:** In Schritt 4 wählt man per Haken,
+welche Bieter einzeln geprüft werden; für jeden anderen nennt 4.4 den Grund (eigener Text oder automatisch: Abstand in % zu den
+gewählten Angeboten und zum Kostenvoranschlag), dazu optional die Festlegung (z. B. Abstimmung mit der Vergabestelle). Ohne eingetragenes Gesamtbudget nennt Abschnitt 6 den Kostenvoranschlag.
 Alle Texte bleiben im Vermerk editierbar.
 Segoe UI Light 11 pt, Logo und „Seite x von y“ auf jeder Seite. Als PDF über „Drucken“ (Chrome/Edge) speichern.
 Texte sind anklickbar und editierbar.

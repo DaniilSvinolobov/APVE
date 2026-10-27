@@ -62,6 +62,6 @@ export function demoState(): State {
   o3.pruef[s.unterlagen.find((u) => u.label.includes('221'))!.id] = { s: 'nach', d: '2026-08-04' };
   o2.pruef[s.unterlagen.find((u) => u.label.includes('233'))!.id] = { s: 'fehlt', d: '' };
   o3.nachforderung = ['VVB 221'];
-  s.bew[`${o3.id}|${l1.id}`] = { ausschluss: '', aufklaerung: 'angemessen', aufklaerungNotiz: 'Rasen/Pflanzen aus eigener Baumschule', qualifikation: 'Die Qualifikation des Bieters ist bekannt, die Fachfirma hat bereits vergleichbare Leistungen für die Stadt erbracht (Quartierspark BA1).', km: null, auskoemm: true, erlaeuterung: 'Es handelt sich hierbei insbesondere um die Pflanzenlieferungen (Eigenproduktion).', zusatz: '' };
+  s.bew[`${o3.id}|${l1.id}`] = { ausschluss: '', aufklaerung: 'angemessen', aufklaerungNotiz: 'Rasen/Pflanzen aus eigener Baumschule', qualifikation: 'Die Qualifikation des Bieters ist bekannt, die Fachfirma hat bereits vergleichbare Leistungen für die Stadt erbracht (Quartierspark BA1).', km: null, auskoemm: true, erlaeuterung: 'Es handelt sich hierbei insbesondere um die Pflanzenlieferungen (Eigenproduktion).', zusatz: '', nichtGewertet: '' };
   return s;
 }

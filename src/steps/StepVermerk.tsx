@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { State } from '../domain/types';
-import { buildVermerk, anlagenList, budgetAusKosten, footerText, type Block } from '../vermerk/vermerk';
+import { buildVermerk, anlagenList, budgetAusKosten, footerText, nichtGewertetAuto, type Block } from '../vermerk/vermerk';
 import { computeLos, engereWahl, getBew, nuOf, pruefStatus } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { downloadJson } from '../storage/exportCsv';
@@ -60,6 +60,11 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
   }
   for (const o of s.offers) if (o.status === 'formal' && !o.statusGrund?.trim()) open.push(`Nr. ${o.nr}: Grund des formalen Ausschlusses fehlt (Schritt Unterlagen)`);
   if (!p.budgetBrutto && budgetAusKosten(s) == null) open.push('Gesamtbudget für Abschnitt 6 fehlt');
+  for (const l of s.lose.filter((x) => x.imVermerk)) {
+    const ew = engereWahl(s, computeLos(s, l));
+    for (const c of ew.ranked.filter((x) => !ew.take.includes(x)))
+      if (!getBew(s, c.offer.id, l.id).nichtGewertet.trim() && !nichtGewertetAuto(s, c, ew.take)) open.push(`${l.nr}, Nr. ${c.offer.nr}: Grund angeben, warum das Angebot nicht weiter gewertet wird (Schritt Wertung)`);
+  }
   const einzeln = new Map(s.lose.filter((l) => l.imVermerk).flatMap((l) => engereWahl(s, computeLos(s, l)).take.map((c) => [c.offer.id, c.offer] as const)));
   for (const o of einzeln.values()) {
     const nu = nuOf(s, o);

@@ -7,6 +7,7 @@ import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
 import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
 import { EignungEinwilligung, EignungKi, useEignung } from './EignungKi';
 import { NuEditor } from './Nachunternehmer';
+import { AnfrageKarte } from './Anfrage';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -95,6 +96,8 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
           </section>
         );
       })}
+
+      {cells.length > 0 && <AnfrageKarte s={s} up={up} los={los} cells={cells} />}
 
       {win && (
         <section className="card winner">

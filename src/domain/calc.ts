@@ -423,3 +423,33 @@ export function eignungsNachweis(s: State, o: Offer): 'pq' | '124' | null {
   const p = z && o.pruef?.[z.id];
   return p && (p.s === 'ok' || p.s === 'nach') ? '124' : null;
 }
+
+/** Einheitspreis einer Position im Vergleich (avg = Mittel der übrigen Angebote, schaetz = LV-Schätzpreis); auffaellig = Anlass, die Angebotskalkulation nachzufordern. */
+export interface AufklPos { oz: string; kurz: string; ep: number; avg: number | null; schaetz: number | null; auffaellig: boolean }
+
+/** Alle bepreisten Positionen eines Angebots mit Vergleichswerten. Auffällig ist ein EP, der deutlich (Projekteinstellung „abweichung“)
+ *  vom Mittel der übrigen Angebote derselben Runde und vom LV-Schätzpreis abweicht – bei beiden Vergleichswerten in dieselbe Richtung,
+ *  sonst gegenüber dem vorhandenen – und spürbares Gewicht hat (mind. 50 € bzw. 0,05 % der Angebotssumme).
+ *  ohne = Angebote, die nicht als Vergleich dienen (z. B. Ausschluss empfohlen, weil ihre Preise das Mittel verzerren). */
+export function positionsVergleich(s: State, los: Los, cells: Cell[], c: Cell, ohne: string[] = []): AufklPos[] {
+  if (!c.complete) return [];
+  const peers = cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded && !ohne.includes(x.offer.id));
+  const th = s.project.abweichung / 100;
+  const minDelta = Math.max(50, (c.sumNet ?? 0) * 0.0005);
+  const out: AufklPos[] = [];
+  for (const p of losPositions(s, los)) {
+    if (p.bedarf) continue;
+    const ep = c.offer.prices[zkey(p.oz)]?.ep;
+    if (ep == null) continue;
+    const pe = peers.map((x) => x.offer.prices[zkey(p.oz)]?.ep).filter((v): v is number => v != null);
+    const avg = pe.length ? pe.reduce((a, b) => a + b, 0) / pe.length : null;
+    const schaetz = s.schaetz?.[zkey(p.oz)] ?? null;
+    const refs = [avg, schaetz].filter((r): r is number => r != null && r > 0);
+    const dir = refs.map((r) => (ep > r * (1 + th) ? 1 : ep < r * (1 - th) ? -1 : 0));
+    const auffaellig = refs.length > 0 && dir.every((d) => d !== 0 && d === dir[0]) && Math.abs((p.menge ?? 0) * (ep - refs[0])) >= minDelta;
+    out.push({ oz: p.oz, kurz: p.kurz, ep, avg, schaetz, auffaellig });
+  }
+  return out;
+}
+
+export const aufklaerungsPositionen = (s: State, los: Los, cells: Cell[], c: Cell, ohne: string[] = []) => positionsVergleich(s, los, cells, c, ohne).filter((p) => p.auffaellig);

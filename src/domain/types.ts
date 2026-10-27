@@ -111,6 +111,15 @@ export interface Bew {
   nichtGewertet: string; // Begründung, warum das Angebot nicht in die engere Wahl kommt (leer = automatischer Text)
 }
 
+/** E-Mail an den Auftraggeber während der Prüfung (nur Text, ändert weder Wertung noch Vergabevermerk). */
+export type AnfrageModus = 'ohne' | 'nach' | 'aus'; // nicht erwähnen | Angebotskalkulation nachfordern | Ausschluss empfehlen
+export interface Anfrage {
+  anrede: string; // leer = „Sehr geehrte Damen und Herren,“
+  modus: Record<string, AnfrageModus>; // [offerId]; fehlt = „nach“, wenn auffällige Positionen erkannt wurden, sonst „ohne“
+  grund: Record<string, string>; // [offerId] Begründung der Ausschlussempfehlung (leer = automatischer Text)
+  pos: Record<string, string>; // [offerId] Positionen von Hand (kommagetrennt); fehlt = automatisch
+}
+
 export interface Anlage {
   id: string;
   key: string; // eroeffnung | mitteilung1 | preisspiegel1 | mitteilung2 | preisspiegel2 | frei
@@ -158,6 +167,7 @@ export interface State {
   engere?: Record<string, string[]>; // [losId] -> offerIds der im Vermerk einzeln geprüften Angebote (erste Runde); fehlt = automatisch
   nvGrund?: Record<string, string>; // [losId] Anlass der Nachverhandlung (Text für den Vermerk)
   engereNotiz?: Record<string, string>; // [losId] Festlegung zur engeren Wahl, z. B. Abstimmung mit der Vergabestelle (Text für den Vermerk)
+  anfrage?: Record<string, Anfrage>; // [losId] Anforderung der Angebotskalkulation (E-Mail an den Auftraggeber)
   anlagen: Anlage[];
   logo: string; // data-URL
   schaetz: Record<string, number>; // LV-Schätzpreis (EP netto) je Position [OZ ohne Punkte], aus GAEB 82

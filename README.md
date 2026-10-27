@@ -120,6 +120,7 @@ Texte sind anklickbar und editierbar.
 - Nachlass ohne Bedingung wird eingerechnet, Skonto nicht gewertet
 - Rang je Los und Runde; maßgeblich ist die letzte Runde mit wertbaren Angeboten
 - Auffällige Einzelpreise/Titel (Abweichung vom Mittel der übrigen Angebote) fließen in die Begründung ein
+- **Angebotskalkulation anfordern** (Schritt 4): E-Mail-Text an den Auftraggeber – Ausschluss einzelner Bieter vorab empfehlen und für Positionen, deren EP deutlich (Einstellung „Abweichung“) vom Mittel der übrigen Angebote und vom LV-Schätzpreis abweicht, eine detaillierte Angebotskalkulation nachfordern lassen. Positionen sind änderbar; Text kopieren, ins E-Mail-Programm übergeben (mailto, ohne Server) oder als Textdatei speichern
 - Auffallend niedrige Gesamtpreise (Standard 15 % unter Kostenvoranschlag bzw. Nächstbieter) → Hinweis zur Aufklärung
 - Die App ersetzt keine Rechtsprüfung.
 

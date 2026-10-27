@@ -146,7 +146,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
     <div className="stack">
       <section className="card">
         <div className="card-head">
-          <div><h2>Preisspiegel</h2><p className="lead">Titel anklicken für Einzelpositionen; Einheitspreise lassen sich direkt korrigieren.</p></div>
+          <div><h2>Preisspiegel</h2><p className="lead">Titel anklicken für Einzelpositionen; Einheitspreise sind direkt korrigierbar.</p></div>
           <div className="row">
             <button className="btn" onClick={exportCsv}><Icon name="download" /> Excel (CSV)</button>
             <button className="btn" onClick={exportPdf} disabled={pdfBusy || cells.length === 0}><Icon name="download" /> {pdfBusy ? 'PDF wird erstellt …' : 'PDF'}</button>
@@ -173,7 +173,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
             </div>
             {notes.length > 0 && <div className={`notes ${notes.some((n) => n.kind === 'warn') ? 'warn' : ''}`}><b>Hinweise zu diesem Los</b><FlagList items={notes} /></div>}
             <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>
-              <table className="preis" style={{ minWidth: 480 + (cells.length + refHead.length) * 190 }}>
+              <table className="preis" style={{ minWidth: 440 + refHead.length * 125 + cells.length * 180 }}>
                 <thead>
                   <tr>
                     {hasLv ? <><th className="sticky c0 left">Pos.</th><th className="sticky c1 left">Leistung</th><th>Menge</th><th>Einh.</th></> : <th className="left">Position</th>}

@@ -381,6 +381,7 @@ export function nuZusammen(liste: Nachunternehmer[]): Nachunternehmer[] {
     if (!x) { out.push({ ...n }); continue; }
     if ((x.art ?? 'nu') !== (n.art ?? 'nu')) x.art = 'beide';
     if (!x.oz.trim()) x.oz = n.oz;
+    if (!x.pq?.trim() && n.pq?.trim()) x.pq = n.pq;
   }
   return out;
 }
@@ -403,8 +404,21 @@ export function nuAusHandschrift(hs: HsEintrag[]): Nachunternehmer[] {
 }
 
 /** Eignungsnachweis eines Angebots: Präqualifikation oder Eigenerklärung (VVB 124) laut Vollständigkeitsprüfung. */
+/** Formblatt über Nachunternehmer bzw. andere Unternehmen (VVB 233/235) – dort genannte PQ-Nummern gehören nicht dem Bieter. */
+export const istNuDok = (k: { art: string; nachunternehmer?: unknown[] }) => !!k.nachunternehmer?.length || /\b23[35]\b|nachunternehmer|kapazit|anderer unternehmen/i.test(k.art);
+
+/** Hat die KI die PQ-Nummer aus einem Formblatt 233/235 gelesen (ältere Prüfungen)? Dann gehört sie einem anderen Unternehmen. */
+export function pqFremd(o: Offer): boolean {
+  if (!o.pqQuelle || !o.pq?.trim()) return false;
+  const k = (o.kiDocs ?? []).find((x) => x.datei.split('/').pop() === o.pqQuelle);
+  return !!k && istNuDok(k);
+}
+
+/** PQ-Nummer des Bieters selbst (ohne Nummern anderer Unternehmen). */
+export const bieterPq = (o: Offer) => (pqFremd(o) ? '' : o.pq?.trim() ?? '');
+
 export function eignungsNachweis(s: State, o: Offer): 'pq' | '124' | null {
-  if (o.pq?.trim()) return 'pq';
+  if (bieterPq(o)) return 'pq';
   const z = unterlageZeile(s, '124');
   const p = z && o.pruef?.[z.id];
   return p && (p.s === 'ok' || p.s === 'nach') ? '124' : null;

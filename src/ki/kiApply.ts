@@ -1,4 +1,4 @@
-import { nuZusammen } from '../domain/calc';
+import { istNuDok, nuZusammen } from '../domain/calc';
 import type { HsEintrag, Nachunternehmer, Offer, PStatus, State } from '../domain/types';
 import { applyKopf, verfahrenAus } from '../import/kopfdaten';
 import { docStore, type DocFile } from '../import/docStore';
@@ -50,7 +50,7 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
   }
   // PQ-Nummer: nur aus sicheren Befunden, mit Fundstelle; eine von Hand eingetragene Nummer bleibt
   if (!o.pq?.trim() || o.pqQuelle) {
-    const r = results.find((x) => x.sicherheit !== 'niedrig' && x.pq?.trim());
+    const r = results.find((x) => x.sicherheit !== 'niedrig' && x.pq?.trim() && !istNuDok(x)); // PQ aus 233/235 gehört dem jeweiligen Unternehmen
     if (r) { o.pq = r.pq!.trim(); o.pqQuelle = r.datei.split('/').pop(); }
     else if (o.pqQuelle) { delete o.pq; delete o.pqQuelle; }
   }

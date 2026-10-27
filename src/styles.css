@@ -49,9 +49,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 input,select,textarea{background:#fff;border:1px solid #d5dbe8;border-radius:10px;padding:9px 12px;width:100%;transition:.12s}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-l)}
 textarea{resize:vertical}
-.numwrap{position:relative;display:block}.numwrap input{text-align:right;padding-right:34px}
+.numwrap{position:relative;display:block}.numwrap input{text-align:right;padding-right:calc(var(--sfx,1ch) + 22px)}
 .numwrap .suffix{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
-.numwrap.sm input{padding:6px 28px 6px 8px;border-radius:8px}.numwrap.sm .suffix{right:8px;font-size:13px}
+.numwrap.sm input{padding:6px calc(var(--sfx,1ch) + 16px) 6px 8px;border-radius:8px}.numwrap.sm .suffix{right:8px;font-size:13px}
 input.plain{border-color:transparent;background:transparent;padding:6px 8px;border-radius:8px}
 input.plain:hover{border-color:#d5dbe8}input.plain:focus{background:#fff}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:10px;border:1px solid #d5dbe8;background:#fff;cursor:pointer;font-weight:600;font-size:14px;transition:.12s;white-space:nowrap}
@@ -319,7 +319,7 @@ table.v-tab{width:100%;border-collapse:collapse;margin:0 0 1.2em;table-layout:fi
 .paper-rule{border-top:.75pt solid #b9b9b9}
 .v-meta{margin-bottom:6pt;font-weight:300}
 .v-meta .full:first-child{font-size:16pt;font-weight:600;line-height:1.25;margin-bottom:8pt;letter-spacing:-.005em}
-.v-meta .row2{grid-template-columns:34mm 1fr}.v-meta .row2 span:first-child{color:#666}.v-meta .row2 span:last-child{font-weight:600}
+.v-meta{display:grid;grid-template-columns:max-content 1fr;column-gap:6mm}.v-meta .row2{display:contents}.v-meta .row2 span:last-child{overflow-wrap:anywhere}.v-meta .row2 span:first-child{color:#666}.v-meta .row2 span:last-child{font-weight:600}
 .v-meta .full:last-child{margin-top:10pt;font-size:10.5pt;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#444}
 .v-h{font-weight:600;letter-spacing:0}
 .v-h.l1{font-size:12pt;margin:22pt 0 9pt;padding-bottom:4pt;border-bottom:.5pt solid #c8c8c8}

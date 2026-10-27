@@ -1,4 +1,4 @@
-import { useState, type ClipboardEventHandler, type ReactNode } from 'react';
+import { useState, type ClipboardEventHandler, type CSSProperties, type ReactNode } from 'react';
 import { fmtNum, parseNum } from '../domain/fmt';
 
 export function NumInput(props: {
@@ -15,7 +15,7 @@ export function NumInput(props: {
   const [txt, setTxt] = useState<string | null>(null);
   const shown = txt ?? (value == null ? '' : fmtNum(value, decimals));
   return (
-    <span className={`numwrap ${className}`}>
+    <span className={`numwrap ${className}`} style={suffix ? ({ '--sfx': `${suffix.length + 0.5}ch` } as CSSProperties) : undefined}>
       <input
         aria-label={label}
         inputMode="decimal"

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
-import type { Cell } from '../domain/calc';
-import { fmtNum, fmtPct } from '../domain/fmt';
-import { anfrageBieter, anfrageOf, anfrageText, ausschlussAuto, leereAnfrage, type AnfrageBieter } from '../vermerk/anfrage';
-import { FlagList, Icon, Seg } from '../components/ui';
+import type { AufklPos, Cell } from '../domain/calc';
+import { fmtEur, fmtNum, fmtPct, round2 } from '../domain/fmt';
+import { anfrageBieter, anfrageMinEuro, anfrageOf, anfrageText, ausschlussAuto, leereAnfrage, schaetzAbweichungen, type AnfrageBieter } from '../vermerk/anfrage';
+import { aufklMinEuro } from '../domain/calc';
+import { FlagList, Icon, NumInput, Seg } from '../components/ui';
 import { downloadText } from '../storage/exportCsv';
 
 type Up = (fn: (d: State) => void) => void;
@@ -14,6 +15,9 @@ const MODI: { value: AnfrageModus; label: string }[] = [
   { value: 'nach', label: 'Kalkulation nachfordern' },
   { value: 'aus', label: 'Ausschluss empfehlen' },
 ];
+
+const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true });
+const eur0 = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), 0)} €`;
 
 /** E-Mail an den Auftraggeber: je Bieter Angebotskalkulation zu auffälligen Positionen nachfordern oder Ausschluss vorab empfehlen. */
 export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los; cells: Cell[] }) {
@@ -27,6 +31,8 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
   const a = anfrageOf(s, los);
   const p = s.project;
   const mitSchaetz = Object.keys(s.schaetz ?? {}).length > 0;
+  const minEuro = anfrageMinEuro(a, cells, runde);
+  const lvHinweis = mitSchaetz ? schaetzAbweichungen(s, los, cells, runde, minEuro) : [];
   const set: SetA = (fn) => up((d) => {
     const x: Anfrage = { ...leereAnfrage(), ...(d.anfrage?.[los.id] ?? {}) };
     fn(x);
@@ -46,9 +52,33 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
       {runden.length > 1 && <div className="anfrage-runde"><Seg small value={runde} onChange={setRunde} options={runden.map((r) => ({ value: r, label: r === runden[0] ? 'Hauptangebote' : `Nachverhandlung ${r - 1}` }))} /></div>}
 
       <h3 className="anf-h">1 · Bieter</h3>
-      <p className="muted anf-sub">Vorgeschlagen sind Positionen, deren Einheitspreis um mehr als {fmtNum(p.abweichung, 0)} % vom Mittel der übrigen Angebote{mitSchaetz ? ' und vom LV-Schätzpreis' : ''} abweicht. Zum Ausschluss empfohlene Bieter zählen dabei nicht mit.</p>
+      <div className="anf-regel">
+        <div>
+          <b>Vorschlag:</b> Einheitspreis weicht um mehr als {fmtNum(p.abweichung, 0)} % vom Vergleichspreis ab <b>und</b> die Mehr-/Minderkosten der Position (Menge × Differenz) betragen mindestens {fmtNum(minEuro, 0)} €.
+          <small className="muted block">Vergleichspreis = Median der übrigen Bieter{mitSchaetz ? '; ohne übrige Bieter der LV-Schätzpreis. Liegt ein Bieter bei unserem Schätzpreis, die übrigen aber nicht, wird nicht nachgefragt' : ''}. Zum Ausschluss empfohlene Bieter zählen nicht mit.</small>
+        </div>
+        <label className="field"><span className="field-label">Mindestauswirkung je Position</span>
+          <NumInput value={a.minEuro ?? null} decimals={0} suffix="€" placeholder={fmtNum(aufklMinEuro(cells, runde), 0)} onChange={(v) => set((x) => void (x.minEuro = v))} label="Mindestauswirkung je Position" />
+          <span className="field-hint">{a.minEuro == null ? 'Automatisch: 0,5 % der mittleren Angebotssumme' : <button type="button" className="link" onClick={() => set((x) => void (x.minEuro = null))}>Automatisch</button>}</span>
+        </label>
+      </div>
+
+      {lvHinweis.length > 0 && (
+        <details className="det anf-lv">
+          <summary>LV-Schätzpreis prüfen: bei {lvHinweis.length} Position{lvHinweis.length > 1 ? 'en' : ''} liegen alle Bieter deutlich neben unserem Schätzpreis – dort eher nicht nachfragen</summary>
+          <div className="scroll">
+            <table className="anf-tab">
+              <thead><tr><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">Schätzpreis EP</th><th className="r">Bieter (Median) EP</th><th className="r">Auswirkung</th></tr></thead>
+              <tbody>{lvHinweis.map((x) => (
+                <tr key={x.oz}><td className="left nowrap">{x.oz}</td><td className="left">{x.kurz}</td><td className="r">{fmtEur(x.schaetz)}</td><td className="r">{fmtEur(x.median)}<small className="muted block">{fmtPct(x.pct, 0)}</small></td><td className="r nowrap">{eur0(x.delta)}</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
       <div className="stack">
-        {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} mitSchaetz={mitSchaetz} />)}
+        {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} mitSchaetz={mitSchaetz} minEuro={minEuro} />)}
       </div>
 
       <h3 className="anf-h">2 · E-Mail</h3>
@@ -65,60 +95,82 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
   );
 }
 
-function BieterZeile({ b, a, set, mitSchaetz }: { b: AnfrageBieter; a: Anfrage; set: SetA; mitSchaetz: boolean }) {
+function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: Anfrage; set: SetA; mitSchaetz: boolean; minEuro: number }) {
   const [neu, setNeu] = useState('');
   const { c } = b;
   const id = c.offer.id;
-  const setListe = (l: string[]) => set((x) => void (x.pos = { ...x.pos, [id]: l.join(', ') }));
+  const setListe = (l: string[]) => set((x) => void (x.pos = { ...x.pos, [id]: [...new Set(l)].sort(ozSort).join(', ') }));
   const toggle = (oz: string) => setListe(b.liste.includes(oz) ? b.liste.filter((o) => o !== oz) : [...b.liste, oz]);
   const byOz = new Map(b.vergleich.map((v) => [v.oz, v]));
-  const zeilen = [...new Set([...b.auto, ...b.liste])].sort((m, n) => m.localeCompare(n, 'de', { numeric: true }));
+  // Hauptliste: Vorschläge und von Hand gewählte, nach Auswirkung; darunter abweichende Positionen mit geringer Auswirkung
+  const haupt = b.vergleich.filter((v) => v.status === 'auffaellig' || b.liste.includes(v.oz));
+  const fremd = b.liste.filter((oz) => !byOz.has(oz));
+  const gering = b.vergleich.filter((v) => v.status === 'gering' && !b.liste.includes(v.oz));
+  const gewaehlt = b.vergleich.filter((v) => b.liste.includes(v.oz));
+  const summe = round2(gewaehlt.reduce((acc, v) => acc + v.delta, 0));
   const hinzu = () => {
     const oz = neu.trim();
-    if (oz && !b.liste.includes(oz)) setListe([...b.liste, oz]);
+    if (oz) setListe([...b.liste, oz]);
     setNeu('');
   };
   const auto = ausschlussAuto(b);
+  const kopf = (
+    <tr><th /><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">Menge</th><th className="r">EP Bieter</th><th className="r">GP Bieter</th><th className="r">Vergleich EP</th>{mitSchaetz && <th className="r">Schätzpreis EP</th>}<th className="r">Auswirkung</th></tr>
+  );
+  const zeile = (v: AufklPos) => {
+    const on = b.liste.includes(v.oz);
+    return (
+      <tr key={v.oz} className={on ? '' : 'off'} onClick={() => toggle(v.oz)}>
+        <td><input type="checkbox" checked={on} readOnly aria-label={`Pos. ${v.oz} in die E-Mail`} /></td>
+        <td className="left nowrap">{v.oz}</td>
+        <td className="left">{v.kurz}</td>
+        <td className="r nowrap">{fmtNum(v.menge, v.menge % 1 ? 2 : 0)} {v.einheit}</td>
+        <td className="r nowrap">{fmtEur(v.ep)}</td>
+        <td className="r nowrap">{fmtEur(v.gp)}</td>
+        <td className="r nowrap">{v.ref != null ? <>{fmtEur(v.ref)}<small className="muted block">{fmtPct(v.pct, 0)}{v.refQuelle === 'schaetz' ? ' · Schätzpreis' : ''}</small></> : '–'}</td>
+        {mitSchaetz && <td className="r nowrap">{v.schaetz != null ? fmtEur(v.schaetz) : '–'}</td>}
+        <td className={`r nowrap anf-delta ${v.delta > 0 ? 'hoch' : 'tief'}`}>{eur0(v.delta)}</td>
+      </tr>
+    );
+  };
 
   return (
     <div className={`anf-bieter ${b.modus}`}>
       <div className="anf-kopf">
         <div>
           <b>Nr. {c.offer.nr} · {c.offer.firma}</b>
-          <small className="muted block">{fmtPct(c.dKosten)} zum Kostenvoranschlag · {fmtPct(c.dMin)} zum günstigsten · {b.auto.length ? `${b.auto.length} auffällige Position${b.auto.length > 1 ? 'en' : ''}` : 'keine auffälligen Positionen'}</small>
+          <small className="muted block">{fmtEur(c.sumNet)} netto · {fmtPct(c.dKosten)} zum Kostenvoranschlag · {fmtPct(c.dMin)} zum günstigsten · {b.auto.length ? `${b.auto.length} auffällige Position${b.auto.length > 1 ? 'en' : ''}` : 'keine auffälligen Positionen'}</small>
         </div>
         <Seg small value={b.modus} onChange={(m) => set((x) => void (x.modus = { ...x.modus, [id]: m }))} options={MODI} />
       </div>
 
       {b.modus === 'nach' && (
         <div className="anf-body">
-          {zeilen.length > 0 && (
+          {haupt.length + fremd.length > 0 && (
             <div className="scroll">
               <table className="anf-tab">
-                <thead><tr><th /><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">EP Bieter</th><th className="r">Ø übrige</th>{mitSchaetz && <th className="r">Schätzpreis</th>}</tr></thead>
+                <thead>{kopf}</thead>
                 <tbody>
-                  {zeilen.map((oz) => {
-                    const v = byOz.get(oz);
-                    const on = b.liste.includes(oz);
-                    const pct = (ref: number | null) => (v && ref ? <small className="muted block">{fmtPct((v.ep / ref - 1) * 100, 0)}</small> : null);
-                    return (
-                      <tr key={oz} className={on ? '' : 'off'} onClick={() => toggle(oz)}>
-                        <td><input type="checkbox" checked={on} readOnly aria-label={`Pos. ${oz} in die E-Mail`} /></td>
-                        <td className="left nowrap">{oz}</td>
-                        <td className="left">{v?.kurz ?? <span className="muted">nicht im LV dieses Loses</span>}</td>
-                        <td className="r">{v ? `${fmtNum(v.ep)} €` : '–'}</td>
-                        <td className="r">{v?.avg != null ? <>{fmtNum(v.avg)} €{pct(v.avg)}</> : '–'}</td>
-                        {mitSchaetz && <td className="r">{v?.schaetz != null ? <>{fmtNum(v.schaetz)} €{pct(v.schaetz)}</> : '–'}</td>}
-                      </tr>
-                    );
-                  })}
+                  {haupt.map(zeile)}
+                  {fremd.map((oz) => (
+                    <tr key={oz} onClick={() => toggle(oz)}><td><input type="checkbox" checked readOnly aria-label={`Pos. ${oz} in die E-Mail`} /></td><td className="left nowrap">{oz}</td><td className="left muted" colSpan={mitSchaetz ? 7 : 6}>nicht im LV dieses Loses</td></tr>
+                  ))}
                 </tbody>
+                {gewaehlt.length > 0 && (
+                  <tfoot><tr><td /><td className="left" colSpan={mitSchaetz ? 7 : 6}>{gewaehlt.length} Position{gewaehlt.length > 1 ? 'en' : ''} in der E-Mail · zusammen {c.sumNet ? `${fmtNum(Math.abs(summe) / c.sumNet * 100, 1)} % der Angebotssumme` : ''}</td><td className={`r nowrap anf-delta ${summe > 0 ? 'hoch' : 'tief'}`}>{eur0(summe)}</td></tr></tfoot>
+                )}
               </table>
             </div>
           )}
+          {gering.length > 0 && (
+            <details className="det">
+              <summary>{gering.length} weitere Position{gering.length > 1 ? 'en' : ''} mit deutlicher Abweichung, aber Auswirkung unter {fmtNum(minEuro, 0)} €</summary>
+              <div className="scroll"><table className="anf-tab"><thead>{kopf}</thead><tbody>{gering.map(zeile)}</tbody></table></div>
+            </details>
+          )}
           <div className="row anf-add">
             <input list={`oz-${id}`} value={neu} onChange={(e) => setNeu(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && hinzu()} placeholder="Pos. hinzufügen, z. B. 01.2" aria-label="Position hinzufügen" />
-            <datalist id={`oz-${id}`}>{b.vergleich.filter((v) => !zeilen.includes(v.oz)).map((v) => <option key={v.oz} value={v.oz}>{v.kurz}</option>)}</datalist>
+            <datalist id={`oz-${id}`}>{b.vergleich.filter((v) => !b.liste.includes(v.oz)).map((v) => <option key={v.oz} value={v.oz}>{v.kurz}</option>)}</datalist>
             <button className="btn small" onClick={hinzu} disabled={!neu.trim()}>Hinzufügen</button>
             {b.manuell && <button className="link" onClick={() => set((x) => { const n = { ...x.pos }; delete n[id]; x.pos = n; })}>Vorschlag wiederherstellen</button>}
           </div>

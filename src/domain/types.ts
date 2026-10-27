@@ -118,6 +118,7 @@ export interface Anfrage {
   modus: Record<string, AnfrageModus>; // [offerId]; fehlt = „nach“, wenn auffällige Positionen erkannt wurden, sonst „ohne“
   grund: Record<string, string>; // [offerId] Begründung der Ausschlussempfehlung (leer = automatischer Text)
   pos: Record<string, string>; // [offerId] Positionen von Hand (kommagetrennt); fehlt = automatisch
+  minEuro?: number | null; // Mindestauswirkung je Position in € (Mehr-/Minderkosten ggü. Vergleichspreis); leer = automatisch
 }
 
 export interface Anlage {

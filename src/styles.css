@@ -377,6 +377,10 @@ select.pst.pdf{background:var(--warn-l);border-color:#f3d28a}
 .eignung .hinweise{margin:6px 0;padding-left:20px;font-size:13px}
 .eignung .quellen a{margin-right:12px;word-break:break-all}
 .eignung .small{font-size:12px;margin:0}
+.nubox{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.nubox .nutab{margin-top:8px;width:100%}
+.nubox .nutab td{padding:2px 4px}
+.nubox .nutab input.plain{width:100%}
 
 /* Befunde je Dokument (KI) */
 .kidocs{margin-top:14px}.kihead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}

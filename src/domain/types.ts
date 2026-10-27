@@ -50,6 +50,9 @@ export interface Eignung {
   recherche?: { text: string; quellen: { url: string; titel: string }[]; stand: string };
 }
 
+/** Nachunternehmer (VVB 233) bzw. Unternehmen, auf deren Kapazitäten sich der Bieter beruft (VVB 235). */
+export interface Nachunternehmer { oz: string; leistung: string; firma: string; art?: 'nu' | 'kapazitaet' }
+
 /** Handschriftliche Eintragung in einem Dokument (Befund der KI-Prüfung). */
 export interface HsEintrag { seite?: number; feld: string; wert: string }
 
@@ -70,9 +73,12 @@ export interface Offer {
   prices: Record<string, PriceEntry>; // [OZ ohne Punkte]
   summen: Record<string, number | null>; // [losId] netto, wenn ohne LV erfasst
   pruef: Record<string, { s: PStatus; d: string; n?: string; k?: 'auto' | 'ki' | 'user' }>; // Vollständigkeitsprüfung [Zeilen-ID]; n = Hinweis, k = Quelle
-  kiDocs?: { datei: string; art: string; zeilen?: string[]; vorlage?: boolean; inhalt: string; unterschrift: string; stempel?: boolean; handschrift?: string | HsEintrag[]; sicherheit?: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI); handschrift als Text = ältere Prüfung
+  kiDocs?: { datei: string; art: string; zeilen?: string[]; vorlage?: boolean; inhalt: string; unterschrift: string; stempel?: boolean; handschrift?: string | HsEintrag[]; nachunternehmer?: Nachunternehmer[]; sicherheit?: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI); handschrift als Text = ältere Prüfung
   kiInfo?: { s: 'ok' | 'skip' | 'fehler'; t: string }; // Stand der letzten KI-Prüfung dieses Angebots (geprüft / übersprungen / Fehler)
   eignung?: Eignung; // Referenzauswertung und Recherche (KI, optional)
+  nu?: Nachunternehmer[]; // Nachunternehmer laut VVB 233/235; fehlt = noch nicht erfasst, [] = keine
+  nuQuelle?: 'ki' | 'user'; // user = von Hand bearbeitet, wird von einer neuen KI-Prüfung nicht überschrieben
+  pq?: string; // Präqualifikationsnummer (leer = nicht präqualifiziert bzw. unbekannt)
   textErg: { oz: string; text: string }[];
   nachforderung: string[];
   dateien: { name: string; kat: string; nach?: string }[]; // nach = nachgereicht am (ISO-Datum, '' = unbekannt)
@@ -106,6 +112,7 @@ export interface Anlage {
 export interface Project {
   titel: string;
   nummer: string;
+  massnahmeNr?: string; // Maßnahmennummer des Auftraggebers (Kopf der Formblätter)
   auftraggeber: string;
   vergabestelle: string;
   ersteller: string; // Planungsbüro / Verfasser
@@ -176,4 +183,4 @@ export const DEFAULT_UNTERLAGEN = [
   'VVB 248 - Erklärung zur Verwendung von Holzprodukten',
 ];
 
-export const VERFAHREN = ['Nichtförmliches Verfahren', 'VOB/A (national)', 'VOB/A-EU', 'UVgO', 'VgV', 'Freihändige Vergabe', 'Privat / intern'];
+export const VERFAHREN = ['Nichtförmliches Verfahren', 'Öffentliche Ausschreibung', 'Beschränkte Ausschreibung', 'VOB/A (national)', 'VOB/A-EU', 'UVgO', 'VgV', 'Freihändige Vergabe', 'Privat / intern'];

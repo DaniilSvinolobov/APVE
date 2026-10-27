@@ -92,6 +92,9 @@ function zusammenfuehren(roh: KiDoc[]): KiDoc[] {
       unterschrift,
       stempel: ks.some((k) => k.stempel),
       handschrift: ks.flatMap((k) => k.handschrift ?? []),
+      nachunternehmer: ks.flatMap((k) => k.nachunternehmer ?? []),
+      kopf: Object.assign({}, ...ks.map((k) => k.kopf ?? {}).reverse()),
+      pq: ks.find((k) => k.pq)?.pq ?? '',
       sicherheit: SICHER[Math.min(...ks.map((k) => SICHER.indexOf(k.sicherheit ?? 'niedrig')))],
       bemerkung: ks.map((k) => k.bemerkung).filter(Boolean).join(' · '),
     };

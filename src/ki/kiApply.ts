@@ -1,4 +1,5 @@
-import type { HsEintrag, Offer, PStatus, State } from '../domain/types';
+import type { HsEintrag, Nachunternehmer, Offer, PStatus, State } from '../domain/types';
+import { applyKopf, verfahrenAus } from '../import/kopfdaten';
 import { docStore, type DocFile } from '../import/docStore';
 
 const CONSENT = 'apve-ki-consent-eu'; // neue Einwilligung: alle Unterlagen, Verarbeitung über Bedrock in der EU
@@ -9,7 +10,7 @@ const CODE = 'apve-access-code';
 export const getCode = () => { try { return localStorage.getItem(CODE) ?? ''; } catch { return ''; } };
 export const setCode = (c: string) => { try { c ? localStorage.setItem(CODE, c) : localStorage.removeItem(CODE); } catch { /* ignore */ } };
 
-export interface KiDoc { datei: string; art: string; zeilen: string[]; vorlage?: boolean; inhalt: 'ausgefuellt' | 'teilweise' | 'leer' | 'unklar'; unterschrift: 'ja' | 'nein' | 'nicht_erforderlich' | 'unklar'; stempel?: boolean; handschrift?: HsEintrag[]; sicherheit?: 'hoch' | 'mittel' | 'niedrig'; bemerkung: string }
+export interface KiDoc { datei: string; art: string; zeilen: string[]; vorlage?: boolean; inhalt: 'ausgefuellt' | 'teilweise' | 'leer' | 'unklar'; unterschrift: 'ja' | 'nein' | 'nicht_erforderlich' | 'unklar'; stempel?: boolean; handschrift?: HsEintrag[]; nachunternehmer?: Nachunternehmer[]; kopf?: Partial<Record<'vergabenummer' | 'massnahmennummer' | 'vergabeart' | 'baumassnahme' | 'leistung' | 'bieter', string>>; pq?: string; sicherheit?: 'hoch' | 'mittel' | 'niedrig'; bemerkung: string }
 
 const rankS: Record<PStatus, number> = { ok: 5, nach: 4, teil: 3, unsign: 2, leer: 1, fehlt: 0, entf: -1, pdf: 0 };
 
@@ -22,7 +23,7 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
   const o = d.offers.find((x) => x.id === offerId);
   if (!o) return;
   if (!o.pruef) o.pruef = {};
-  o.kiDocs = results.map((r) => ({ datei: r.datei, art: r.art, zeilen: r.zeilen, vorlage: r.vorlage, inhalt: r.inhalt, unterschrift: r.unterschrift, stempel: r.stempel, handschrift: r.handschrift, sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
+  o.kiDocs = results.map((r) => ({ datei: r.datei, art: r.art, zeilen: r.zeilen, vorlage: r.vorlage, inhalt: r.inhalt, unterschrift: r.unterschrift, stempel: r.stempel, handschrift: r.handschrift, ...(r.nachunternehmer?.length ? { nachunternehmer: r.nachunternehmer } : {}), sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
   const best: Record<string, { s: PStatus; n: string }> = {};
   for (const r of results) {
     if (r.sicherheit === 'niedrig') continue; // unsichere Befunde nicht eintragen – die Zeile bleibt offen und wird von Hand geprüft
@@ -40,6 +41,18 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
       if (!best[id] || rankS[s] > rankS[best[id].s]) best[id] = { s, n };
     }
   }
+  // Nachunternehmer (VVB 233/235): nur aus sicheren Befunden; von Hand bearbeitete Listen bleiben
+  if (o.nuQuelle !== 'user') {
+    const nuDocs = results.filter((r) => r.sicherheit !== 'niedrig' && r.nachunternehmer?.length);
+    const nu = nuDocs.flatMap((r) => r.nachunternehmer!);
+    if (nu.length) { o.nu = nu; o.nuQuelle = 'ki'; }
+  }
+  if (!o.pq?.trim()) { const pq = results.find((r) => r.pq?.trim())?.pq?.trim(); if (pq) o.pq = pq; }
+  // Kopf der Formblätter (Vergabenummer usw.) belegt nur leere Felder des Vorhabens
+  const kopf = Object.assign({}, ...results.filter((r) => r.sicherheit !== 'niedrig').map((r) => r.kopf ?? {}).reverse()) as NonNullable<KiDoc['kopf']>;
+  const verf = kopf.vergabeart ? verfahrenAus(kopf.vergabeart) : null;
+  applyKopf(d.project, { nummer: kopf.vergabenummer, ...(verf ? { verfahren: verf } : {}) });
+  if (!d.project.massnahmeNr?.trim() && kopf.massnahmennummer) d.project.massnahmeNr = kopf.massnahmennummer;
   for (const [id, b] of Object.entries(best)) {
     const cur = o.pruef[id];
     if (cur?.k === 'user') continue;

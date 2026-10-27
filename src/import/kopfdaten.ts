@@ -83,8 +83,13 @@ const VERFAHREN_TEXT: [RegExp, string][] = [
   [/Freihändig/i, 'Freihändige Vergabe'],
   [/UVgO/i, 'UVgO'],
   [/\bVgV\b/i, 'VgV'],
-  [/VOB\/?A|Öffentliche Ausschreibung|Beschränkte Ausschreibung/i, 'VOB/A (national)'],
+  [/Öffentliche Ausschreibung/i, 'Öffentliche Ausschreibung'],
+  [/Beschränkte Ausschreibung/i, 'Beschränkte Ausschreibung'],
+  [/VOB\/?A/i, 'VOB/A (national)'],
 ];
+
+/** Vergabeverfahren aus einer Angabe wie „Öffentliche Ausschreibung“ (Kopf der Formblätter); null, wenn nicht erkannt. */
+export const verfahrenAus = (t: string) => VERFAHREN_TEXT.find(([re]) => re.test(t))?.[1] ?? null;
 
 /** Eckdaten aus Textzeilen (Deckblatt des LV-PDF, Vorbemerkungen). Die Beschriftungen werden am Anfang gesucht, die MwSt. im ganzen Text. */
 export function kopfAusText(lines: string[]): Kopf {

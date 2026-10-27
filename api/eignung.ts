@@ -6,6 +6,7 @@
  *   art: 'recherche'   Öffentlich zugängliche Informationen zu einem Unternehmen per Websuche (nur Firmenname, Ort und
  *                      Bezeichnung der Lose werden übermittelt): Leistungsprofil, öffentliche Referenzen, Quellen.
  *                      Bedrock bietet keine Websuche; daher Anthropic-API mit ANTHROPIC_API_KEY (ohne Key ist die Recherche aus).
+ *                      Ist der Key keinem Workspace zugeordnet, verlangt die API die Workspace-ID: ANTHROPIC_WORKSPACE_ID (wrkspc_…).
  *
  * Zugangscode wie in api/pruefen.ts (APP_ACCESS_CODE).
  */
@@ -66,7 +67,8 @@ export default async function handler(req: Req, res: Res) {
       if (!process.env.ANTHROPIC_API_KEY) return res.status(501).json({ error: 'Internetrecherche ist nicht eingerichtet (ANTHROPIC_API_KEY fehlt).' });
       const firma = str(b.firma, 160), ort = str(b.ort, 80);
       if (!firma) return res.status(400).json({ error: 'Firmenname fehlt.' });
-      return res.status(200).json(await recherche(new Anthropic(), firma, ort, lose));
+      const ws = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+      return res.status(200).json(await recherche(new Anthropic(ws ? { defaultHeaders: { 'anthropic-workspace-id': ws } } : {}), firma, ort, lose));
     }
     return res.status(400).json({ error: 'Unbekannte Prüfart.' });
   } catch (e) {
@@ -74,6 +76,7 @@ export default async function handler(req: Req, res: Res) {
     if (e instanceof KonfigFehler) return res.status(500).json({ error: `KI-Konfiguration: ${e.message}` });
     if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return res.status(500).json({ error: 'KI-Zugang des Betreibers ist ungültig oder ohne Berechtigung.' });
     if (e instanceof Anthropic.RateLimitError) return res.status(429).json({ error: 'KI-Limit erreicht – bitte später erneut versuchen.' });
+    if (e instanceof Anthropic.APIError && /anthropic-workspace-id/.test(e.message)) return res.status(500).json({ error: 'Internetrecherche: Der API-Key ist keinem Workspace zugeordnet. Bitte in Vercel ANTHROPIC_WORKSPACE_ID setzen oder einen Key aus einem Workspace verwenden.' });
     if (e instanceof Anthropic.APIError) return res.status(502).json({ error: `KI-Fehler (${e.status}): ${e.message.slice(0, 200)}` });
     console.error('eignung:', e instanceof Error ? e.message : e); // nur die Fehlermeldung, keine Dokumentinhalte
     return res.status(500).json({ error: 'Antwort der Prüfung war nicht lesbar.' });

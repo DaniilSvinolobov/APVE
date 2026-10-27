@@ -38,6 +38,7 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
         <div className="grid">
           <Field label="Bezeichnung der Maßnahme" wide><input value={p.titel} onChange={(e) => set('titel', e.target.value)} /></Field>
           <Field label="Vergabenummer"><input value={p.nummer} onChange={(e) => set('nummer', e.target.value)} /></Field>
+          <Field label="Maßnahmennummer" hint="optional, z. B. aus dem Kopf der Formblätter"><input value={p.massnahmeNr ?? ''} onChange={(e) => set('massnahmeNr', e.target.value)} /></Field>
           <Field label="Vergabeverfahren">
             <select value={p.verfahren} onChange={(e) => set('verfahren', e.target.value)}>{VERFAHREN.map((v) => <option key={v}>{v}</option>)}</select>
           </Field>

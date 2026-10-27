@@ -30,7 +30,7 @@ Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
 | `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Zerlegen großer Dateien in `teile.ts`, Aufruf von `api/pruefen.ts` → Bedrock EU über `api/_ki.ts`) und Eignungsprüfung (`kiEignung.ts` → `api/eignung.ts`: Referenzen, Recherche) | nein |
 | `vermerk/` | Aufbau und Texte des Vergabevermerks | nein |
 | `geo/` | geschätzte Entfernung Bieter → Baustelle (`entfernung.ts`, Hook `useGeo` lädt die PLZ-Tabelle `plzDaten.ts` als eigenen Chunk nach) | Hook |
-| `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen | ja |
+| `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen; `Nachunternehmer.tsx` (PQ-Nummer und Nachunternehmer je Bieter prüfen/korrigieren) | ja |
 | `components/` | wiederverwendbare UI-Bausteine (`ui.tsx`, `DropZone.tsx`) | ja |
 | `storage/` | Browser-Speicher (`projectStore.ts`), Export CSV/JSON (`exportCsv.ts`), Preisspiegel als PDF (`preisspiegelPdf.ts`, pdf-lib + Schrift Inter, im Browser erzeugt) | nein |
 

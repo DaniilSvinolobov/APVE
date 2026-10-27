@@ -271,6 +271,25 @@ function xmlKopf(award: El | undefined, totals: El | undefined): GaebKopf {
   };
 }
 
+const RECHTSFORM = /GmbH|\bKG\b|\bAG\b|e\.\s?K\.|\bUG\b|OHG|GbR|mbH|\beG\b/;
+
+/**
+ * Firmenname aus den Namenszeilen der Anschrift. Manche Programme verteilen den Namen auf mehrere Zeilen und hängen
+ * den Ort an die erste („ROSTOCKER Garten-, Landschafts-, Rostock“ + „& Sportplatzbau GmbH“). Weitere Zeilen werden nur
+ * angehängt, wenn sie den Namen fortsetzen (beginnt mit „&“/„und“/Kleinbuchstabe, Zeile davor endet mit „-“) oder erst die Rechtsform bringen.
+ */
+export function firmenName(zeilen: string[], ort: string): string {
+  const z = zeilen.map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  let name = z[0] ?? '';
+  for (const t of z.slice(1)) {
+    const ohneOrt = ort ? name.replace(new RegExp(`,\\s*${ort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), '') : name;
+    const weiter = /^(&|\+|und\b|[a-zäöüß])/.test(t) || /-$/.test(ohneOrt);
+    if (weiter) name = `${ohneOrt} ${t}`;
+    else if (!RECHTSFORM.test(name) && RECHTSFORM.test(t)) name = `${name} ${t}`;
+  }
+  return name;
+}
+
 function parseX(buf: Uint8Array, DOMParserCtor: typeof DOMParser): GaebDoc {
   const xml = new DOMParserCtor().parseFromString(decode(buf, 'utf-8'), 'text/xml');
   const root = xml.documentElement;
@@ -284,7 +303,7 @@ function parseX(buf: Uint8Array, DOMParserCtor: typeof DOMParser): GaebDoc {
   doc.projekt = txt(boqInfo && kid(boqInfo, 'LblBoQ'));
   doc.datum = txt(kid(kid(root, 'GAEBInfo') ?? root, 'Date'));
   const award = kid(root, 'Award');
-  const adr = (parent: El | undefined) => { const c = parent && kid(parent, 'Address'); return c ? [txt(kid(c, 'Name1')), txt(kid(c, 'Name2'))].filter(Boolean).join(' ') : ''; };
+  const adr = (parent: El | undefined) => { const c = parent && kid(parent, 'Address'); return c ? firmenName(['Name1', 'Name2', 'Name3', 'Name4'].map((k) => txt(kid(c, k))), txt(kid(c, 'City'))) : ''; };
   doc.bieter = adr(award && kid(award, 'CTR'));
   doc.auftraggeber = adr(award && kid(award, 'OWN'));
   const ort = (parent: El | undefined) => { const c = parent && kid(parent, 'Address'); return c ? [txt(kid(c, 'PCode') ?? kid(c, 'PCod')), txt(kid(c, 'City'))].filter(Boolean).join(' ') : ''; };

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { State } from '../domain/types';
-import { buildVermerk, anlagenList, footerText, type Block } from '../vermerk/vermerk';
-import { computeLos, getBew, pruefStatus } from '../domain/calc';
+import { buildVermerk, anlagenList, budgetAusKosten, footerText, nichtGewertetAuto, type Block } from '../vermerk/vermerk';
+import { computeLos, engereWahl, getBew, nuOf, pruefStatus } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { downloadJson } from '../storage/exportCsv';
 import { Icon } from '../components/ui';
@@ -36,6 +36,7 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
 
   const open: string[] = [];
   if (!p.titel) open.push('Bezeichnung der Maßnahme fehlt');
+  if (!p.nummer) open.push('Vergabenummer fehlt (Schritt Vergabe)');
   if (!p.datum) open.push('Datum des Vermerks fehlt');
   if (!p.unterzeichner) open.push('Unterzeichner fehlt');
   if (!p.eroeffnung) open.push('Eröffnungstermin fehlt');
@@ -58,7 +59,18 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
     if (rs.length && Math.max(...rs) > Math.min(...rs) && !s.nvGrund?.[l.id]?.trim()) open.push(`${l.nr}: Anlass der Nachverhandlung fehlt (Schritt Wertung)`);
   }
   for (const o of s.offers) if (o.status === 'formal' && !o.statusGrund?.trim()) open.push(`Nr. ${o.nr}: Grund des formalen Ausschlusses fehlt (Schritt Unterlagen)`);
-  if (!p.budgetBrutto) open.push('Gesamtbudget für Abschnitt 6 fehlt');
+  if (!p.budgetBrutto && budgetAusKosten(s) == null) open.push('Gesamtbudget für Abschnitt 6 fehlt');
+  for (const l of s.lose.filter((x) => x.imVermerk)) {
+    const ew = engereWahl(s, computeLos(s, l));
+    for (const c of ew.ranked.filter((x) => !ew.take.includes(x)))
+      if (!getBew(s, c.offer.id, l.id).nichtGewertet.trim() && !nichtGewertetAuto(s, c, ew.take)) open.push(`${l.nr}, Nr. ${c.offer.nr}: Grund angeben, warum das Angebot nicht weiter gewertet wird (Schritt Wertung)`);
+  }
+  const einzeln = new Map(s.lose.filter((l) => l.imVermerk).flatMap((l) => engereWahl(s, computeLos(s, l)).take.map((c) => [c.offer.id, c.offer] as const)));
+  for (const o of einzeln.values()) {
+    const nu = nuOf(s, o);
+    if (!nu) open.push(`Nr. ${o.nr}: Nachunternehmer (VVB 233) nicht erfasst (Schritt Wertung)`);
+    else if (nu.length && o.nuQuelle !== 'user') open.push(`Nr. ${o.nr}: Nachunternehmer laut KI prüfen (Schritt Wertung)`);
+  }
 
   const pageCss = `@page { size: A4; margin: 36.5mm 20mm 24mm 20mm;
     ${s.logo ? `@top-right { content: url("${esc(s.logo)}"); vertical-align: top; margin-top: 8mm; }` : ''}

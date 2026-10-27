@@ -55,7 +55,8 @@ export function buildVermerk(s: State): Block[] {
   const allCells = new Map(s.lose.map((l) => [l.id, computeLos(s, l)]));
   const hr = s.offers.length ? Math.min(...s.offers.map((o) => o.runde)) : 1;
   const r1 = s.offers.filter((o) => o.runde === hr);
-  const vergabe = /VOB|Ausschreibung/.test(p.verfahren);
+  // formale Prüfung nach § 16 VOB/A bzw. § 16 EU VOB/A (nicht beim Direktauftrag, der kein Vergabeverfahren ist)
+  const vob = /Direktauftrag/.test(p.verfahren) ? '' : /VOB\/A-EU/.test(p.verfahren) ? ' gem. § 16 EU VOB/A' : /VOB\/A/.test(p.verfahren) ? ' gem. § 16 VOB/A' : '';
   const hasR2 = s.offers.some((o) => o.runde > hr);
 
   /* Kopf */
@@ -119,7 +120,7 @@ export function buildVermerk(s: State): Block[] {
       : [String(o.nr), `${o.firma}${losSuffix(o)}`, nlLabel(o), fmtNum(offerBrutto(s, o) ?? 0)]),
   });
 
-  B.push({ t: 'h', n: '4.1', text: `Formale Prüfung der Angebote${vergabe ? ' gem. VOB/A § 16' : ''}`, lvl: 2 });
+  B.push({ t: 'h', n: '4.1', text: `Formale Prüfung der Angebote${vob}`, lvl: 2 });
   const zurueck = r1.filter((o) => o.status === 'zurueck');
   const formalAus = r1.filter((o) => o.status === 'formal');
   B.push(T('formal', [

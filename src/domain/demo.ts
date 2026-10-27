@@ -6,7 +6,7 @@ export function emptyState(): State {
   return {
     v: 2,
     project: {
-      titel: '', nummer: '', auftraggeber: '', vergabestelle: '', ersteller: '', ort: '', baustelle: '', verfahren: 'Nichtförmliches Verfahren',
+      titel: '', nummer: '', auftraggeber: '', vergabestelle: '', ersteller: '', ort: '', baustelle: '', verfahren: '',
       kostenBasis: 'brutto', kostenDatum: '', mwst: 19, schwelle: 15, abweichung: 30, engereWahl: 2,
       eroeffnung: '', zuschlagsfrist: '', beginn: '', ende: '', angefordert: null, budgetBrutto: null, unterzeichner: '', datum: '', vollstaendigkeit: true,
     },

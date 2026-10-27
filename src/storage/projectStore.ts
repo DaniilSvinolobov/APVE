@@ -1,4 +1,4 @@
-import type { State } from '../domain/types';
+import { VERFAHREN_PRIVAT, type State } from '../domain/types';
 import { emptyState } from '../domain/demo';
 
 const KEY = 'apve-state-v2';
@@ -24,8 +24,18 @@ export function parseBackup(j: unknown): State | null {
   if (o?.v !== 2) return null;
   const e = emptyState();
   // Felder, die in neueren Versionen dazugekommen sind, mit Standardwerten ergänzen
-  return { ...e, ...(j as State), project: { ...e.project, ...(j as State).project } };
+  const project = { ...e.project, ...(j as State).project };
+  project.verfahren = ALTE_VERFAHREN[project.verfahren] ?? project.verfahren;
+  return { ...e, ...(j as State), project };
 }
+
+/** Frühere Einträge der Auswahl „Vergabeverfahren“; nicht eindeutige (z. B. „UVgO“) bleiben stehen und werden als bisherige Angabe angezeigt. */
+const ALTE_VERFAHREN: Record<string, string> = {
+  'Nichtförmliches Verfahren': '', // war nur der Standardwert
+  'Öffentliche Ausschreibung': 'Öffentliche Ausschreibung nach VOB/A',
+  'Freihändige Vergabe': 'Freihändige Vergabe nach VOB/A',
+  'Privat / intern': VERFAHREN_PRIVAT,
+};
 
 export function loadStep(): number {
   try { return Number(sessionStorage.getItem(STEP_KEY) ?? 0) || 0; } catch { return 0; }

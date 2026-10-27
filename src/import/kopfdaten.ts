@@ -1,5 +1,5 @@
 import type { GaebDoc } from '../gaeb/gaeb';
-import type { Project } from '../domain/types';
+import { verfahrenName, type Project } from '../domain/types';
 
 /**
  * Eckdaten der Vergabe für Schritt 1 („Vergabe“), gelesen aus dem eigenen LV: aus dem Kopf der GAEB-Datei
@@ -78,18 +78,31 @@ const ohneAnschrift = (v: string) => {
 /** „Am Rathaus 1, 50181 Bedburg“ → „50181 Bedburg“ (leer, wenn keine Postleitzahl darin steht). */
 const plzOrt = (v: string) => v.match(/(?<!\d)(\d{5})\s+([\p{L}][\p{L}.\s-]*[\p{L}.])/u)?.slice(1, 3).join(' ') ?? undefined;
 
-const VERFAHREN_TEXT: [RegExp, string][] = [
-  [/VOB\/?A[- ]?EU|EU-weit|europaweit|Offenes Verfahren|Nichtoffenes Verfahren|Verhandlungsverfahren/i, 'VOB/A-EU'],
-  [/Freihändig/i, 'Freihändige Vergabe'],
-  [/UVgO/i, 'UVgO'],
-  [/\bVgV\b/i, 'VgV'],
-  [/Öffentliche Ausschreibung/i, 'Öffentliche Ausschreibung'],
-  [/Beschränkte Ausschreibung/i, 'Beschränkte Ausschreibung'],
-  [/VOB\/?A/i, 'VOB/A (national)'],
-];
-
-/** Vergabeverfahren aus einer Angabe wie „Öffentliche Ausschreibung“ (Kopf der Formblätter); null, wenn nicht erkannt. */
-export const verfahrenAus = (t: string) => VERFAHREN_TEXT.find(([re]) => re.test(t))?.[1] ?? null;
+/**
+ * Vergabeverfahren aus einer Angabe wie „Beschränkte Ausschreibung ohne Teilnahmewettbewerb“ (Kopf der Formblätter);
+ * null, wenn Verfahrensart oder Regelwerk nicht eindeutig sind (z. B. „Beschränkte Ausschreibung“ ohne „mit/ohne Teilnahmewettbewerb“).
+ * Ohne Angabe des Regelwerks gilt bei Bauleistungen die VOB/A (national) bzw. VOB/A-EU für die EU-Verfahren.
+ */
+export function verfahrenAus(t: string): string | null {
+  const tw = /ohne\s+(?:öffentlichen\s+)?Teilnahme-?\s?wettbewerb/i.test(t) ? 'ohne' : /(?:mit|nach)\s+(?:öffentlichem\s+)?Teilnahme-?\s?wettbewerb/i.test(t) ? 'mit' : null;
+  const mitTw = (art: string) => (tw ? `${art} ${tw} Teilnahmewettbewerb` : null);
+  const eu = /VOB\/?A[- ]?EU|§\s?\d+[a-z]?\s?EU\b|EU-weit|europaweit|\bVgV\b|Offenes Verfahren|Nicht\s?-?offenes Verfahren|Verhandlungsverfahren|Wettbewerblicher Dialog|Innovationspartnerschaft/i.test(t);
+  const regel = /\bVgV\b/i.test(t) ? 'VgV' : /UVgO|Verhandlungsvergabe/i.test(t) ? 'UVgO' : eu ? 'VOB/A-EU' : 'VOB/A';
+  const art = eu
+    ? /Nicht\s?-?offenes Verfahren/i.test(t) ? 'Nicht offenes Verfahren'
+      : /Offenes Verfahren/i.test(t) ? 'Offenes Verfahren'
+      : /Verhandlungsverfahren/i.test(t) ? mitTw('Verhandlungsverfahren')
+      : /Wettbewerblicher Dialog/i.test(t) ? 'Wettbewerblicher Dialog'
+      : /Innovationspartnerschaft/i.test(t) ? 'Innovationspartnerschaft'
+      : null
+    : /Direktauftrag/i.test(t) ? 'Direktauftrag'
+      : /Öffentliche Ausschreibung/i.test(t) ? 'Öffentliche Ausschreibung'
+      : /Beschränkte Ausschreibung/i.test(t) ? mitTw('Beschränkte Ausschreibung')
+      : /Verhandlungsvergabe/i.test(t) ? mitTw('Verhandlungsvergabe')
+      : /Freihändig/i.test(t) && regel === 'VOB/A' ? 'Freihändige Vergabe'
+      : null;
+  return art ? verfahrenName(art, regel) : null;
+}
 
 /** Eckdaten aus Textzeilen (Deckblatt des LV-PDF, Vorbemerkungen). Die Beschriftungen werden am Anfang gesucht, die MwSt. im ganzen Text. */
 export function kopfAusText(lines: string[]): Kopf {
@@ -129,8 +142,8 @@ export function kopfAusText(lines: string[]): Kopf {
     if (!k.verfahren) {
       const m = l.match(/\b(?:Vergabeart|Vergabeverfahren|Verfahrensart|Art der Vergabe)\s*:\s*(.*)$/i);
       const v = m && (m[1].trim() || vorn[i + 1] || '');
-      const hit = v && VERFAHREN_TEXT.find(([re]) => re.test(v));
-      if (hit) k.verfahren = hit[1];
+      const hit = v && verfahrenAus(v);
+      if (hit) k.verfahren = hit;
     }
     if (!k.kostenDatum) {
       const m = l.match(new RegExp(String.raw`\b(?:Stand|Datum|aufgestellt am)\s*:?\s*${DATUM}`, 'i'));
@@ -175,7 +188,7 @@ export function kopfAusDoc(doc: GaebDoc): Kopf {
   return k;
 }
 
-const DEFAULT_VERFAHREN = 'Nichtförmliches Verfahren';
+const DEFAULT_VERFAHREN = ''; // „bitte wählen“
 const DEFAULT_MWST = 19;
 
 /** Welche Felder würde `applyKopf` vorbelegen? (für die Meldung) */

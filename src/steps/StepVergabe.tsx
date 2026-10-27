@@ -1,5 +1,5 @@
 import type { State } from '../domain/types';
-import { VERFAHREN } from '../domain/types';
+import { VERFAHREN, VERFAHREN_GRUPPEN, VERFAHREN_PRIVAT, verfahrenName } from '../domain/types';
 import { kostenOf } from '../domain/calc';
 import { uid } from '../domain/fmt';
 import { Field, Icon, NumInput } from '../components/ui';
@@ -39,7 +39,16 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
           <Field label="Vergabenummer"><input value={p.nummer} onChange={(e) => set('nummer', e.target.value)} /></Field>
           <Field label="Maßnahmennummer (optional)"><input value={p.massnahmeNr ?? ''} onChange={(e) => set('massnahmeNr', e.target.value)} /></Field>
           <Field label="Vergabeverfahren">
-            <select value={p.verfahren} onChange={(e) => set('verfahren', e.target.value)}>{VERFAHREN.map((v) => <option key={v}>{v}</option>)}</select>
+            <select value={p.verfahren} onChange={(e) => set('verfahren', e.target.value)}>
+              <option value="">– bitte wählen –</option>
+              {p.verfahren && !VERFAHREN.includes(p.verfahren) && <option value={p.verfahren}>{p.verfahren} (bisherige Angabe)</option>}
+              {VERFAHREN_GRUPPEN.map((g) => (
+                <optgroup key={g.regel} label={g.titel}>
+                  {g.arten.map((a) => <option key={a} value={verfahrenName(a, g.regel)}>{a}</option>)}
+                </optgroup>
+              ))}
+              <optgroup label="Ohne Vergaberecht"><option value={VERFAHREN_PRIVAT}>{VERFAHREN_PRIVAT}</option></optgroup>
+            </select>
           </Field>
           <Field label="Auftraggeber"><input value={p.auftraggeber} onChange={(e) => set('auftraggeber', e.target.value)} /></Field>
           <Field label="Vergabestelle"><input value={p.vergabestelle} onChange={(e) => set('vergabestelle', e.target.value)} /></Field>

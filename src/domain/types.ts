@@ -192,4 +192,31 @@ export const DEFAULT_UNTERLAGEN = [
   'VVB 248 - Erklärung zur Verwendung von Holzprodukten',
 ];
 
-export const VERFAHREN = ['Nichtförmliches Verfahren', 'Öffentliche Ausschreibung', 'Beschränkte Ausschreibung', 'VOB/A (national)', 'VOB/A-EU', 'UVgO', 'VgV', 'Freihändige Vergabe', 'Privat / intern'];
+/**
+ * Vergabeverfahren, gegliedert nach Rechtsgrundlage. Gespeichert wird „<Verfahrensart> nach <Regelwerk>“
+ * (z. B. „Beschränkte Ausschreibung ohne Teilnahmewettbewerb nach VOB/A“), damit der Vermerk eindeutig ist.
+ * Begriffe: § 3 VOB/A, § 3 EU VOB/A, § 8 UVgO, § 14 VgV, § 119 GWB. Ober-/unterschwellige Begriffe nicht mischen
+ * („Offenes Verfahren“ gibt es nur EU-weit, „Verhandlungsvergabe“ nur nach UVgO, „Freihändige Vergabe“ nur noch nach VOB/A).
+ */
+export const VERFAHREN_GRUPPEN: { titel: string; regel: string; arten: string[] }[] = [
+  {
+    titel: 'Bauleistungen national (VOB/A Abschnitt 1)', regel: 'VOB/A',
+    arten: ['Öffentliche Ausschreibung', 'Beschränkte Ausschreibung mit Teilnahmewettbewerb', 'Beschränkte Ausschreibung ohne Teilnahmewettbewerb', 'Freihändige Vergabe', 'Direktauftrag'],
+  },
+  {
+    titel: 'Bauleistungen EU-weit (VOB/A Abschnitt 2)', regel: 'VOB/A-EU',
+    arten: ['Offenes Verfahren', 'Nicht offenes Verfahren', 'Verhandlungsverfahren mit Teilnahmewettbewerb', 'Verhandlungsverfahren ohne Teilnahmewettbewerb', 'Wettbewerblicher Dialog', 'Innovationspartnerschaft'],
+  },
+  {
+    titel: 'Liefer- und Dienstleistungen national (UVgO)', regel: 'UVgO',
+    arten: ['Öffentliche Ausschreibung', 'Beschränkte Ausschreibung mit Teilnahmewettbewerb', 'Beschränkte Ausschreibung ohne Teilnahmewettbewerb', 'Verhandlungsvergabe mit Teilnahmewettbewerb', 'Verhandlungsvergabe ohne Teilnahmewettbewerb', 'Direktauftrag'],
+  },
+  {
+    titel: 'Liefer- und Dienstleistungen EU-weit (VgV)', regel: 'VgV',
+    arten: ['Offenes Verfahren', 'Nicht offenes Verfahren', 'Verhandlungsverfahren mit Teilnahmewettbewerb', 'Verhandlungsverfahren ohne Teilnahmewettbewerb', 'Wettbewerblicher Dialog', 'Innovationspartnerschaft'],
+  },
+];
+export const verfahrenName = (art: string, regel: string) => `${art} nach ${regel}`;
+/** Auftraggeber ohne Bindung an das Vergaberecht (z. B. private Bauherren): Preisanfrage ohne förmliches Verfahren. */
+export const VERFAHREN_PRIVAT = 'Private Vergabe (ohne Vergaberecht)';
+export const VERFAHREN = [...VERFAHREN_GRUPPEN.flatMap((g) => g.arten.map((a) => verfahrenName(a, g.regel))), VERFAHREN_PRIVAT];

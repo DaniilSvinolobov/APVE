@@ -109,7 +109,7 @@ export function OfferDateien({ o, up, onAdded }: { o: Offer; up: Up; onAdded: (o
       <ul className="filelist">
         {o.preisQuelle === 'keine'
           ? <li className="nach"><Icon name="alert" /><span className="fname">Keine Preisdatei</span><Chip kind="warn">Preise fehlen</Chip><span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>Ordner mit Preisdatei erneut einlesen</span></li>
-          : <li><Icon name="file" /><span className="fname" title={o.quelle}>{o.quelle}</span><Chip kind="info">{o.preisQuelle === 'pdf' ? 'Preise (PDF)' : 'Preisdatei'}</Chip><span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>entfernen = Angebot entfernen</span></li>}
+          : <li><Icon name="file" /><span className="fname" title={o.quelle}>{o.quelle}</span><Chip kind="info">{o.preisQuelle === 'pdf' ? 'Preise (PDF)' : 'Preisdatei'}</Chip></li>}
         {o.dateien.map((f) => {
           const n = istNach(f);
           return (

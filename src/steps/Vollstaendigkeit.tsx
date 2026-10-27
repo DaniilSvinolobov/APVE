@@ -28,7 +28,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
       <div className="card-head">
         <div>
           <h2>Prüfung auf Vollständigkeit der Angebotsunterlagen</h2>
-          <p className="lead">Anlage zum Vermerk. Erkanntes ist vorbelegt, den Rest je Zeile auswählen.</p>
+          <p className="lead">Anlage zum Vermerk. Erkanntes ist vorbelegt.</p>
         </div>
         <label className="mini big"><input type="checkbox" checked={s.project.vollstaendigkeit} onChange={(e) => up((d) => void (d.project.vollstaendigkeit = e.target.checked))} /> als Anlage drucken</label>
       </div>
@@ -46,7 +46,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
             <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(nurOffene ? offen : s.offers.map((o) => o.id))}>
               <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : nurOffene ? `Noch nicht geprüfte Angebote prüfen (${offen.length})` : 'Dokumente automatisch prüfen (Claude)'}
             </button>
-            <span className="muted">Beim Einlesen läuft die Prüfung automatisch: Claude öffnet jede Unterlage, liest auch Handschrift und beurteilt, ob sie ausgefüllt und unterschrieben ist. Unsichere Befunde bleiben offen.</span>
+            <span className="muted">Läuft beim Einlesen automatisch; unsichere Befunde bleiben offen.</span>
             <button className="link danger" onClick={() => { setConsent(false); setConsentState(false); }}>Prüfung deaktivieren</button>
           </div>
           {needCode && (
@@ -60,7 +60,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
           {!ki.running && ki.text && <p className="okbox"><Icon name="check" /> {ki.text} Bitte Ergebnisse kurz gegenprüfen – KI-Befunde sind mit „KI“ markiert und bleiben änderbar.</p>}
         </div>
       ) : status && (
-        <p className="infobox" style={{ marginBottom: 14 }}><Icon name="alert" /> Die automatische Dokumentprüfung ist auf dieser Installation nicht aktiviert. Die Tabelle wird anhand der Dateinamen vorbelegt; Inhalt und Unterschrift bitte selbst prüfen.</p>
+        <p className="infobox" style={{ marginBottom: 14 }}><Icon name="alert" /> Vorbelegt anhand der Dateinamen – Inhalt und Unterschrift bitte selbst prüfen.</p>
       )}
       <div className="scroll">
         <table className="matrix vtab" style={{ minWidth: 340 + s.offers.length * 190 }}>
@@ -71,16 +71,14 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
                 const ps = pruefStatus(s, o);
                 return (
                   <th key={o.id}>
-                    {o.nr}_{o.firma}
-                    <div className="row" style={{ justifyContent: 'center', marginTop: 4 }}>
-                      <button className="link" onClick={() => up((d) => { const x = d.offers[oi]; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>Rest = vorhanden</button>
-                    </div>
+                    <div className="vfirma">{o.nr} · {o.firma}</div>
                     {ps.fehlt.length > 0 ? <Chip kind="bad">{ps.fehlt.length} fehlt</Chip> : ps.nurPdf.length > 0 ? <Chip kind="warn">Preise nur als PDF</Chip> : ps.ungeprueft > 0 ? <Chip kind="warn">{ps.ungeprueft} offen</Chip> : <Chip kind="ok">vollständig</Chip>}
                     {status?.enabled && consent && (o.kiInfo?.s === 'ok' || o.kiDocs
                       ? <div className="muted" style={{ fontSize: 11, marginTop: 4 }} title={o.kiInfo?.t || undefined}>KI geprüft{o.kiInfo?.t ? ' (mit Hinweis)' : ''}</div>
                       : o.kiInfo
                         ? <div style={{ fontSize: 11, marginTop: 4, color: '#b42318' }} title={o.kiInfo.t}>KI: {o.kiInfo.s === 'skip' ? 'übersprungen' : 'Fehler'} – {o.kiInfo.t.slice(0, 80)}</div>
                         : <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>KI: noch nicht geprüft</div>)}
+                    {ps.ungeprueft > 0 && <div><button className="link small" title="Alle noch offenen Zeilen dieses Angebots auf „vorhanden“ setzen" onClick={() => up((d) => { const x = d.offers[oi]; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>offene = vorhanden</button></div>}
                   </th>
                 );
               })}
@@ -90,7 +88,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
           <tbody>
             {s.unterlagen.map((u, ui) => (
               <tr key={u.id}>
-                <td className="left"><input className="plain wide" value={u.label} onChange={(e) => up((d) => void (d.unterlagen[ui].label = e.target.value))} /></td>
+                <td className="left"><textarea className="plain wide vlabel" rows={1} value={u.label} onChange={(e) => up((d) => void (d.unterlagen[ui].label = e.target.value))} aria-label="Unterlage / Prüfpunkt" /></td>
                 {s.offers.map((o, oi) => {
                   const p = o.pruef?.[u.id];
                   return (

@@ -34,17 +34,16 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
 
       <section className="card">
         <h2>Vorhaben</h2>
-        <p className="lead">Erscheint im Kopf des Vergabevermerks.</p>
         <div className="grid">
           <Field label="Bezeichnung der Maßnahme" wide><input value={p.titel} onChange={(e) => set('titel', e.target.value)} /></Field>
           <Field label="Vergabenummer"><input value={p.nummer} onChange={(e) => set('nummer', e.target.value)} /></Field>
-          <Field label="Maßnahmennummer" hint="optional, z. B. aus dem Kopf der Formblätter"><input value={p.massnahmeNr ?? ''} onChange={(e) => set('massnahmeNr', e.target.value)} /></Field>
+          <Field label="Maßnahmennummer (optional)"><input value={p.massnahmeNr ?? ''} onChange={(e) => set('massnahmeNr', e.target.value)} /></Field>
           <Field label="Vergabeverfahren">
             <select value={p.verfahren} onChange={(e) => set('verfahren', e.target.value)}>{VERFAHREN.map((v) => <option key={v}>{v}</option>)}</select>
           </Field>
           <Field label="Auftraggeber"><input value={p.auftraggeber} onChange={(e) => set('auftraggeber', e.target.value)} /></Field>
           <Field label="Vergabestelle"><input value={p.vergabestelle} onChange={(e) => set('vergabestelle', e.target.value)} /></Field>
-          <Field label="Baustelle (PLZ Ort)" hint={!p.baustelle?.trim() ? 'Für die geschätzte Entfernung der Bieter zur Baustelle' : bs ? `Erkannt: ${bs.wie}` : 'Ort nicht gefunden – bitte Postleitzahl angeben'}>
+          <Field label="Baustelle (PLZ Ort)" hint={!p.baustelle?.trim() ? undefined : bs ? `Erkannt: ${bs.wie}` : 'Ort nicht gefunden – bitte PLZ angeben'}>
             <input value={p.baustelle ?? ''} onChange={(e) => set('baustelle', e.target.value)} />
           </Field>
         </div>
@@ -52,10 +51,10 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
 
       <section className="card">
         <div className="card-head">
-          <div><h2>Lose</h2><p className="lead">Je Los ein eigener Preisspiegel und eine eigene Vergabeempfehlung.</p></div>
+          <h2>Lose</h2>
           <button className="btn" onClick={() => up((d) => void d.lose.push({ id: uid(), oz: String(d.lose.length + 1).padStart(2, '0'), nr: `LOS${d.lose.length + 1}`, name: '', kosten: null, imVermerk: true, imBudget: true }))}><Icon name="plus" /> Los</button>
         </div>
-        {s.lose.length === 0 && <p className="muted">Noch keine Lose – sie entstehen beim Laden des LV oder über „+ Los“.</p>}
+        {s.lose.length === 0 && <p className="muted">Noch keine Lose – entstehen beim Laden des LV oder über „+ Los“.</p>}
         <div className="loslist">
           {s.lose.map((l, i) => (
             <div className="losrow" key={l.id}>
@@ -73,7 +72,7 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
             <select value={p.kostenBasis} onChange={(e) => set('kostenBasis', e.target.value as 'brutto' | 'netto')}><option value="brutto">brutto</option><option value="netto">netto</option></select>
           </Field>
           <Field label="Kostenvoranschlag vom"><input type="date" value={p.kostenDatum} onChange={(e) => set('kostenDatum', e.target.value)} /></Field>
-          <Field label="Gesamtbudget (brutto)" hint="Für Abschnitt 6 des Vermerks"><NumInput value={p.budgetBrutto} onChange={(v) => set('budgetBrutto', v)} suffix="€" /></Field>
+          <Field label="Gesamtbudget (brutto)"><NumInput value={p.budgetBrutto} onChange={(v) => set('budgetBrutto', v)} suffix="€" /></Field>
         </div>
       </section>
 
@@ -96,12 +95,12 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
           <Field label="Unterzeichner"><input value={p.unterzeichner} onChange={(e) => set('unterzeichner', e.target.value)} /></Field>
           <Field label="Ort"><input value={p.ort} onChange={(e) => set('ort', e.target.value)} /></Field>
           <Field label="Datum des Vermerks"><input type="date" value={p.datum} onChange={(e) => set('datum', e.target.value)} /></Field>
-          <Field label="Logo" hint="PNG/JPG, oben rechts auf jeder Seite">
+          <Field label="Logo (PNG/JPG)">
             <div className="row"><input type="file" accept="image/*" onChange={(e) => onLogo(e.target.files?.[0])} />{s.logo && <><img src={s.logo} alt="Logo" className="logo-prev" /><button className="link danger" onClick={() => up((d) => void (d.logo = ''))}>entfernen</button></>}</div>
           </Field>
-          <Field label="Einzeln bewertete Angebote (Engere Wahl)" hint="Angebote je Los, die einzeln bewertet werden"><NumInput value={p.engereWahl} onChange={(v) => set('engereWahl', Math.max(1, v ?? 2))} decimals={0} /></Field>
-          <Field label="Preisauffälligkeit ab" hint="Abweichung vom Mittel der anderen Angebote"><NumInput value={p.abweichung} onChange={(v) => set('abweichung', v ?? 30)} decimals={0} suffix="%" /></Field>
-          <Field label="Aufklärung bei Gesamtpreis unter" hint="unter Kostenvoranschlag bzw. nächstem Angebot"><NumInput value={p.schwelle} onChange={(v) => set('schwelle', v ?? 15)} decimals={0} suffix="%" /></Field>
+          <Field label="Engere Wahl (Angebote je Los)"><NumInput value={p.engereWahl} onChange={(v) => set('engereWahl', Math.max(1, v ?? 2))} decimals={0} /></Field>
+          <Field label="Preisauffälligkeit ab" hint="Abweichung vom Mittel der übrigen"><NumInput value={p.abweichung} onChange={(v) => set('abweichung', v ?? 30)} decimals={0} suffix="%" /></Field>
+          <Field label="Aufklärung ab" hint="unter Kostenvoranschlag bzw. nächstem Angebot"><NumInput value={p.schwelle} onChange={(v) => set('schwelle', v ?? 15)} decimals={0} suffix="%" /></Field>
         </div>
       </section>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Bew, Offer, State } from '../domain/types';
+import type { Bew, Eignung, Offer, State } from '../domain/types';
 import { fmtDate } from '../domain/fmt';
 import { getCode, setCode } from '../ki/kiApply';
 import { kiStatus, KiError, type KiStatus } from '../ki/kiPruefung';
@@ -51,16 +51,23 @@ export function EignungKi({ s, up, o, b, setBew, ctx }: { s: State; up: Up; o: O
   const docs = referenzDocs(o);
   const blocked = ctx.status.code && !getCode();
 
+  // Ergebnis automatisch in „Qualifikation / Referenzen“ eintragen – solange das Feld leer ist oder nur den bisherigen KI-Text enthält
+  const vorbelegen = (neu: Eignung) => {
+    const cur = b.qualifikation.trim();
+    if (!cur || cur === eignungText(o.eignung)) setBew({ qualifikation: eignungText(neu) });
+  };
   const run = async (art: EignungArt) => {
     setBusy(art); setMsg(null);
     try {
       if (art === 'referenzen') {
         const { ergebnis, ausgelassen, grund } = await referenzenAuswerten(s, o, getCode());
         up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) x.eignung = { ...x.eignung, referenzen: ergebnis }; });
+        vorbelegen({ ...o.eignung, referenzen: ergebnis });
         setMsg({ ok: !ausgelassen.length, text: `${ergebnis.liste.length} Referenz(en) ausgewertet.${ausgelassen.length ? ` Nicht ausgewertet, bitte manuell prüfen: ${ausgelassen.join(', ')}${grund ? ` (${grund})` : ''}.` : ''}` });
       } else {
         const r = await recherchieren(s, o, getCode());
         up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) x.eignung = { ...x.eignung, recherche: r }; });
+        vorbelegen({ ...o.eignung, recherche: r });
         setMsg({ ok: true, text: `Recherche abgeschlossen (${r.quellen.length} Quelle(n)).` });
       }
     } catch (err) {
@@ -114,11 +121,36 @@ export function EignungKi({ s, up, o, b, setBew, ctx }: { s: State; up: Up; o: O
       {e?.recherche && (
         <details className="det" open>
           <summary><Chip kind="info">KI</Chip> Öffentlich zugängliche Informationen · Stand {fmtDate(e.recherche.stand.slice(0, 10))}</summary>
-          <p className="prev">{e.recherche.text || 'Keine Angaben gefunden.'}</p>
-          {e.recherche.quellen.length > 0 && <p className="muted quellen">Quellen: {e.recherche.quellen.map((q, i) => <a key={i} href={q.url} target="_blank" rel="noreferrer noopener">{q.titel || q.url}</a>)}</p>}
+          {e.recherche.profil ? <Profil p={e.recherche.profil} /> : <p className="prev">{e.recherche.text || 'Keine Angaben gefunden.'}</p>}
+          {e.recherche.quellen.length > 0 && <p className="muted quellen">Quellen: {quellenNachSeite(e.recherche.quellen).map((q, i) => <a key={i} href={q.url} target="_blank" rel="noreferrer noopener" title={q.titel}>{q.host}</a>)}</p>}
         </details>
       )}
       {(e?.referenzen || e?.recherche) && <p className="muted small">KI-Ergebnisse vor der Übernahme prüfen; sie ersetzen keine eigene Eignungsprüfung.</p>}
     </div>
   );
+}
+
+/** Recherche in Abschnitten: Kurzfassung, Eckdaten, Leistungen, Referenzen, Einschätzung, offene Punkte. */
+function Profil({ p }: { p: NonNullable<NonNullable<Eignung['recherche']>['profil']> }) {
+  return (
+    <div className="profil">
+      <p className="prev">{p.vermerk}</p>
+      {p.fakten.length > 0 && <dl className="fakten">{p.fakten.map((f, i) => <div key={i}><dt>{f.k}</dt><dd>{f.v}</dd></div>)}</dl>}
+      {p.leistungen.length > 0 && <div className="pblock"><b>Leistungen</b><div className="chips">{p.leistungen.map((l, i) => <Chip key={i} kind="info">{l}</Chip>)}</div></div>}
+      {p.referenzen.length > 0 && <div className="pblock"><b>Referenzen (öffentlich dargestellt)</b><ul className="hinweise">{p.referenzen.map((r, i) => <li key={i}>{r}</li>)}</ul></div>}
+      {p.vergleichbarkeit && <div className="pblock"><b>Vergleichbarkeit mit den Losen</b><p>{p.vergleichbarkeit}</p></div>}
+      {p.offen.length > 0 && <div className="pblock"><b>Nicht gefunden / im Verfahren nachweisen</b><ul className="hinweise">{p.offen.map((r, i) => <li key={i}>{r}</li>)}</ul></div>}
+    </div>
+  );
+}
+
+/** Je Internetseite nur eine Quelle, angezeigt mit dem Seitennamen statt langer Titel. */
+function quellenNachSeite(qs: { url: string; titel: string }[]) {
+  const out = new Map<string, { url: string; titel: string; host: string }>();
+  for (const q of qs) {
+    let host = q.url;
+    try { host = new URL(q.url).hostname.replace(/^www\./, ''); } catch { /* ungültige URL: so anzeigen */ }
+    if (!out.has(host)) out.set(host, { ...q, host });
+  }
+  return [...out.values()];
 }

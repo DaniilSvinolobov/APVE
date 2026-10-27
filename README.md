@@ -76,6 +76,7 @@ Einrichtung durch den Betreiber (einmalig):
 | `KI_EFFORT` | nein | `low`/`medium`/`high` (Standard `high`, gründlichste Prüfung) |
 | `APP_ACCESS_CODE` | empfohlen | Zugangscode; verhindert, dass Fremde auf Ihre Kosten die Funktion nutzen (wird Nutzern einmalig abgefragt) |
 | `ANTHROPIC_API_KEY` | nein | nur für die Internetrecherche in Schritt 4 (Bedrock hat keine Websuche); ohne Key ist sie ausgeschaltet |
+| `ANTHROPIC_WORKSPACE_ID` | nein | nur nötig, wenn der `ANTHROPIC_API_KEY` keinem Workspace zugeordnet ist (`wrkspc_…`, zu finden in der Claude Console unter Workspaces) |
 
 Ohne Bedrock-Zugang bleibt die App voll nutzbar; die Tabelle wird dann nur anhand der Dateinamen vorbelegt.
 Die Vercel-Variablennamen `AWS_*` sind reserviert, daher die eigenen Namen.

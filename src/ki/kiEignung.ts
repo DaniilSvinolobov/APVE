@@ -1,4 +1,4 @@
-import type { Eignung, KiReferenz, Offer, State } from '../domain/types';
+import type { Eignung, KiReferenz, Offer, RechercheProfil, State } from '../domain/types';
 import { docStore, type DocFile } from '../import/docStore';
 import { b64, KiError } from './kiPruefung';
 import { zerlegen, type Teil } from './teile';
@@ -84,11 +84,12 @@ export async function referenzenAuswerten(s: State, o: Offer, code: string): Pro
 
 /** Öffentlich zugängliche Informationen zum Unternehmen recherchieren (nur Name, Ort, Lose). */
 export async function recherchieren(s: State, o: Offer, code: string): Promise<NonNullable<Eignung['recherche']>> {
-  const j = await post<{ text: string; quellen: { url: string; titel: string }[] }>({ art: 'recherche', firma: o.firma, ort: o.ort, lose: losNamen(s, o) }, code);
-  return { text: j.text ?? '', quellen: j.quellen ?? [], stand: new Date().toISOString() };
+  const j = await post<{ text: string; profil?: RechercheProfil; quellen: { url: string; titel: string }[] }>({ art: 'recherche', firma: o.firma, ort: o.ort, lose: losNamen(s, o) }, code);
+  return { text: j.text ?? '', ...(j.profil ? { profil: j.profil } : {}), quellen: j.quellen ?? [], stand: new Date().toISOString() };
 }
 
 /** Text für „Qualifikation / Referenzen des Bieters“ aus den vorhandenen Ergebnissen. */
 export function eignungText(e: Eignung | undefined): string {
-  return [e?.recherche?.text, e?.referenzen?.fazit].map((t) => t?.trim()).filter(Boolean).join('\n');
+  const p = e?.recherche?.profil;
+  return [p ? [p.vermerk, p.vergleichbarkeit].filter(Boolean).join(' ') : e?.recherche?.text, e?.referenzen?.fazit].map((t) => t?.trim()).filter(Boolean).join('\n');
 }

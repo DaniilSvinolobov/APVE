@@ -354,15 +354,35 @@ export const unterlageZeile = (s: State, nr: string) => s.unterlagen.find((u) =>
  * im VVB 233 (Befunde älterer Prüfungen). `undefined` = unbekannt (kein VVB 233 geprüft).
  */
 export function nuOf(s: State, o: Offer): Nachunternehmer[] | undefined {
-  if (o.nu) return o.nu;
+  if (o.nu) return o.nuQuelle === 'user' ? o.nu : nuZusammen(o.nu);
   const ki = (o.kiDocs ?? []).flatMap((k) => k.nachunternehmer ?? []);
-  if (ki.length) return ki;
+  if (ki.length) return nuZusammen(ki);
   const z = unterlageZeile(s, '233');
   const docs = (o.kiDocs ?? []).filter((k) => (z && k.zeilen?.includes(z.id)) || /\b233\b|Nachunternehmer/i.test(k.art));
   if (!docs.length) return undefined;
   const out = docs.flatMap((k) => nuAusHandschrift(Array.isArray(k.handschrift) ? k.handschrift : []));
   if (out.length) return out;
   return docs.every((k) => k.inhalt === 'leer' || k.vorlage) ? [] : undefined;
+}
+
+/** Erste Wörter des Firmennamens, klein („Luhs & Voigt Inh. …“ und „Luhs & Voigt“ gelten als dasselbe Unternehmen). */
+const firmaKey = (f: string) => f.toLowerCase().replace(/^(fa\.|firma)\s*/, '').replace(/[^a-zäöüß0-9&]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+const gleicheFirma = (a: string, b: string) => { const x = firmaKey(a), y = firmaKey(b); return !!x && !!y && (x === y || x.startsWith(`${y} `) || y.startsWith(`${x} `)); };
+const leistungKey = (l: string) => l.toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
+
+/**
+ * Dasselbe Unternehmen für dieselbe Teilleistung steht oft in VVB 233 (Nachunternehmer) und VVB 235 (Kapazitäten) –
+ * das ist eine Angabe, keine zwei: zusammenführen (Werte aus 233, Art „beide“). Doppelte Zeilen fallen weg.
+ */
+export function nuZusammen(liste: Nachunternehmer[]): Nachunternehmer[] {
+  const out: Nachunternehmer[] = [];
+  for (const n of [...liste].sort((a, b) => Number(a.art === 'kapazitaet') - Number(b.art === 'kapazitaet'))) {
+    const x = out.find((y) => gleicheFirma(y.firma, n.firma) && leistungKey(y.leistung) === leistungKey(n.leistung));
+    if (!x) { out.push({ ...n }); continue; }
+    if ((x.art ?? 'nu') !== (n.art ?? 'nu')) x.art = 'beide';
+    if (!x.oz.trim()) x.oz = n.oz;
+  }
+  return out;
 }
 
 /** Zeilen der Tabelle im VVB 233 aus der Handschrift (Feld „OZ/Leistungsbereich“, „Beschreibung …“, „Name des Unternehmens“). */

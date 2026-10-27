@@ -376,6 +376,15 @@ select.pst.pdf{background:var(--warn-l);border-color:#f3d28a}
 .eignung .reftab td,.eignung .reftab th{vertical-align:top;font-size:13px}
 .eignung .hinweise{margin:6px 0;padding-left:20px;font-size:13px}
 .eignung .quellen a{margin-right:12px;word-break:break-all}
+.eignung .profil{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.eignung .profil .prev{font-size:14px;margin:0}
+.eignung .fakten{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:0}
+.eignung .fakten div{background:#f8f9fc;border-radius:8px;padding:8px 12px}
+.eignung .fakten dt{font-size:12px;color:#667085}
+.eignung .fakten dd{margin:2px 0 0;font-size:13.5px}
+.eignung .pblock{font-size:13.5px}
+.eignung .pblock p{margin:4px 0 0}
+.eignung .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .eignung .small{font-size:12px;margin:0}
 .nubox{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .nubox .nutab{margin-top:8px;width:100%}

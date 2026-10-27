@@ -47,11 +47,17 @@ export interface KiReferenz { projekt: string; auftraggeber: string; ort: string
 /** Ergebnisse der optionalen KI-Eignungsprüfung je Angebot (stand = ISO-Zeitpunkt). */
 export interface Eignung {
   referenzen?: { liste: KiReferenz[]; hinweise: string[]; fazit: string; dateien: string[]; stand: string };
-  recherche?: { text: string; quellen: { url: string; titel: string }[]; stand: string };
+  recherche?: { text: string; profil?: RechercheProfil; quellen: { url: string; titel: string }[]; stand: string };
+}
+
+/** Ergebnis der Internetrecherche in Abschnitten (text = Sätze für den Vermerk). */
+export interface RechercheProfil {
+  vermerk: string; fakten: { k: string; v: string }[]; leistungen: string[]; referenzen: string[]; vergleichbarkeit: string; offen: string[];
 }
 
 /** Nachunternehmer (VVB 233) bzw. Unternehmen, auf deren Kapazitäten sich der Bieter beruft (VVB 235). */
-export interface Nachunternehmer { oz: string; leistung: string; firma: string; art?: 'nu' | 'kapazitaet' }
+/** art: nu = VVB 233, kapazitaet = VVB 235, beide = dasselbe Unternehmen für dieselbe Leistung in 233 und 235. */
+export interface Nachunternehmer { oz: string; leistung: string; firma: string; art?: 'nu' | 'kapazitaet' | 'beide' }
 
 /** Handschriftliche Eintragung in einem Dokument (Befund der KI-Prüfung). */
 export interface HsEintrag { seite?: number; feld: string; wert: string }
@@ -73,12 +79,13 @@ export interface Offer {
   prices: Record<string, PriceEntry>; // [OZ ohne Punkte]
   summen: Record<string, number | null>; // [losId] netto, wenn ohne LV erfasst
   pruef: Record<string, { s: PStatus; d: string; n?: string; k?: 'auto' | 'ki' | 'user' }>; // Vollständigkeitsprüfung [Zeilen-ID]; n = Hinweis, k = Quelle
-  kiDocs?: { datei: string; art: string; zeilen?: string[]; vorlage?: boolean; inhalt: string; unterschrift: string; stempel?: boolean; handschrift?: string | HsEintrag[]; nachunternehmer?: Nachunternehmer[]; sicherheit?: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI); handschrift als Text = ältere Prüfung
+  kiDocs?: { datei: string; art: string; zeilen?: string[]; vorlage?: boolean; inhalt: string; unterschrift: string; stempel?: boolean; handschrift?: string | HsEintrag[]; nachunternehmer?: Nachunternehmer[]; pq?: string; sicherheit?: string; bemerkung: string }[]; // Ergebnis der Dokumentprüfung (KI); handschrift als Text = ältere Prüfung
   kiInfo?: { s: 'ok' | 'skip' | 'fehler'; t: string }; // Stand der letzten KI-Prüfung dieses Angebots (geprüft / übersprungen / Fehler)
   eignung?: Eignung; // Referenzauswertung und Recherche (KI, optional)
   nu?: Nachunternehmer[]; // Nachunternehmer laut VVB 233/235; fehlt = noch nicht erfasst, [] = keine
   nuQuelle?: 'ki' | 'user'; // user = von Hand bearbeitet, wird von einer neuen KI-Prüfung nicht überschrieben
   pq?: string; // Präqualifikationsnummer (leer = nicht präqualifiziert bzw. unbekannt)
+  pqQuelle?: string; // Datei, aus der die KI die PQ-Nummer gelesen hat (leer = von Hand eingetragen)
   textErg: { oz: string; text: string }[];
   nachforderung: string[];
   dateien: { name: string; kat: string; nach?: string }[]; // nach = nachgereicht am (ISO-Datum, '' = unbekannt)

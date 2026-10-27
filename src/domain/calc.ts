@@ -424,32 +424,59 @@ export function eignungsNachweis(s: State, o: Offer): 'pq' | '124' | null {
   return p && (p.s === 'ok' || p.s === 'nach') ? '124' : null;
 }
 
-/** Einheitspreis einer Position im Vergleich (avg = Mittel der übrigen Angebote, schaetz = LV-Schätzpreis); auffaellig = Anlass, die Angebotskalkulation nachzufordern. */
-export interface AufklPos { oz: string; kurz: string; ep: number; avg: number | null; schaetz: number | null; auffaellig: boolean }
+/** Bewertung einer Position für die Rückfrage:
+ *  auffaellig = EP weicht deutlich vom Vergleichspreis ab und wirkt sich spürbar auf die Angebotssumme aus;
+ *  gering = weicht deutlich ab, aber mit geringer Auswirkung; schaetz = der Bieter liegt bei den übrigen Bietern, nur unser
+ *  LV-Schätzpreis weicht ab (eher Schätzung prüfen); ok = unauffällig. */
+export type AufklStatus = 'auffaellig' | 'gering' | 'schaetz' | 'ok';
 
-/** Alle bepreisten Positionen eines Angebots mit Vergleichswerten. Auffällig ist ein EP, der deutlich (Projekteinstellung „abweichung“)
- *  vom Mittel der übrigen Angebote derselben Runde und vom LV-Schätzpreis abweicht – bei beiden Vergleichswerten in dieselbe Richtung,
- *  sonst gegenüber dem vorhandenen – und spürbares Gewicht hat (mind. 50 € bzw. 0,05 % der Angebotssumme).
- *  ohne = Angebote, die nicht als Vergleich dienen (z. B. Ausschluss empfohlen, weil ihre Preise das Mittel verzerren). */
-export function positionsVergleich(s: State, los: Los, cells: Cell[], c: Cell, ohne: string[] = []): AufklPos[] {
+/** Position im Vergleich: ref = Median der EP der übrigen Bieter (sonst LV-Schätzpreis), delta = Mehr-/Minderkosten ggü. ref (Menge × EP-Differenz). */
+export interface AufklPos {
+  oz: string; kurz: string; menge: number; einheit: string;
+  ep: number; gp: number; peer: number | null; schaetz: number | null;
+  ref: number | null; refQuelle: 'bieter' | 'schaetz' | null; pct: number | null; delta: number; status: AufklStatus;
+}
+
+const median = (v: number[]) => { const a = [...v].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+
+/** Übrige Angebote derselben Runde als Vergleich (vollständig, nicht ausgeschlossen, nicht in „ohne“). */
+const vergleichsAngebote = (cells: Cell[], c: Cell, ohne: string[]) => cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded && !ohne.includes(x.offer.id));
+
+/** Standard für die Mindestauswirkung je Position: 0,5 % der mittleren Angebotssumme der Runde, mindestens 250 €, auf 50 € gerundet. */
+export function aufklMinEuro(cells: Cell[], runde: number): number {
+  const sums = cells.filter((c) => c.offer.runde === runde && c.complete && c.sumNet).map((c) => c.sumNet!);
+  return sums.length ? Math.max(250, Math.round((median(sums) * 0.005) / 50) * 50) : 250;
+}
+
+/** Alle bepreisten Positionen eines Angebots mit Vergleich, nach Auswirkung (|delta|) absteigend.
+ *  Vergleichspreis ist der Median der übrigen Bieter (robust gegen einzelne Ausreißer); nur ohne übrige Bieter der LV-Schätzpreis.
+ *  Liegt der Bieter beim LV-Schätzpreis, die übrigen aber nicht, ist die Position nicht auffällig; liegt er bei den übrigen und nur
+ *  der Schätzpreis weicht ab, wird sie als „schaetz“ markiert. ohne = Angebote, die nicht als Vergleich dienen (Ausschluss empfohlen). */
+export function positionsVergleich(s: State, los: Los, cells: Cell[], c: Cell, minEuro: number, ohne: string[] = []): AufklPos[] {
   if (!c.complete) return [];
-  const peers = cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded && !ohne.includes(x.offer.id));
+  const peers = vergleichsAngebote(cells, c, ohne);
   const th = s.project.abweichung / 100;
-  const minDelta = Math.max(50, (c.sumNet ?? 0) * 0.0005);
+  const weicht = (ep: number, r: number | null) => r != null && r > 0 && Math.abs(ep / r - 1) > th;
   const out: AufklPos[] = [];
   for (const p of losPositions(s, los)) {
     if (p.bedarf) continue;
     const ep = c.offer.prices[zkey(p.oz)]?.ep;
     if (ep == null) continue;
+    const menge = p.menge ?? 0;
     const pe = peers.map((x) => x.offer.prices[zkey(p.oz)]?.ep).filter((v): v is number => v != null);
-    const avg = pe.length ? pe.reduce((a, b) => a + b, 0) / pe.length : null;
-    const schaetz = s.schaetz?.[zkey(p.oz)] ?? null;
-    const refs = [avg, schaetz].filter((r): r is number => r != null && r > 0);
-    const dir = refs.map((r) => (ep > r * (1 + th) ? 1 : ep < r * (1 - th) ? -1 : 0));
-    const auffaellig = refs.length > 0 && dir.every((d) => d !== 0 && d === dir[0]) && Math.abs((p.menge ?? 0) * (ep - refs[0])) >= minDelta;
-    out.push({ oz: p.oz, kurz: p.kurz, ep, avg, schaetz, auffaellig });
+    const peer = pe.length ? median(pe) : null;
+    const sch = s.schaetz?.[zkey(p.oz)] ?? null;
+    const schaetz = sch != null && sch > 0 ? sch : null;
+    const ref = peer != null && peer > 0 ? peer : schaetz;
+    const refQuelle = ref == null ? null : ref === peer ? 'bieter' : 'schaetz';
+    const delta = ref == null ? 0 : round2(menge * (ep - ref));
+    let status: AufklStatus = 'ok';
+    if (weicht(ep, ref)) {
+      // Bieter liegt bei unserem Schätzpreis, nur die übrigen weichen ab → kein Anlass zur Rückfrage bei diesem Bieter
+      const beiSchaetz = refQuelle === 'bieter' && schaetz != null && !weicht(ep, schaetz);
+      if (!beiSchaetz) status = Math.abs(delta) >= minEuro ? 'auffaellig' : 'gering';
+    } else if (refQuelle === 'bieter' && weicht(ep, schaetz) && Math.abs(menge * (ep - schaetz!)) >= minEuro) status = 'schaetz';
+    out.push({ oz: p.oz, kurz: p.kurz, menge, einheit: p.einheit, ep, gp: round2(menge * ep), peer, schaetz, ref, refQuelle, pct: ref ? (ep / ref - 1) * 100 : null, delta, status });
   }
-  return out;
+  return out.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 }
-
-export const aufklaerungsPositionen = (s: State, los: Los, cells: Cell[], c: Cell, ohne: string[] = []) => positionsVergleich(s, los, cells, c, ohne).filter((p) => p.auffaellig);

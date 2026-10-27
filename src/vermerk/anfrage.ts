@@ -1,6 +1,6 @@
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
-import { positionsVergleich, type AufklPos, type Cell } from '../domain/calc';
-import { fmtNum } from '../domain/fmt';
+import { aufklMinEuro, losPositions, positionsVergleich, zkey, type AufklPos, type Cell } from '../domain/calc';
+import { fmtNum, round2 } from '../domain/fmt';
 
 /** E-Mail an den Auftraggeber während der Angebotsprüfung: Ausschluss einzelner Bieter vorab empfehlen und für auffällige Positionen
  *  eine detaillierte Angebotskalkulation nachfordern lassen. Nur Text – ändert weder Wertung noch Vergabevermerk. */
@@ -18,24 +18,48 @@ const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: tru
 export interface AnfrageBieter {
   c: Cell;
   modus: AnfrageModus;
-  vergleich: AufklPos[]; // alle bepreisten Positionen mit Vergleichswerten (ohne die zum Ausschluss empfohlenen Bieter)
-  auto: string[]; // automatisch vorgeschlagene Positionen
+  vergleich: AufklPos[]; // alle bepreisten Positionen mit Vergleich, nach Auswirkung absteigend (ohne die zum Ausschluss empfohlenen Bieter)
+  auto: string[]; // automatisch vorgeschlagene Positionen (auffällig)
   liste: string[]; // Positionen in der E-Mail
   manuell: boolean;
 }
 
-/** Stand je Bieter: Modus (von Hand oder automatisch) und Positionen. Zum Ausschluss empfohlene Bieter zählen nicht zum Mittel der übrigen. */
+/** Mindestauswirkung je Position: von Hand gesetzt, sonst automatisch aus den Angebotssummen der Runde. */
+export const anfrageMinEuro = (a: Anfrage, cells: Cell[], runde: number) => a.minEuro ?? aufklMinEuro(cells, runde);
+
+/** Stand je Bieter: Modus (von Hand oder automatisch) und Positionen. Zum Ausschluss empfohlene Bieter zählen nicht zum Vergleich der übrigen. */
 export function anfrageBieter(s: State, los: Los, cells: Cell[], runde: number): AnfrageBieter[] {
   const a = anfrageOf(s, los);
   const rc = anfrageCells(cells, runde);
+  const min = anfrageMinEuro(a, cells, runde);
   const aus = rc.filter((c) => a.modus[c.offer.id] === 'aus').map((c) => c.offer.id);
   return rc.map((c) => {
-    const vergleich = positionsVergleich(s, los, cells, c, aus);
-    const auto = vergleich.filter((p) => p.auffaellig).map((p) => p.oz);
+    const vergleich = positionsVergleich(s, los, cells, c, min, aus);
+    const auto = vergleich.filter((p) => p.status === 'auffaellig').map((p) => p.oz).sort(ozSort);
     const hand = a.pos[c.offer.id];
     const liste = hand == null ? auto : [...new Set(hand.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean))].sort(ozSort);
     return { c, modus: a.modus[c.offer.id] ?? (auto.length ? 'nach' : 'ohne'), vergleich, auto, liste, manuell: hand != null };
   });
+}
+
+/** Positionen, bei denen die Bieter untereinander ähnlich liegen, unser LV-Schätzpreis aber deutlich abweicht (Median aller Bieter der Runde). */
+export function schaetzAbweichungen(s: State, los: Los, cells: Cell[], runde: number, minEuro: number) {
+  const rc = anfrageCells(cells, runde).filter((c) => !c.excluded);
+  if (rc.length < 2) return [];
+  const th = s.project.abweichung / 100;
+  const out: { oz: string; kurz: string; schaetz: number; median: number; pct: number; delta: number }[] = [];
+  for (const p of losPositions(s, los)) {
+    const sch = s.schaetz?.[zkey(p.oz)];
+    if (p.bedarf || sch == null || sch <= 0) continue;
+    const eps = rc.map((c) => c.offer.prices[zkey(p.oz)]?.ep).filter((v): v is number => v != null).sort((x, y) => x - y);
+    if (eps.length < 2) continue;
+    const m = eps.length % 2 ? eps[eps.length >> 1] : (eps[eps.length / 2 - 1] + eps[eps.length / 2]) / 2;
+    // alle Bieter weichen in dieselbe Richtung vom Schätzpreis ab
+    if (!(eps[0] > sch * (1 + th) || eps[eps.length - 1] < sch * (1 - th))) continue;
+    const delta = round2((p.menge ?? 0) * (m - sch));
+    if (Math.abs(delta) >= minEuro) out.push({ oz: p.oz, kurz: p.kurz, schaetz: sch, median: m, pct: (m / sch - 1) * 100, delta });
+  }
+  return out.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
 }
 
 /** Vorschlag für die Begründung der Ausschlussempfehlung aus Abstand zum Schätzpreis und Ausreißern nach oben. */
@@ -44,7 +68,7 @@ export function ausschlussAuto(b: AnfrageBieter): string {
   const teile: string[] = [];
   if (c.dKosten != null && c.dKosten > 0) teile.push(`das Angebot rund ${fmtNum(c.dKosten, 0)} % über unserem Schätzpreis liegt`);
   else if (c.dMin != null && c.dMin > 0) teile.push(`das Angebot rund ${fmtNum(c.dMin, 0)} % über dem günstigsten Angebot liegt`);
-  const hoch = b.vergleich.filter((p) => p.auffaellig && p.ep > (p.avg ?? p.schaetz ?? 0)).length;
+  const hoch = b.vergleich.filter((p) => p.status === 'auffaellig' && p.delta > 0).length;
   if (hoch >= 3) teile.push('im Vergleich zu den anderen Bietern teilweise extreme Ausreißer nach oben aufweist');
   return teile.join(' und ');
 }

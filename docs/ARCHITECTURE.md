@@ -14,6 +14,7 @@ Dateien (Ordner/ZIP)
    │  import/lvAusPdf.ts  eigenes LV nur als PDF: Positionen, Mengen, Titel, ggf. Preise aus den Textzeilen (ohne GAEB-Datei)
    │  import/kopfdaten.ts Eckdaten für Schritt 1 (Vergabenummer, Termine, Verfasser …) aus GAEB-Kopf, Vorbemerkungen und LV-PDF-Deckblatt; belegt nur leere Felder
    │  import/apply.ts     LV (+ Schätzpreise aus 82) und Angebote in den State schreiben, Vollständigkeit vorbelegen
+   │                      Nachverhandlung = eigenes Angebot mit `basis` → Hauptangebot (files.ts `splitNv` trennt Unterordner „Nachverhandlung“; domain/runden.ts)
    ▼
 State  (domain/types.ts)  ── ein Objekt für das ganze Projekt, liegt im Browser (storage/projectStore.ts)
    │  domain/calc.ts      Preisspiegel, Rang je Los und Runde, Auffälligkeiten, Rechenprüfung
@@ -24,7 +25,7 @@ Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
 ## Ordner in `src/`
 | Ordner | Inhalt | React? |
 |---|---|---|
-| `domain/` | `types` (State & Co.), `calc` (Wertung, Rang), `fmt` (deutsche Zahlen/Datum), `demo` (Beispiel-/Leerprojekt) | nein |
+| `domain/` | `types` (State & Co.), `calc` (Wertung, Rang), `runden` (Hauptangebot ↔ Nachverhandlung), `fmt` (deutsche Zahlen/Datum), `demo` (Beispiel-/Leerprojekt) | nein |
 | `gaeb/` | Parser GAEB 90 / 2000 / DA XML | nein |
 | `import/` | Einlesen und Zuordnen, siehe Datenfluss; `docStore.ts` hält Originaldateien nur im Arbeitsspeicher | nein |
 | `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Zerlegen großer Dateien in `teile.ts`, Word-Formblätter als Text in `docx.ts`, strenge Zuordnung Formblatt → Prüfzeile in `formblatt.ts`, ein Dokument je Anfrage, Aufruf von `api/pruefen.ts` → Bedrock EU über `api/_ki.ts`) und Eignungsprüfung (`kiEignung.ts` → `api/eignung.ts`: Referenzen, Recherche) | nein |

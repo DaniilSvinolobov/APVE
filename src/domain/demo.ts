@@ -55,8 +55,8 @@ export function demoState(): State {
   const o3 = mkOffer(3, 'Natura Außenanlagen GmbH', 'Düren', 1, [l1.id, l2.id], pr(2));
   // Nachverhandlung LOS1: Bieter 3 senkt Position 01.02.03 auf marktüblichen Preis
   const p4 = pr(2, '01'); p4['010203'] = { ep: 26.2, gp: Math.round(380 * 26.2 * 100) / 100 };
-  const o4 = mkOffer(4, 'Natura Außenanlagen GmbH', 'Düren', 2, [l1.id], p4);
-  const o5 = mkOffer(5, 'Gartenbau Weber GmbH', 'Kerpen', 2, [l1.id], pr(0, '01'));
+  const o4 = mkOffer(4, 'Natura Außenanlagen GmbH', 'Düren', 2, [l1.id], p4, { basis: o3.id });
+  const o5 = mkOffer(5, 'Gartenbau Weber GmbH', 'Kerpen', 2, [l1.id], pr(0, '01'), { basis: o1.id });
   s.offers = [o1, o2, o3, o4, o5];
   for (const o of [o1, o2, o3]) for (const u of s.unterlagen) o.pruef[u.id] = { s: /222|234|248|223/.test(u.label) ? 'entf' : 'ok', d: '' };
   o3.pruef[s.unterlagen.find((u) => u.label.includes('221'))!.id] = { s: 'nach', d: '2026-08-04' };

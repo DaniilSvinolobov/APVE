@@ -1,6 +1,7 @@
 import type { Los, State } from '../domain/types';
 import { angemessenheit, bieterPq, auffaelligkeiten, computeLos, eignungsNachweis, engereWahl, finalRound, getBew, kostenOf, nuOf, offerBrutto, pruefStatus, schaetzSumme, unterlageZeile, zuschlagCell, type Cell } from '../domain/calc';
 import type { Nachunternehmer, Offer } from '../domain/types';
+import { istHaupt, selberBieter, vorRunde } from '../domain/runden';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
 import { kmFuerVermerk } from '../geo/entfernung';
 import { anfrageBieter } from './anfrage';
@@ -200,7 +201,7 @@ export function buildVermerk(s: State): Block[] {
     geprueft.length ? `Nachfolgend ${geprueft.length > 1 ? 'werden die Angebote' : 'wird das Angebot'} Nr. ${listDe(geprueft)} technisch und wirtschaftlich geprüft${nichtEinzeln.length ? ' (engere Wahl)' : ''}.` : '',
     ...vLose.flatMap((l) => engereText(s, l, allCells.get(l.id) ?? [], vLose.length > 1)),
     '',
-    ...s.offers.filter((o) => !o.status).flatMap((o) => {
+    ...s.offers.filter((o) => !o.status && istHaupt(o)).flatMap((o) => {
       const ps = pruefStatus(s, o);
       const out: string[] = [];
       if (ps.nach.length) {
@@ -246,7 +247,7 @@ export function buildVermerk(s: State): Block[] {
     for (const rd of later) {
       const rc = cells.filter((c) => c.offer.runde === rd);
       B.push({ t: 'h', n: `4.${n}`, text: `Nachverhandlung der Angebote für ${l.nr}: ${l.name}`, lvl: 2 });
-      const missing = first.filter((c) => !rc.some((x) => x.offer.firma === c.offer.firma) && !c.excluded);
+      const missing = first.filter((c) => !rc.some((x) => selberBieter(s, x.offer, c.offer)) && !c.excluded);
       B.push(T(`nv:${l.id}:${rd}`, [
         `Im Rahmen der technischen und wirtschaftlichen Prüfung (siehe Titel 4.${n - 1}) wurde Folgendes festgestellt:`,
         s.nvGrund?.[l.id]?.trim() || '[Anlass der Nachverhandlung angeben – Schritt „Wertung“]',
@@ -481,10 +482,10 @@ export function bewText(s: State, l: Los, cells: Cell[], c: Cell, nv = false): s
     return L.join('\n');
   }
   if (nv) {
-    const prev = cells.find((x) => x.offer.runde < o.runde && x.offer.firma.toLowerCase().replace(/\W/g, '') === o.firma.toLowerCase().replace(/\W/g, ''));
+    const prev = vorRunde(s, o);
     if (prev) {
       const changed = Object.keys(o.prices).filter((k) => {
-        const a = o.prices[k]?.ep, p = prev.offer.prices[k]?.ep;
+        const a = o.prices[k]?.ep, p = prev.prices[k]?.ep;
         return a != null && p != null && Math.abs(a - p) > 0.005 && s.lv.some((x) => x.oz.replace(/\./g, '') === k && (!l.oz || x.oz.startsWith(l.oz + '.')));
       }).map((k) => s.lv.find((x) => x.oz.replace(/\./g, '') === k)!.oz);
       if (changed.length) L.push(`Der Einheitspreis für Position ${listDe(changed)} wurde neu angeboten, alle weiteren Einheitspreise wurden durch den Bieter bestätigt.`);

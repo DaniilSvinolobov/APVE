@@ -2,7 +2,7 @@ import { parseGaeb, ozKey, type GaebDoc } from '../gaeb/gaeb';
 import type { Offer } from '../domain/types';
 import { uid } from '../domain/fmt';
 import { base, type RawFile } from './zip';
-import { hash, kategorie, rank, type BidGroup } from './files';
+import { hash, kategorie, NV_NAME, rank, type BidGroup } from './files';
 import type { DocFile } from './docStore';
 
 export const cleanFirma = (s: string) => {
@@ -32,25 +32,26 @@ export interface ParsedBid { offer: Offer; doc: GaebDoc; sig: boolean; docs: Doc
 
 /**
  * `pre`: Preise stammen nicht aus einer GAEB-Datei, sondern aus dem LV-PDF (Dokument bereits aufgebaut);
- * `art: 'keine'` = Ordner ohne lesbare Preise – das Angebot wird trotzdem angelegt, damit es nicht verloren geht.
+ * `art: 'keine'` = Ordner ohne lesbare Preise – das Angebot wird trotzdem angelegt, damit es nicht verloren geht;
+ * `art: 'vorrunde'` = Nachverhandlung ohne Preisdatei: Preise der vorigen Runde gelten als bestätigt.
  */
-export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser, pre?: { doc: GaebDoc; quelle: string; hinweis: string; art?: 'pdf' | 'keine' }): ParsedBid | null {
+export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser, pre?: { doc: GaebDoc; quelle: string; hinweis: string; art?: 'pdf' | 'keine' | 'vorrunde' }): ParsedBid | null {
   const bidFiles = g.bids;
   const warnungen: string[] = [];
   // Duplikate erkennen
   const byHash = new Map<string, RawFile[]>();
   for (const f of bidFiles) byHash.set(hash(f.data), [...(byHash.get(hash(f.data)) ?? []), f]);
   const distinct = [...byHash.values()].map((arr) => arr.sort((a, b) => rank(a.path) - rank(b.path))[0]);
-  distinct.sort((a, b) => (/nachverh/i.test(base(b.path)) ? 1 : 0) - (/nachverh/i.test(base(a.path)) ? 1 : 0) || (is84(b.path) ? 1 : 0) - (is84(a.path) ? 1 : 0) || rank(a.path) - rank(b.path));
+  distinct.sort((a, b) => (NV_NAME.test(base(b.path)) ? 1 : 0) - (NV_NAME.test(base(a.path)) ? 1 : 0) || (is84(b.path) ? 1 : 0) - (is84(a.path) ? 1 : 0) || rank(a.path) - rank(b.path));
   // gleiche Inhalte in verschiedenen Formaten (x84/d84) sind kein Warnsignal; gleiche Dateien mit "Nachverhandlung" im Namen schon
   for (const arr of byHash.values()) {
-    const nv = arr.find((f) => /nachverh/i.test(base(f.path)));
+    const nv = arr.find((f) => NV_NAME.test(base(f.path)));
     const other = arr.find((f) => f !== nv);
     if (nv && other) warnungen.push(`„${base(nv.path)}“ ist identisch mit „${base(other.path)}“ – die Nachverhandlungsdatei enthält keine geänderten Preise.`);
   }
   let doc: GaebDoc | null = pre?.doc ?? null;
   let used: { path: string } | null = pre ? { path: pre.quelle } : null;
-  if (pre) warnungen.push(pre.hinweis);
+  if (pre?.hinweis) warnungen.push(pre.hinweis);
   const formats = new Set(distinct.map((f) => f.path.slice(-3).toLowerCase()));
   if (!pre) for (const f of distinct) {
     try { doc = parseGaeb(base(f.path), f.data, DP); used = f; break; } catch (e) { warnungen.push(`„${base(f.path)}“ konnte nicht gelesen werden.`); }
@@ -68,7 +69,8 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
   const cands = [cleanFirma(doc.bieter), grab(/Firmenname:\s*(.+)/)].filter(Boolean);
   const firma = cands.find((c) => LEGAL.test(c)) || cands[0] || folder.replace(/^Angebot(?:e|s[a-zäöü]*)?[_\s-]*\d*[_\s-]*/i, '').replace(/_/g, '/');
   const datumRaw = grab(/Angebotsdatum:\s*(\d{2}\.\d{2}\.\d{4})/);
-  const datum = datumRaw ? datumRaw.split('.').reverse().join('-') : doc.datum;
+  // ohne eigene Preisdatei stammt das Dokument aus der vorigen Runde – dessen Datum gilt nicht
+  const datum = datumRaw ? datumRaw.split('.').reverse().join('-') : pre?.art === 'vorrunde' ? '' : doc.datum;
 
   const isBidPath = new Set(g.bids.map((f) => f.path));
   const dateien = g.files
@@ -86,8 +88,8 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
   const prices: Offer['prices'] = {};
   for (const p of doc.positions) prices[ozKey(p.oz)] = { ep: p.ep, gp: p.gp };
   const offer: Offer = {
-    id: uid(), nr, firma, ort: firmenOrt(grab(/Firmenort:\s*(.+)/), grab(/(?:Firmen-?)?PLZ:\s*(\d{5})\b/), doc.bieterOrt), runde: g.files.some((f) => /nachverh/i.test(f.path)) ? 2 : 1,
-    datum, preisQuelle: pre ? pre.art ?? 'pdf' : undefined, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
+    id: uid(), nr, firma, ort: firmenOrt(grab(/Firmenort:\s*(.+)/), grab(/(?:Firmen-?)?PLZ:\s*(\d{5})\b/), doc.bieterOrt), runde: pre?.art === 'vorrunde' || g.files.some((f) => NV_NAME.test(f.path)) ? 2 : 1,
+    datum, preisQuelle: pre && pre.art !== 'vorrunde' ? pre.art ?? 'pdf' : undefined, lose: [], nachlass: null, nachlassLose: [], skonto: null, prices, summen: {}, pruef: {},
     textErg: doc.positions.filter((p) => p.bieterText).map((p) => ({ oz: p.oz, text: p.bieterText! })),
     nachforderung, dateien, warnungen, quelle: base(used.path),
   };

@@ -1,5 +1,6 @@
 import { VERFAHREN_PRIVAT, type State } from '../domain/types';
 import { emptyState } from '../domain/demo';
+import { verknuepfeAlte } from '../domain/runden';
 
 const KEY = 'apve-state-v2';
 const STEP_KEY = 'apve-step';
@@ -26,7 +27,9 @@ export function parseBackup(j: unknown): State | null {
   // Felder, die in neueren Versionen dazugekommen sind, mit Standardwerten ergänzen
   const project = { ...e.project, ...(j as State).project };
   project.verfahren = ALTE_VERFAHREN[project.verfahren] ?? project.verfahren;
-  return { ...e, ...(j as State), project };
+  const st = { ...e, ...(j as State), project };
+  verknuepfeAlte(st);
+  return st;
 }
 
 /** Frühere Einträge der Auswahl „Vergabeverfahren“; nicht eindeutige (z. B. „UVgO“) bleiben stehen und werden als bisherige Angabe angezeigt. */

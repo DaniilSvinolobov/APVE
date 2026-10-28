@@ -28,7 +28,8 @@ export async function expandZips(files: RawFile[], depth = 0): Promise<RawFile[]
         const roots = new Set(inner.map((i) => i.path.split('/')[0]));
         const prefix = dir(f.path);
         const zipName = base(f.path).replace(/\.zip$/i, '');
-        const single = roots.size === 1 && inner.every((i) => i.path.includes('/'));
+        // ZIP-Name bleibt Teil des Pfads, wenn er die Runde bzw. Nachforderung kennzeichnet („Nachverhandlung.zip“ mit einem Ordner darin)
+        const single = roots.size === 1 && inner.every((i) => i.path.includes('/')) && !/nachverh|nachforder/i.test(zipName);
         const mapped = inner.map((i) => ({ path: [prefix, single ? '' : zipName, i.path].filter(Boolean).join('/'), data: i.data }));
         out.push(...(await expandZips(mapped, depth + 1)));
         continue;

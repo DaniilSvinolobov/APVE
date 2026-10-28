@@ -2,6 +2,7 @@ import { ozKey, type GaebDoc } from '../gaeb/gaeb';
 import type { BidPos, Los, LvBefund, LvPos, Offer, State, ZusatzPos } from '../domain/types';
 import { fmtEur, round2, uid } from '../domain/fmt';
 import { losPositions, zusatzWert } from '../domain/calc';
+import { gleicherBieter, kette, naechsteRunde } from '../domain/runden';
 import { nachName, type ParsedBid } from './analyze';
 import { matchPositions, SICHER } from './ozMatch';
 import { applyKopf, kopfAusDoc, kopfMerge } from './kopfdaten';
@@ -106,34 +107,56 @@ export function applyOffer(d: State, parsed: ParsedBid, sigFound = parsed.sig, e
     offer.warnungen.push('Kein Soll-LV geladen – Positionen und Mengen aus der Bieterdatei abgeleitet. Bitte Ausschreibungs-LV (GAEB X83/P83/D83) laden.');
   }
   offer.bidPos = doc.positions.map((p) => ({ oz: p.oz, kurz: p.kurz, lang: (p.lang ?? '').slice(0, 600), menge: p.menge, einheit: p.einheit, bedarf: p.bedarf, ep: p.ep, gp: p.gp }));
-  offer.check = offer.preisQuelle === 'keine' ? undefined : { ...summenCheck(doc), pdf: offer.check?.pdf };
+  offer.check = offer.preisQuelle === 'keine' || !offer.quelle ? undefined : { ...summenCheck(doc), pdf: offer.check?.pdf };
   zuordnen(d, offer);
   offer.lose = loseOf(d, offer);
   const preise = d.lv.every((p) => p.bedarf || (offer.prices[ozKey(p.oz)]?.ep ?? 0) !== 0 || !offer.lose.some((id) => { const l = d.lose.find((x) => x.id === id); return !!l && (!l.oz || p.oz.startsWith(l.oz + '.')); }));
-  autoPruef(d, offer, sigFound, preise);
-  const eroeff = d.project.eroeffnung.slice(0, 10);
-  if (eroeff && offer.datum && offer.datum > eroeff && offer.runde === 1) offer.runde = 2;
+  if (!ersetzt) verknuepfen(d, offer, doc);
+  // Vollständigkeitsprüfung nur für Hauptangebote – die Unterlagen einer Nachverhandlung ergänzen das Hauptangebot, sie ersetzen es nicht
+  if (!offer.basis && !ersetzt?.alt.basis) autoPruef(d, offer, sigFound, preise);
   if (ersetzt) uebernehmen(d, offer, ersetzt.alt, ersetzt.nach, true);
-  else ersetzeOhnePreise(d, offer);
-  const dup = d.offers.filter((o) => o.firma.toLowerCase().replace(/\W/g, '') === offer.firma.toLowerCase().replace(/\W/g, ''));
-  if (!ersetzt && dup.length && offer.runde === 1) offer.runde = (Math.min(3, Math.max(...dup.map((o) => o.runde)) + 1)) as 2 | 3;
-  if (d.offers.some((o) => o.nr === offer.nr)) offer.nr = Math.max(0, ...d.offers.map((o) => o.nr)) + 1;
-  if (offer.nr === 0) offer.nr = 1;
+  else if (!offer.basis && offer.runde === 1) ersetzeOhnePreise(d, offer);
+  if (!offer.nr || d.offers.some((o) => o.nr === offer.nr)) offer.nr = Math.max(0, ...d.offers.map((o) => o.nr)) + 1;
   d.offers.push(offer);
   d.offers.sort((a, b) => a.nr - b.nr);
 }
 
-/** Firmenname ohne Rechtsform und Satzzeichen, für den Vergleich („Outdoor Design GmbH“ = „outdoor/design“). */
-const firmaKey = (f: string) => f.toLowerCase().replace(/\b(gmbh|mbh|co|kg|ag|ug|ohg|gbr|e\.?\s?k)\b|&/g, '').replace(/[^a-z0-9äöüß]/g, '');
+/**
+ * Nachverhandlung erkennen und mit dem Hauptangebot desselben Bieters verknüpfen. Anzeichen: Ordner/Datei „Nachverhandlung“
+ * (runde > 1), vorgegebenes Hauptangebot (`basis`), Angebotsdatum nach der Eröffnung oder ein bereits eingelesenes
+ * Angebot desselben Bieters (außer einem Platzhalter ohne Preise – den ersetzt das neue Angebot, siehe ersetzeOhnePreise).
+ * Das Hauptangebot und seine Unterlagen bleiben unverändert.
+ */
+function verknuepfen(d: State, offer: Offer, doc: GaebDoc) {
+  const haupt = offer.basis ? d.offers.find((o) => o.id === offer.basis) : d.offers.find((o) => !o.basis && o !== offer && gleicherBieter(o.firma, offer.firma));
+  const eroeff = d.project.eroeffnung.slice(0, 10);
+  const spaet = !!eroeff && !!offer.datum && offer.datum > eroeff;
+  const ausdruecklich = offer.runde > 1 || !!offer.basis || spaet;
+  if (!(ausdruecklich || (haupt && haupt.preisQuelle !== 'keine'))) return;
+  const warn = (t: string) => { if (!offer.warnungen.includes(t)) offer.warnungen.push(t); };
+  if (!haupt) {
+    // spät eingegangen, aber kein Angebot dieses Bieters vorhanden: ein (ggf. verspätetes) Hauptangebot, keine Nachverhandlung
+    delete offer.basis;
+    if (offer.runde > 1) warn('Als Nachverhandlung erkannt, aber kein Hauptangebot dieses Bieters gefunden – bitte unten zuordnen oder als Hauptangebot führen.');
+    return;
+  }
+  const vorher = kette(d, haupt).pop()!;
+  offer.basis = haupt.id;
+  offer.runde = naechsteRunde(d, haupt);
+  offer.firma = haupt.firma;
+  if (!offer.ort) offer.ort = haupt.ort;
+  // gleiche Preise zeigt die Karte ohnehin an; nur ohne Hinweis auf eine Nachverhandlung könnte es ein doppeltes Einlesen sein
+  if (!ausdruecklich && offer.quelle && vorher.bidPos?.length && !preisAbweichungen(vorher.bidPos, doc).length)
+    warn(`Die Einheitspreise sind identisch mit Angebot Nr. ${vorher.nr}. Falls versehentlich doppelt eingelesen: diese Nachverhandlung entfernen.`);
+}
 
 /**
  * Wird für einen Bieter, der bisher ohne Preise angelegt war, die Preisdatei nachgereicht (Ordner erneut eingelesen),
  * ersetzt das neue Angebot den Platzhalter: Nummer, Runde, Eingaben von Hand und Markierungen „nachgereicht“ bleiben.
  */
 function ersetzeOhnePreise(d: State, offer: Offer) {
-  const k = firmaKey(offer.firma);
-  const alt = k.length >= 4 ? d.offers.find((o) => o.preisQuelle === 'keine' && o !== offer && (firmaKey(o.firma).includes(k) || k.includes(firmaKey(o.firma)))) : undefined;
-  if (!alt || firmaKey(alt.firma).length < 4) return;
+  const alt = d.offers.find((o) => o.preisQuelle === 'keine' && !o.basis && o !== offer && gleicherBieter(o.firma, offer.firma));
+  if (!alt) return;
   uebernehmen(d, offer, alt, '', false);
 }
 
@@ -149,6 +172,7 @@ function uebernehmen(d: State, offer: Offer, alt: Offer, nach: string | null, gl
   d.offers.splice(d.offers.indexOf(alt), 1);
   offer.nr = alt.nr;
   offer.runde = alt.runde;
+  if (alt.basis) offer.basis = alt.basis; else delete offer.basis;
   if (alt.ort && (gleich || !offer.ort)) offer.ort = alt.ort;
   if (gleich) {
     Object.assign(offer, { id: alt.id, firma: alt.firma, datum: alt.datum || offer.datum, nachlass: alt.nachlass, nachlassLose: alt.nachlassLose, skonto: alt.skonto, status: alt.status, statusGrund: alt.statusGrund, nebenangebot: alt.nebenangebot, kiDocs: alt.kiDocs, eignung: alt.eignung });
@@ -370,3 +394,20 @@ export function removeLv(d: State) {
 
 /** Befunde eines LV-PDF erkennen (ältere Befunde tragen den Dateinamen nur im Text). */
 export const vonPdf = (b: LvBefund, name: string) => b.quelle === 'pdf' && (b.datei ? b.datei === name : b.text.startsWith(name));
+
+/**
+ * Nachverhandlung zu einem Hauptangebot einlesen: eigenes Angebot (eigene Preise, eigener Nachlass, eigene Unterlagen),
+ * verknüpft über `basis`. Das Hauptangebot und seine Unterlagen bleiben unverändert.
+ */
+export function nachverhandlungAnfuegen(d: State, hauptId: string, parsed: ParsedBid) {
+  const h = d.offers.find((o) => o.id === hauptId);
+  if (!h) return;
+  parsed.offer.basis = h.id;
+  parsed.offer.firma = h.firma;
+  applyOffer(d, parsed, false);
+}
+
+/** Preise eines Angebots als GAEB-Dokument – für eine Nachverhandlung ohne Preisdatei (Preise der vorigen Runde gelten als bestätigt). */
+export function preiseAlsDoc(o: Pick<Offer, 'firma' | 'bidPos'>): GaebDoc {
+  return { format: 'X', phase: 84, projekt: '', bezeichnung: '', auftraggeber: '', bieter: o.firma, datum: '', titles: {}, positions: (o.bidPos ?? []).map((p) => ({ ...p })), totals: {}, total: { net: null, gross: null } };
+}

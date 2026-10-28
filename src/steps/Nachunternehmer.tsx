@@ -5,7 +5,7 @@ import { Chip, Icon } from '../components/ui';
 type Up = (fn: (d: State) => void) => void;
 
 /**
- * Eignungsnachweis (PQ-Nummer) und Nachunternehmer bzw. andere Unternehmen laut VVB 233/235 eines Angebots (eine Zeile je Unternehmen) – von der KI vorbelegt,
+ * Eignungsnachweis (PQ-Nummer) und Nachunternehmer laut VVB 233/235 eines Angebots – von der KI vorbelegt,
  * hier zu prüfen und zu korrigieren (Handschrift wird nicht immer richtig gelesen). Erscheint im Vermerk unter „Nachweise und Eignungsprüfung“.
  */
 export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
@@ -47,14 +47,14 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
         </div>
       )}
       <div className="row" style={{ marginTop: 8 }}>
-        <b>Nachunternehmer / andere Unternehmen (VVB 233/235)</b>
+        <b>Nachunternehmer (VVB 233) / andere Unternehmen (VVB 235)</b>
         {ausKi && <Chip kind="info">KI – bitte prüfen</Chip>}
         {o.nuQuelle === 'user' && <Chip kind="ok">geprüft / bearbeitet</Chip>}
         {liste === undefined && <span className="muted">noch nicht erfasst</span>}
       </div>
       {liste && liste.length > 0 && (
         <table className="matrix nutab">
-          <thead><tr><th className="left">OZ / Leistungsbereich</th><th className="left">Teilleistung</th><th className="left">Unternehmen</th><th className="left">PQ-Nr.</th><th /></tr></thead>
+          <thead><tr><th className="left">OZ / Leistungsbereich</th><th className="left">Teilleistung</th><th className="left">Unternehmen</th><th className="left">PQ-Nr.</th><th className="left">Art</th><th /></tr></thead>
           <tbody>
             {liste.map((n, i) => (
               <tr key={i}>
@@ -62,6 +62,11 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
                 <td className="left"><input className="plain wide" value={n.leistung} onChange={(e) => edit((l) => void (l[i].leistung = e.target.value))} aria-label="Teilleistung" /></td>
                 <td className="left"><input className="plain wide" value={n.firma} onChange={(e) => edit((l) => void (l[i].firma = e.target.value))} aria-label="Unternehmen" /></td>
                 <td className="left"><input className="plain wide" value={n.pq ?? ''} onChange={(e) => edit((l) => void (l[i].pq = e.target.value))} placeholder="–" aria-label="PQ-Nummer des Unternehmens" /></td>
+                <td className="left">
+                  <select value={n.art ?? 'nu'} onChange={(e) => edit((l) => void (l[i].art = e.target.value as Nachunternehmer['art']))} aria-label="Art">
+                    <option value="nu">Nachunternehmer (233)</option><option value="beide">NU + Kapazitäten (233/235)</option><option value="kapazitaet">Kapazitäten (235)</option>
+                  </select>
+                </td>
                 <td><button className="icon-btn" title="Zeile entfernen" onClick={() => edit((l) => void l.splice(i, 1))}><Icon name="trash" /></button></td>
               </tr>
             ))}
@@ -69,7 +74,7 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
         </table>
       )}
       <div className="row" style={{ marginTop: 6 }}>
-        <button className="btn small" onClick={() => edit((l) => void l.push({ oz: '', leistung: '', firma: '' }))}><Icon name="plus" /> Unternehmen</button>
+        <button className="btn small" onClick={() => edit((l) => void l.push({ oz: '', leistung: '', firma: '', art: 'nu' }))}><Icon name="plus" /> Unternehmen</button>
         {liste?.length === 0 ? <span className="muted">Im Vermerk: „Ein Nachunternehmereinsatz ist nicht vorgesehen.“</span>
           : !liste && <button className="link" onClick={() => edit((l) => void l.splice(0))}>Kein Nachunternehmereinsatz</button>}
         {ausKi && <button className="link" onClick={() => edit(() => {})}>Als geprüft markieren</button>}

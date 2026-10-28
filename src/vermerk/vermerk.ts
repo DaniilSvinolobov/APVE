@@ -319,7 +319,7 @@ const faName = (f: string) => (/^(Fa\.|Firma)\s/i.test(f) || /büro|^Ing/i.test(
 const nuZeile = (x: Nachunternehmer) => {
   const det = [x.leistung.trim(), x.oz.trim() ? `OZ ${x.oz.trim()}` : ''].filter(Boolean).join(', ');
   const pq = x.pq?.trim() ? `, präqualifiziert unter der Nr. ${x.pq.trim()}` : '';
-  return `- ${x.firma.trim() ? faName(x.firma.trim()) : '[Unternehmen angeben]'}${det ? ` (${det}${pq})` : pq ? ` (${pq.slice(2)})` : ''}`;
+  return `- ${x.firma.trim() ? faName(x.firma.trim()) : '[Unternehmen angeben]'}${det ? ` (${det}${pq})` : pq ? ` (${pq.slice(2)})` : ''}${x.art === 'beide' ? '; der Bieter beruft sich insoweit auch auf dessen Kapazitäten (VVB 235)' : ''}`;
 };
 
 /** Abschnitt „Nachweise und Eignungsprüfung“ für ein Angebot: Eignungsnachweis und Nachunternehmereinsatz. */
@@ -332,9 +332,12 @@ export function eignungText(s: State, o: Offer): string {
   else if (eg === '124') L.push(`Der Bieter hat mit dem Dokument Eigenerklärung zur Eignung (VVB 124) den Eignungsnachweis erbracht${nach != null ? ` (nachgereicht${nach ? ` am ${fmtDate(nach)}` : ''})` : ''}.`);
   else L.push('Ein Eignungsnachweis (Präqualifikation oder Eigenerklärung zur Eignung, VVB 124) wurde nicht festgestellt. [bitte prüfen]');
   const nu = nuOf(s, o);
-  if (!nu) L.push('Angaben zum Nachunternehmereinsatz (VVB 233/235): [bitte ergänzen]');
-  else if (!nu.length) L.push('Ein Nachunternehmereinsatz ist nicht vorgesehen.');
-  else L.push('Folgende Nachunternehmer bzw. andere Unternehmen (VVB 233/235) sind vorgesehen:', ...nu.map(nuZeile));
+  const eigen = nu?.filter((x) => x.art !== 'kapazitaet') ?? [];
+  const kap = nu?.filter((x) => x.art === 'kapazitaet') ?? [];
+  if (!nu) L.push('Angaben zum Nachunternehmereinsatz (VVB 233): [bitte ergänzen]');
+  else if (!eigen.length) L.push('Ein Nachunternehmereinsatz ist nicht vorgesehen.');
+  else L.push('Folgender Nachunternehmereinsatz wurde vorgesehen:', ...eigen.map(nuZeile));
+  if (kap.length) L.push('Der Bieter beruft sich auf die Kapazitäten folgender Unternehmen (VVB 235):', ...kap.map(nuZeile));
   return L.join('\n');
 }
 

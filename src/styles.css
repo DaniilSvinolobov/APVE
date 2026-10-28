@@ -395,7 +395,8 @@ table.v-tab{margin:4pt 0 14pt;border-top:1pt solid #222;border-bottom:.5pt solid
 .eignung .small{font-size:var(--fs-xs);margin:0}
 .nubox{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .nubox .nutab{margin-top:8px;width:100%;table-layout:fixed}
-.nubox .nutab th:nth-child(1){width:16%}.nubox .nutab th:nth-child(2){width:40%}.nubox .nutab th:nth-child(3){width:28%}.nubox .nutab th:nth-child(4){width:12%}.nubox .nutab th:nth-child(5){width:40px}
+.nubox .nutab th:nth-child(1){width:12%}.nubox .nutab th:nth-child(2){width:33%}.nubox .nutab th:nth-child(3){width:22%}.nubox .nutab th:nth-child(4){width:11%}.nubox .nutab th:nth-child(5){width:22%}.nubox .nutab th:nth-child(6){width:40px}
+.nubox .nutab select{width:100%}
 .nubox .nutab td{padding:2px 4px}
 .nubox .nutab input.plain{width:100%}
 

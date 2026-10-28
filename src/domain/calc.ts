@@ -384,8 +384,8 @@ const besserName = (a: Nachunternehmer, b: Nachunternehmer) => (!!b.pq?.trim() !
 
 /**
  * VVB 233 (Nachunternehmer) und VVB 235 (andere Unternehmen/Kapazitäten) nennen meist dieselben Unternehmen –
- * für den Vermerk ist das eine Angabe. Daher eine Liste je Unternehmen: Zeilen derselben Firma (auch bei Lesefehlern)
- * und Zeilen ohne Firma mit gleicher Teilleistung werden zusammengeführt, weitere Teilleistungen angehängt.
+ * keine Angabe doppelt: Zeilen derselben Firma (auch bei Lesefehlern) und Zeilen ohne Firma mit gleicher Teilleistung
+ * werden zusammengeführt, weitere Teilleistungen angehängt; steht die Firma in 233 und 235, ist die Art „beide“.
  */
 export function nuZusammen(liste: Nachunternehmer[]): Nachunternehmer[] {
   const out: Nachunternehmer[] = [];
@@ -395,7 +395,8 @@ export function nuZusammen(liste: Nachunternehmer[]): Nachunternehmer[] {
     // eigene Zeile nur für eine weitere Teilleistung mit eigener OZ; Angaben ohne OZ (z. B. wirtschaftliche Eignung) gehören dazu
     const x = gleich.find((y) => leistungKey(y.leistung).includes(leistungKey(n.leistung)) || leistungKey(n.leistung).includes(leistungKey(y.leistung)))
       ?? (!n.oz.trim() || gleich.some((y) => !y.oz.trim()) ? gleich[0] : undefined);
-    if (!x) { out.push({ oz: n.oz, leistung: n.leistung, firma: n.firma, ...(n.pq?.trim() ? { pq: n.pq.trim() } : {}) }); continue; }
+    if (!x) { out.push({ oz: n.oz, leistung: n.leistung, firma: n.firma, art: n.art ?? 'nu', ...(n.pq?.trim() ? { pq: n.pq.trim() } : {}) }); continue; }
+    if (x.art !== (n.art ?? 'nu')) x.art = 'beide';
     x.firma = besserName(x, n);
     if (!x.pq?.trim() && n.pq?.trim()) x.pq = n.pq.trim();
     if (n.leistung.trim() && !leistungKey(x.leistung).includes(leistungKey(n.leistung))) x.leistung = [x.leistung.trim(), n.leistung.trim()].filter(Boolean).join('; ');
@@ -403,7 +404,8 @@ export function nuZusammen(liste: Nachunternehmer[]): Nachunternehmer[] {
   }
   for (const n of ohne) {
     const x = out.find((y) => y.leistung.split(';').some((t) => leistungKey(t) === leistungKey(n.leistung)));
-    if (!x) { out.push({ oz: n.oz, leistung: n.leistung, firma: '', ...(n.pq?.trim() ? { pq: n.pq.trim() } : {}) }); continue; }
+    if (!x) { out.push({ oz: n.oz, leistung: n.leistung, firma: '', art: n.art ?? 'nu', ...(n.pq?.trim() ? { pq: n.pq.trim() } : {}) }); continue; }
+    if (x.art !== (n.art ?? 'nu')) x.art = 'beide';
     if (!x.oz.trim() || (!ozPlausibel(x.oz) && ozPlausibel(n.oz) && n.oz.trim())) x.oz = n.oz;
   }
   return out;

@@ -11,7 +11,6 @@ type Up = (fn: (d: State) => void) => void;
 type SetA = (fn: (a: Anfrage) => void) => void;
 
 const MODI: { value: AnfrageModus; label: string }[] = [
-  { value: 'ohne', label: 'Nicht erwähnen' },
   { value: 'nach', label: 'Kalkulation nachfordern' },
   { value: 'aus', label: 'Ausschluss empfehlen' },
 ];
@@ -51,8 +50,8 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
       <p className="lead">E-Mail während der Prüfung: Angebotskalkulation zu auffälligen Positionen nachfordern oder einen Bieter vorab zum Ausschluss empfehlen. <b>Die Auswahl gilt nur für diese E-Mail</b> – Wertung und Vergabevermerk bleiben unverändert.</p>
       {runden.length > 1 && <div className="anfrage-runde"><Seg small value={runde} onChange={setRunde} options={runden.map((r) => ({ value: r, label: r === runden[0] ? 'Hauptangebote' : `Nachverhandlung ${r - 1}` }))} /></div>}
 
-      <h3 className="anf-h">1 · Bieter</h3>
-      <p className="muted small">Vorgeschlagen sind die im Preisspiegel markierten Positionen: Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben dem Median der übrigen Bieter und Auswirkung (Menge × Differenz) ab {fmtNum(minEuro, 0)} €. Positionen per Haken ab- oder zuwählen.</p>
+      <h3 className="anf-h">1 · Welche Bieter kommen in die E-Mail?</h3>
+      <p className="muted small">Haken = Bieter steht in der E-Mail; vorbelegt sind Bieter mit auffälligen Positionen. Vorgeschlagen sind die im Preisspiegel markierten Positionen: Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben dem Median der übrigen Bieter und Auswirkung (Menge × Differenz) ab {fmtNum(minEuro, 0)} €. Positionen per Haken ab- oder zuwählen.</p>
 
       {lvHinweis.length > 0 && (
         <details className="det anf-lv">
@@ -105,6 +104,7 @@ function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: 
     setNeu('');
   };
   const auto = ausschlussAuto(b);
+  const setModus = (m: AnfrageModus) => set((x) => void (x.modus = { ...x.modus, [id]: m }));
   const kopf = (
     <tr><th /><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">Menge</th><th className="r">EP Bieter</th><th className="r">GP Bieter</th><th className="r">Median übrige EP</th>{mitSchaetz && <th className="r">Schätzpreis EP</th>}<th className="r">Auswirkung</th></tr>
   );
@@ -128,11 +128,12 @@ function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: 
   return (
     <div className={`anf-bieter ${b.modus}`}>
       <div className="anf-kopf">
-        <div>
-          <b>Nr. {c.offer.nr} · {c.offer.firma}</b>
-          <small className="muted block">{fmtEur(c.sumNet)} netto · {fmtPct(c.dKosten)} zum Kostenvoranschlag · {fmtPct(c.dMin)} zum günstigsten · {b.auto.length ? `${b.auto.length} auffällige Position${b.auto.length > 1 ? 'en' : ''}` : 'keine auffälligen Positionen'}</small>
-        </div>
-        <Seg small value={b.modus} onChange={(m) => set((x) => void (x.modus = { ...x.modus, [id]: m }))} options={MODI} />
+        <label className="mini big">
+          <input type="checkbox" checked={b.modus !== 'ohne'} onChange={(e) => setModus(e.target.checked ? 'nach' : 'ohne')} aria-label={`Nr. ${c.offer.nr} in die E-Mail`} />
+          <span><b>Nr. {c.offer.nr} · {c.offer.firma}</b>
+          <small className="muted block">{fmtEur(c.sumNet)} netto · {fmtPct(c.dKosten)} zum Kostenvoranschlag · {fmtPct(c.dMin)} zum günstigsten · {b.auto.length ? `${b.auto.length} auffällige Position${b.auto.length > 1 ? 'en' : ''}` : 'keine auffälligen Positionen'}</small></span>
+        </label>
+        {b.modus !== 'ohne' && <Seg small value={b.modus} onChange={setModus} options={MODI} />}
       </div>
 
       {b.modus === 'nach' && (

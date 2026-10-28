@@ -267,7 +267,7 @@ td.flags{text-align:left;font-size:12px;vertical-align:top}
 .notes b{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
 .notes .flaglist{font-size:12.5px}
 .acts{margin-top:8px;gap:12px}.acts select{width:auto;padding:5px 8px;font-size:13px}
-td.reason{background:#fafbfd;text-align:left;padding:8px 14px}td.reason span{font-size:13px;color:var(--muted);margin-right:10px}td.reason input{width:calc(100% - 100px);display:inline-block}
+td.reason .ewvorschau{margin-top:4px}td.reason{background:#fafbfd;text-align:left;padding:8px 14px}td.reason span{font-size:13px;color:var(--muted);margin-right:10px}td.reason input{width:calc(100% - 100px);display:inline-block}
 .matrix.rank td.r{white-space:nowrap}
 .card.winner{display:flex;gap:20px;align-items:center;background:linear-gradient(135deg,#eafaf3,#f4fbf8);border-color:#bfe9d6;flex-wrap:wrap}
 .bewcard{border-top:1px solid var(--line);padding:18px 0}.bewcard:first-of-type{border-top:0}.bewcard h3{font-size:15px;margin-bottom:10px}

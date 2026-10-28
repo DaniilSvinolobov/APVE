@@ -109,7 +109,7 @@ netto/brutto mit dem verpreisten LV (4.3), offene Unterlagen getrennt nach fehlt
 **Nachweise und Eignungsprüfung** je einzeln geprüftem Bieter mit Eignungsnachweis (VVB 124 bzw. PQ-Nummer) und Nachunternehmereinsatz (4.5),
 je Los die Lage der Angebote zum Kostenvoranschlag sowie je Bieter Titel und Positionen mit deutlicher Abweichung vom LV-Schätzpreis
 (Prüfregel „Einzelpreis auffällig ab“), jeweils getrennt nach auffallend hoch und auffallend niedrig und mit dem Median der übrigen Bieter, und die
-fachliche Auswertung. Gibt es nichts Auffälliges, steht das ausdrücklich im Text. **Engere Wahl:** In Schritt 4 wählt man per Haken,
+fachliche Auswertung. Gibt es nichts Auffälliges, steht das ausdrücklich im Text. **Engere Wahl:** In Schritt 4 wählt man per Haken direkt in der Rangtabelle (vorbelegt: die zwei günstigsten),
 welche Bieter einzeln geprüft werden; für jeden anderen nennt 4.4 den Grund (eigener Text oder automatisch: Abstand in % zu den
 gewählten Angeboten und zum Kostenvoranschlag), dazu optional die Festlegung (z. B. Abstimmung mit der Vergabestelle). Ohne eingetragenes Gesamtbudget nennt Abschnitt 6 den Kostenvoranschlag.
 Alle Texte bleiben im Vermerk editierbar.
@@ -120,7 +120,7 @@ Texte sind anklickbar und editierbar.
 - Nachlass ohne Bedingung wird eingerechnet, Skonto nicht gewertet
 - Rang je Los und Runde; maßgeblich ist die letzte Runde mit wertbaren Angeboten
 - **Eine Regel für auffällige Einzelpreise** – gleich in Preisspiegel (Markierung), Wertung, Vermerk und Rückfrage: EP weicht um mehr als „Einzelpreis auffällig ab“ (Standard 30 %) vom Median der übrigen Bieter ab (ohne übrige Bieter: vom LV-Schätzpreis) **und** die Mehr-/Minderkosten der Position (Menge × Differenz) erreichen 0,5 % der mittleren Angebotssumme der Runde (mind. 250 €, auf 50 € gerundet; Titel: das Doppelte). Die Prüfregeln stehen in Schritt 1 in einer eigenen Karte
-- **Rückfrage an den Auftraggeber** (Schritt 4): E-Mail-Text während der Prüfung. Je Bieter wählbar: nicht erwähnen, detaillierte Angebotskalkulation nachfordern (vorgeschlagen werden die nach der Regel oben auffälligen Positionen, also dieselben wie im Preisspiegel; liegt der Bieter bei unserem Schätzpreis, wird nicht nachgefragt; Positionen, bei denen alle Bieter vom LV-Schätzpreis abweichen, werden als „Schätzpreis prüfen“ gezeigt; Tabelle mit Menge, EP, GP und Auswirkung, Liste änderbar) oder Ausschluss vorab empfehlen (zählt dann nicht zum Median der übrigen). Gilt nur für die E-Mail, Wertung und Vergabevermerk bleiben unverändert. Text kopieren, ins E-Mail-Programm übergeben (mailto, ohne Server) oder als Textdatei speichern
+- **Rückfrage an den Auftraggeber** (Schritt 4): E-Mail-Text während der Prüfung. Je Bieter per Haken wählbar, ob er in der E-Mail steht, und dann: detaillierte Angebotskalkulation nachfordern (vorgeschlagen werden die nach der Regel oben auffälligen Positionen, also dieselben wie im Preisspiegel; liegt der Bieter bei unserem Schätzpreis, wird nicht nachgefragt; Positionen, bei denen alle Bieter vom LV-Schätzpreis abweichen, werden als „Schätzpreis prüfen“ gezeigt; Tabelle mit Menge, EP, GP und Auswirkung, Liste änderbar) oder Ausschluss vorab empfehlen (zählt dann nicht zum Median der übrigen). Gilt nur für die E-Mail, Wertung und Vergabevermerk bleiben unverändert. Text kopieren, ins E-Mail-Programm übergeben (mailto, ohne Server) oder als Textdatei speichern
 - Auffallend niedrige Gesamtpreise (Standard 15 % unter Kostenvoranschlag bzw. Nächstbieter) → Hinweis zur Aufklärung
 - Die App ersetzt keine Rechtsprüfung.
 

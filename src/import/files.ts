@@ -138,3 +138,35 @@ export function groupPdfBids(files: RawFile[], covered: BidGroup[]): PdfGroup[] 
     return { root, files: inRoot, pdfs: pdfs.filter((f) => inRoot.includes(f)) };
   });
 }
+
+/** Ordner oder Datei einer Nachverhandlung („Nachverhandlung“, „NV-Angebot_Nachverhandlung.x84“ …). */
+export const NV_NAME = /nachverh/i;
+
+/**
+ * Bieterordner in Hauptangebot und Nachverhandlungen aufteilen: Unterordner bzw. Dateien mit „Nachverhandlung“ im Namen
+ * bilden je eine eigene Gruppe (eigene Preise, eigene Unterlagen), die übrigen Dateien bleiben beim Hauptangebot.
+ * So überschreibt eine Nachverhandlung nie die Unterlagen des Hauptangebots. `haupt.bids` kann leer sein
+ * (Hauptangebot ohne Preisdatei), ebenso `bids` einer Nachverhandlung (nur Nachlassschreiben o. Ä.).
+ */
+export function splitNv(g: BidGroup): { haupt: BidGroup | null; nv: BidGroup[] } {
+  const rel = (p: string) => (g.root ? p.slice(g.root.length + 1) : p);
+  const nvKey = (p: string) => {
+    const seg = rel(p).split('/');
+    const i = seg.findIndex((x) => NV_NAME.test(x));
+    if (i < 0) return null;
+    // Ordner „Nachverhandlung …“ = eine Runde; Dateien mit „Nachverhandlung“ im Namen direkt im Ordner = eine Runde
+    return [g.root, ...seg.slice(0, i < seg.length - 1 ? i + 1 : i)].filter(Boolean).join('/') + (i < seg.length - 1 ? '' : '#datei');
+  };
+  const parts = new Map<string, RawFile[]>();
+  const haupt: RawFile[] = [];
+  for (const f of g.files) {
+    const k = nvKey(f.path);
+    if (k == null) haupt.push(f);
+    else parts.set(k, [...(parts.get(k) ?? []), f]);
+  }
+  if (!parts.size) return { haupt: g, nv: [] };
+  const isBid = new Set(g.bids);
+  const nv = [...parts.entries()].sort(([a], [b]) => a.localeCompare(b, 'de', { numeric: true }))
+    .map(([k, files]) => ({ root: k.endsWith('#datei') ? g.root : k, files, bids: files.filter((f) => isBid.has(f)) }));
+  return { haupt: haupt.length ? { root: g.root, files: haupt, bids: haupt.filter((f) => isBid.has(f)) } : null, nv };
+}

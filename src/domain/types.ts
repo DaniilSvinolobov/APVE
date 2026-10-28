@@ -68,6 +68,7 @@ export interface Offer {
   firma: string;
   ort: string;
   runde: 1 | 2 | 3; // 1 = Hauptangebot, 2+ = Nachverhandlung
+  basis?: string; // Nachverhandlung: ID des Hauptangebots desselben Bieters (siehe domain/runden.ts); fehlt = Hauptangebot
   status?: '' | 'zurueck' | 'formal'; // zurueck = Angebot zurückgezogen; formal = bei der formalen Prüfung ausgeschlossen (Grund in statusGrund)
   statusGrund?: string;
   nebenangebot?: boolean; // dem Hauptangebot ist ein Nebenangebot beigefügt

@@ -6,6 +6,7 @@ import { Chip, Icon } from '../components/ui';
 import { useState } from 'react';
 import { getCode, hasConsent, mitStempel, setCode, setConsent } from '../ki/kiApply';
 import type { KiStatus } from '../ki/kiPruefung';
+import { erlaubteZeilen } from '../ki/formblatt';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -36,7 +37,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
         <div className="kibox">
           <b>Automatische Dokumentprüfung (optional)</b>
           <p className="muted" style={{ margin: '6px 0 10px' }}>
-            Wenn Sie die Prüfung aktivieren, werden <b>alle Unterlagen</b> der Angebote (PDFs, Scans und Fotos – auch Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise sowie das LV mit Preisen) über den Server dieser Anwendung (Frankfurt) an <b>Claude bei Amazon Bedrock in der EU (Frankfurt)</b> übermittelt und dort mit KI ausgewertet, auch handschriftliche Eintragungen. Große Dateien werden dafür im Browser in Teile zerlegt. Die Dokumente enthalten personenbezogene Daten (z. B. Namen, Unterschriften, Qualifikationsnachweise). Ihre Projektdaten bleiben in Ihrem Browser. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>. Bitte nur aktivieren, wenn dies mit Ihren Vertraulichkeits- und Datenschutzvorgaben vereinbar ist.
+            Wenn Sie die Prüfung aktivieren, werden <b>alle Unterlagen</b> der Angebote (PDFs, Scans, Fotos und Word-Formblätter, Letztere als im Browser ausgelesener Text – auch Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise sowie das LV mit Preisen) über den Server dieser Anwendung (Frankfurt) an <b>Claude bei Amazon Bedrock in der EU (Frankfurt)</b> übermittelt und dort mit KI ausgewertet, auch handschriftliche Eintragungen. Große Dateien werden dafür im Browser in Teile zerlegt. Die Dokumente enthalten personenbezogene Daten (z. B. Namen, Unterschriften, Qualifikationsnachweise). Ihre Projektdaten bleiben in Ihrem Browser. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>. Bitte nur aktivieren, wenn dies mit Ihren Vertraulichkeits- und Datenschutzvorgaben vereinbar ist.
           </p>
           <button className="btn primary" onClick={() => { setConsent(true); setConsentState(true); runKi(s.offers.map((o) => o.id)); }}>Verstanden – Prüfung aktivieren</button>
         </div>
@@ -194,7 +195,8 @@ function KiBefunde({ s }: { s: State }) {
   const [sel, setSel] = useState('');
   const o = mit.find((x) => x.id === sel) ?? mit[0];
   if (!o) return null;
-  const docs = o.kiDocs!.map(mitStempel);
+  // strenge Zuordnung auch für ältere Prüfungen: ein Formblatt erscheint nur bei seiner eigenen Zeile
+  const docs: KiBefund[] = o.kiDocs!.map(mitStempel).map((k) => ({ ...k, zeilen: erlaubteZeilen(k.zeilen, s.unterlagen, k) }));
   const bekannt = new Set(s.unterlagen.map((u) => u.id));
   const ersetzt = new Map(docs.flatMap((k) => { const d = ersetztDurch(k, docs); return d ? [[k, d] as const] : []; }));
   const aktiv = docs.filter((k) => !ersetzt.has(k));

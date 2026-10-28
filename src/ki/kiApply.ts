@@ -2,6 +2,7 @@ import { istNuDok, nuZusammen } from '../domain/calc';
 import type { HsEintrag, Nachunternehmer, Offer, PStatus, State } from '../domain/types';
 import { applyKopf, verfahrenAus } from '../import/kopfdaten';
 import { docStore, type DocFile } from '../import/docStore';
+import { erlaubteZeilen, formNummern, nameWiderspruch } from './formblatt';
 
 const CONSENT = 'apve-ki-consent-eu'; // neue Einwilligung: alle Unterlagen, Verarbeitung über Bedrock in der EU
 export const hasConsent = () => { try { return localStorage.getItem(CONSENT) === '1'; } catch { return false; } };
@@ -11,7 +12,7 @@ const CODE = 'apve-access-code';
 export const getCode = () => { try { return localStorage.getItem(CODE) ?? ''; } catch { return ''; } };
 export const setCode = (c: string) => { try { c ? localStorage.setItem(CODE, c) : localStorage.removeItem(CODE); } catch { /* ignore */ } };
 
-export interface KiDoc { datei: string; art: string; zeilen: string[]; vorlage?: boolean; inhalt: 'ausgefuellt' | 'teilweise' | 'leer' | 'unklar'; unterschrift: 'ja' | 'nein' | 'nicht_erforderlich' | 'unklar'; stempel?: boolean; handschrift?: HsEintrag[]; nachunternehmer?: Nachunternehmer[]; kopf?: Partial<Record<'vergabenummer' | 'massnahmennummer' | 'vergabeart' | 'baumassnahme' | 'leistung' | 'bieter', string>>; pq?: string; sicherheit?: 'hoch' | 'mittel' | 'niedrig'; bemerkung: string }
+export interface KiDoc { datei: string; titel?: string; art: string; zeilen: string[]; vorlage?: boolean; inhalt: 'ausgefuellt' | 'teilweise' | 'leer' | 'unklar'; unterschrift: 'ja' | 'nein' | 'nicht_erforderlich' | 'unklar'; stempel?: boolean; handschrift?: HsEintrag[]; nachunternehmer?: Nachunternehmer[]; kopf?: Partial<Record<'vergabenummer' | 'massnahmennummer' | 'vergabeart' | 'baumassnahme' | 'leistung' | 'bieter', string>>; pq?: string; sicherheit?: 'hoch' | 'mittel' | 'niedrig'; bemerkung: string }
 
 const rankS: Record<PStatus, number> = { ok: 5, nach: 4, teil: 3, unsign: 2, leer: 1, fehlt: 0, entf: -1, pdf: 0 };
 
@@ -20,11 +21,15 @@ export const mitStempel = <T extends { stempel?: boolean; unterschrift: string }
 
 /** Überträgt KI-Befunde in die Vollständigkeitstabelle (Eintragungen des Nutzers bleiben unangetastet). */
 export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
-  const results = roh.map(mitStempel);
+  // Strenge Zuordnung: ein Dokument belegt nur die Zeile seines eigenen Formblatts (siehe formblatt.ts)
+  const results = roh.map(mitStempel).map((r) => {
+    const w = nameWiderspruch(r);
+    return { ...r, zeilen: erlaubteZeilen(r.zeilen, d.unterlagen, r), bemerkung: w && !r.bemerkung.includes(w) ? `${w} ${r.bemerkung}` : r.bemerkung };
+  });
   const o = d.offers.find((x) => x.id === offerId);
   if (!o) return;
   if (!o.pruef) o.pruef = {};
-  o.kiDocs = results.map((r) => ({ datei: r.datei, art: r.art, zeilen: r.zeilen, vorlage: r.vorlage, inhalt: r.inhalt, unterschrift: r.unterschrift, stempel: r.stempel, handschrift: r.handschrift, ...(r.nachunternehmer?.length ? { nachunternehmer: r.nachunternehmer } : {}), ...(r.pq?.trim() ? { pq: r.pq.trim() } : {}), sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
+  o.kiDocs = results.map((r) => ({ datei: r.datei, ...(r.titel ? { titel: r.titel } : {}), art: r.art, zeilen: r.zeilen, vorlage: r.vorlage, inhalt: r.inhalt, unterschrift: r.unterschrift, stempel: r.stempel, handschrift: r.handschrift, ...(r.nachunternehmer?.length ? { nachunternehmer: r.nachunternehmer } : {}), ...(r.pq?.trim() ? { pq: r.pq.trim() } : {}), sicherheit: r.sicherheit, bemerkung: r.bemerkung }));
   const best: Record<string, { s: PStatus; n: string }> = {};
   for (const r of results) {
     if (r.sicherheit === 'niedrig') continue; // unsichere Befunde nicht eintragen – die Zeile bleibt offen und wird von Hand geprüft
@@ -34,12 +39,22 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
       const sigRow = /unterschrieben|signiert/i.test(row.label);
       let s: PStatus | null = null;
       if (sigRow) s = r.unterschrift === 'ja' ? 'ok' : r.unterschrift === 'nein' ? 'unsign' : null;
-      else if (r.inhalt === 'leer') s = 'leer';
+      else if (r.vorlage || r.inhalt === 'leer') s = 'leer';
       else if (r.inhalt === 'teilweise') s = 'teil';
-      else if (r.inhalt === 'ausgefuellt') s = r.unterschrift === 'nein' ? 'unsign' : 'ok';
+      // „vorhanden“ nur bei eindeutigem Befund; unklare Unterschrift bleibt zur Prüfung von Hand offen
+      else if (r.inhalt === 'ausgefuellt') s = r.unterschrift === 'nein' ? 'unsign' : r.unterschrift === 'unklar' ? null : 'ok';
       if (!s) continue;
       const n = `${r.datei.split('/').pop()}: ${r.bemerkung}`;
       if (!best[id] || rankS[s] > rankS[best[id].s]) best[id] = { s, n };
+    }
+  }
+  // Datei trägt die Nummer eines Formblatts im Namen, enthält aber ein anderes: die Zeile laut Dateiname ist nicht belegt
+  for (const r of results) {
+    if (r.sicherheit === 'niedrig' || !nameWiderspruch(r)) continue;
+    const name = formNummern(r.datei.split('/').pop() ?? '');
+    for (const u of d.unterlagen) {
+      if (best[u.id] || !formNummern(u.label).some((n) => name.includes(n))) continue;
+      best[u.id] = { s: 'fehlt', n: `${r.datei.split('/').pop()}: ${nameWiderspruch(r)}` };
     }
   }
   // Nachunternehmer (VVB 233/235): nur aus sicheren Befunden; von Hand bearbeitete Listen bleiben
@@ -69,7 +84,7 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
 
 /**
  * Alle Unterlagen eines Angebots gehen in die Prüfung (nach Einwilligung; Verarbeitung über Bedrock in der EU),
- * außer Signaturdateien und Plattformdateien, die keine lesbaren Dokumente sind.
+ * außer Signaturdateien, Plattformdateien und GAEB-Preisdateien (die liest der Import selbst und rechnet sie nach).
  */
-const OHNE = new Set(['Signatur', 'Plattformdatei']);
+const OHNE = new Set(['Signatur', 'Plattformdatei', 'Preisdatei (GAEB)']);
 export function offerDocs(o: Offer): DocFile[] { return (docStore.get(o.id) ?? []).filter((d) => !OHNE.has(d.kat)); }

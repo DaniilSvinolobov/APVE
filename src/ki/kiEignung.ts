@@ -24,7 +24,7 @@ const REF_NAME = /referenz|projektliste|leistungsnachweis|(^|[\s._-])ref([\s._-]
  *  Erkannt am Dateinamen oder daran, dass die KI-Dokumentprüfung die Datei als Referenz eingeordnet hat; leere Dateien nicht. */
 export function referenzDocs(o: Offer): DocFile[] {
   const ki = new Set((o.kiDocs ?? []).filter((k) => /referenz/i.test(k.art)).map((k) => k.datei));
-  return (docStore.get(o.id) ?? []).filter((d) => d.data.length > 0 && (d.kat === 'Referenzen' || REF_NAME.test(d.name) || ki.has(d.path)));
+  return (docStore.get(o.id) ?? []).filter((d) => d.data.length > 0 && ['application/pdf', 'image/png', 'image/jpeg'].includes(d.mime) && (d.kat === 'Referenzen' || REF_NAME.test(d.name) || ki.has(d.path)));
 }
 
 /** Bezeichnungen der Lose, für die das Angebot gilt („LOS1 Wege- und Landschaftsbauarbeiten“). */

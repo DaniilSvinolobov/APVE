@@ -95,10 +95,16 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
   return { offer, doc, sig: sigFound, docs };
 }
 
-/** Dokumente für die (optionale) KI-Prüfung: PDF und Bilder, ohne LV-PDF, ohne Duplikate. */
+const mimeVon = (p: string) => (/\.pdf$/i.test(p) ? 'application/pdf' : /\.png$/i.test(p) ? 'image/png' : /\.jpe?g$/i.test(p) ? 'image/jpeg'
+  : /\.docx$/i.test(p) ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/octet-stream');
+
+/**
+ * Dokumente für die (optionale) KI-Prüfung, ohne Duplikate: alle Unterlagen (PDF, Bilder, Word …). Was die Prüfung nicht
+ * lesen kann, wird dort als „nicht geprüft“ gemeldet statt stillschweigend übergangen.
+ */
 export function docFiles(files: RawFile[], root: string): DocFile[] {
   return files
-    .filter((f) => /\.(pdf|png|jpe?g)$/i.test(f.path) && f.data.length <= 80_000_000)
+    .filter((f) => f.data.length <= 80_000_000 && !/\.zip$/i.test(f.path))
     .filter((f, i, arr) => arr.findIndex((x) => x.data.length === f.data.length && base(x.path) === base(f.path)) === i)
-    .map((f) => ({ name: base(f.path), path: f.path.slice(root.length ? root.length + 1 : 0), data: f.data, kat: kategorie(f.path), mime: /\.pdf$/i.test(f.path) ? 'application/pdf' : /\.png$/i.test(f.path) ? 'image/png' : 'image/jpeg' }));
+    .map((f) => ({ name: base(f.path), path: f.path.slice(root.length ? root.length + 1 : 0), data: f.data, kat: kategorie(f.path), mime: mimeVon(f.path) }));
 }

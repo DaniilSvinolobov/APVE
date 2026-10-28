@@ -187,7 +187,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                   {!nv && <label className="field wide"><span className="field-label">Erläuterung der niedrigen Preise (optional)</span><textarea rows={2} value={b.erlaeuterung} onChange={(e) => setBew(c.offer.id, { erlaeuterung: e.target.value })} placeholder="z. B. Pflanzenlieferungen (Baumschul-Rabatte), Synergieeffekte durch benachbarte Baustelle …" /></label>}
                   <label className="field wide"><span className="field-label">Zusätzliche Anmerkung (optional)</span><textarea rows={2} value={b.zusatz} onChange={(e) => setBew(c.offer.id, { zusatz: e.target.value })} /></label>
                 </div>
-                <details className="det"><summary>Textvorschau</summary><pre className="prev">{bewText(s, los, cells, c, nv)}</pre></details>
+                <details className="det"><summary>Text im Vergabevermerk (Vorschau)</summary><pre className="prev">{bewText(s, los, cells, c, nv)}</pre></details>
               </BewKarte>
             );
           })}

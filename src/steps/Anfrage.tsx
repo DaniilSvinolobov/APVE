@@ -47,11 +47,11 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
   return (
     <section className="card anfrage">
       <h2>Rückfrage an den Auftraggeber</h2>
-      <p className="lead">E-Mail während der Prüfung: Angebotskalkulation zu auffälligen Positionen nachfordern oder einen Bieter vorab zum Ausschluss empfehlen. <b>Die Auswahl gilt nur für diese E-Mail</b> – Wertung und Vergabevermerk bleiben unverändert.</p>
+      <p className="lead">E-Mail während der Prüfung: Angebotskalkulation zu auffälligen Positionen nachfordern oder einen Bieter vorab zum Ausschluss empfehlen. Wertung und Rangfolge ändern sich dadurch nicht; im Vermerk steht, bei welchen Bietern Unterlagen zur Preisaufklärung angefordert wurden.</p>
       {runden.length > 1 && <div className="anfrage-runde"><Seg small value={runde} onChange={setRunde} options={runden.map((r) => ({ value: r, label: r === runden[0] ? 'Hauptangebote' : `Nachverhandlung ${r - 1}` }))} /></div>}
 
       <h3 className="anf-h">1 · Welche Bieter kommen in die E-Mail?</h3>
-      <p className="muted small">Haken = Bieter steht in der E-Mail; vorbelegt sind Bieter mit auffälligen Positionen. Vorgeschlagen sind die im Preisspiegel markierten Positionen: Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben dem Median der übrigen Bieter und Auswirkung (Menge × Differenz) ab {fmtNum(minEuro, 0)} €. Positionen per Haken ab- oder zuwählen.</p>
+      <p className="muted small">Haken = Bieter steht in der E-Mail; vorbelegt sind Bieter der engeren Wahl mit auffälligen Positionen. Vorgeschlagen sind die im Preisspiegel markierten Positionen: Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben dem Median der übrigen Bieter und Auswirkung (Menge × Differenz) ab {fmtNum(minEuro, 0)} €. Positionen per Haken ab- oder zuwählen.</p>
 
       {lvHinweis.length > 0 && (
         <details className="det anf-lv">

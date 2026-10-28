@@ -3,6 +3,7 @@ import { angemessenheit, bieterPq, auffaelligkeiten, computeLos, eignungsNachwei
 import { PSTATUS, type Nachunternehmer, type Offer } from '../domain/types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
 import { kmFuerVermerk } from '../geo/entfernung';
+import { anfrageBieter } from './anfrage';
 
 export type Block =
   | { t: 'meta'; lines: { k?: string; v: string; bold?: boolean }[] }
@@ -418,28 +419,39 @@ export function preisAuffaelligkeiten(s: State, l: Los, cells: Cell[], c: Cell, 
 }
 
 /**
- * Engere Wahl eines Loses: Festlegung (z. B. Abstimmung mit der Vergabestelle) und je nicht einzeln geprüftem Angebot der Grund.
- * Ohne Eingabe wird der Grund aus den Preisen formuliert; liegt ein übergangenes Angebot preislich vor einem geprüften, bleibt er offen.
+ * Engere Wahl eines Loses (Aufbau wie die bisherigen Vergabeempfehlungen): je nicht einzeln geprüftem Angebot der Grund,
+ * dann die Festlegung (z. B. Abstimmung mit der Vergabestelle) und bei welchen Bietern Unterlagen zur Preisaufklärung angefordert wurden
+ * (aus der Rückfrage an den Auftraggeber). Ohne Eingabe wird der Grund aus den Preisen formuliert; liegt ein übergangenes Angebot
+ * preislich vor einem geprüften, bleibt er offen.
  */
 export function engereText(s: State, l: Los, cells: Cell[], mitLos: boolean): string[] {
   const { take, ranked } = engereWahl(s, cells);
   const raus = ranked.filter((c) => !take.includes(c));
-  if (!raus.length) return [];
-  const notiz = s.engereNotiz?.[l.id]?.trim();
-  const L: string[] = ['', ...(mitLos ? [`${l.nr}:`] : [])];
-  if (notiz) L.push(/[.!?]$/.test(notiz) ? notiz : `${notiz}.`);
-  L.push(`In die engere Wahl ${take.length > 1 ? 'kommen die Angebote' : 'kommt das Angebot'} Nr. ${listDe(take.map((c) => c.offer.nr).sort((a, b) => a - b).map(String))}.`);
+  const L: string[] = [];
   for (const c of raus) L.push(nichtGewertetText(s, c, take));
-  return L;
+  const notiz = s.engereNotiz?.[l.id]?.trim();
+  if (notiz) L.push(/[.!?]$/.test(notiz) ? notiz : `${notiz}.`);
+  if (raus.length && mitLos) L.push(`In die engere Wahl ${take.length > 1 ? 'kommen die Angebote' : 'kommt das Angebot'} Nr. ${listDe(take.map((c) => c.offer.nr).sort((a, b) => a - b).map(String))}.`);
+  if (cells.length) {
+    const hr = Math.min(...cells.map((c) => c.offer.runde));
+    const nach = anfrageBieter(s, l, cells, hr).filter((b) => b.modus === 'nach' && b.liste.length).map((b) => b.c).sort((a, b) => a.offer.nr - b.offer.nr);
+    if (nach.length) {
+      const bei = `bei ${nach.length > 1 ? 'den Bietern' : 'dem Bieter'} ${listDe(nach.map((c) => c.offer.firma))}`;
+      L.push(raus.length && nach.every((c) => take.includes(c))
+        ? `Dementsprechend wurden ausschließlich ${bei} ergänzende Unterlagen zur Aufklärung der Angebotspreise angefordert.`
+        : `${bei[0].toUpperCase()}${bei.slice(1)} wurden ergänzende Unterlagen zur Aufklärung der Angebotspreise angefordert.`);
+    }
+  }
+  return L.length ? ['', ...(mitLos ? [`${l.nr}:`] : []), ...L] : [];
 }
 
 /** Satz zu einem Angebot, das nicht in die engere Wahl kommt: Grund von Hand, sonst Abstand zu den geprüften Angeboten und zum Kostenvoranschlag. */
 export function nichtGewertetText(s: State, c: Cell, take: Cell[]): string {
   const wer = `Das Angebot Nr. ${c.offer.nr} der Fa. ${c.offer.firma}`;
   const grund = getBew(s, c.offer.id, c.los.id).nichtGewertet.trim();
-  if (grund) return `${wer} wird nicht weiter gewertet: ${/[.!?]$/.test(grund) ? grund : `${grund}.`}`;
+  if (grund) return `${wer} wird aus der weiteren Wertung genommen: ${/[.!?]$/.test(grund) ? grund : `${grund}.`}`;
   const auto = nichtGewertetAuto(s, c, take);
-  return auto ? `${wer} ${auto}` : `${wer} wird nicht weiter gewertet. [Begründung angeben]`;
+  return auto ? `${wer} ${auto}` : `${wer} wird aus der weiteren Wertung genommen. [Begründung angeben]`;
 }
 
 /** Automatische Begründung (ohne Subjekt) oder '' , wenn das Angebot nicht teurer ist als alle geprüften. */
@@ -449,9 +461,9 @@ export function nichtGewertetAuto(s: State, c: Cell, take: Cell[]): string {
   const pcts = ref.map((x) => (c.gross! / x.gross! - 1) * 100);
   const lo = Math.min(...pcts), hi = Math.max(...pcts);
   const spanne = ref.length > 1 && Math.round(lo) !== Math.round(hi) ? `ca. ${fmtNum(lo, 0)} % bis ${fmtNum(hi, 0)} %` : `ca. ${fmtNum(hi, 0)} %`;
-  const wen = ref.length > 1 ? `den Angeboten Nr. ${listDe(ref.map((x) => String(x.offer.nr)))}` : `dem Angebot Nr. ${ref[0].offer.nr}`;
+  const wen = ref.length > 1 ? `die Angebote der ${ref.length === 2 ? 'beiden' : ref.length === 3 ? 'drei' : ref.length} weiteren Bieter (Nr. ${listDe(ref.map((x) => String(x.offer.nr)))})` : `das Angebot Nr. ${ref[0].offer.nr}`;
   const ks = c.dKosten != null && c.dKosten > 0.5 ? ` und ca. ${fmtNum(c.dKosten, 0)} % über dem Kostenvoranschlag` : '';
-  return `liegt mit brutto ${fmtEUR(c.gross)} ${spanne} über ${wen}${ks}. Es kommt für den Zuschlag nicht in Betracht und wird aus der weiteren Wertung genommen.`;
+  return `liegt ${spanne} höher als ${wen}${ks}. Somit wird das Angebot aus der weiteren Wertung genommen.`;
 }
 
 const ord = ['günstigste', 'zweitgünstigste', 'drittgünstigste', 'viertgünstigste', 'fünftgünstigste'];

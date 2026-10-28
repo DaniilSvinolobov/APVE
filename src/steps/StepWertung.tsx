@@ -97,7 +97,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                         </tr>
                         {ewHier && inEw && !ewOn && (
                           <tr><td colSpan={ncol} className="reason">
-                            <span>Nicht weiter gewertet, weil</span>
+                            <span>Grund</span>
                             <input value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={nichtGewertetAuto(s, c, ew.take) ? 'leer lassen = Text aus den Preisen (siehe unten)' : 'Grund angeben – das Angebot ist günstiger als ein gewähltes'} />
                             <small className="muted block ewvorschau">Im Vermerk: {nichtGewertetText(s, c, ew.take)}</small>
                           </td></tr>

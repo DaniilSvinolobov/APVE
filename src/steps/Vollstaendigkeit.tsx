@@ -78,10 +78,10 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
                     <div className="vfirma">{o.nr} · {o.firma}</div>
                     {ps.fehlt.length > 0 ? <Chip kind="bad">{ps.fehlt.length} fehlt</Chip> : ps.nurPdf.length > 0 ? <Chip kind="warn">Preise nur als PDF</Chip> : ps.ungeprueft > 0 ? <Chip kind="warn">{ps.ungeprueft} offen</Chip> : <Chip kind="ok">vollständig</Chip>}
                     {status?.enabled && consent && (o.kiInfo?.s === 'ok' || o.kiDocs
-                      ? <div className="muted" style={{ fontSize: 11, marginTop: 4 }} title={o.kiInfo?.t || undefined}>KI geprüft{o.kiInfo?.t ? ' (mit Hinweis)' : ''}</div>
+                      ? <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 4 }} title={o.kiInfo?.t || undefined}>KI geprüft{o.kiInfo?.t ? ' (mit Hinweis)' : ''}</div>
                       : o.kiInfo
-                        ? <div style={{ fontSize: 11, marginTop: 4, color: '#b42318' }} title={o.kiInfo.t}>KI: {o.kiInfo.s === 'skip' ? 'übersprungen' : 'Fehler'} – {o.kiInfo.t.slice(0, 80)}</div>
-                        : <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>KI: noch nicht geprüft</div>)}
+                        ? <div style={{ fontSize: 'var(--fs-xs)', marginTop: 4, color: '#b42318' }} title={o.kiInfo.t}>KI: {o.kiInfo.s === 'skip' ? 'übersprungen' : 'Fehler'} – {o.kiInfo.t.slice(0, 80)}</div>
+                        : <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 4 }}>KI: noch nicht geprüft</div>)}
                     {ps.ungeprueft > 0 && <div><button className="link small" title="Alle noch offenen Zeilen dieses Angebots auf „vorhanden“ setzen" onClick={() => up((d) => { const x = d.offers[oi]; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>offene = vorhanden</button></div>}
                   </th>
                 );
@@ -137,7 +137,7 @@ const inhaltChip = (k: KiBefund) => <Chip kind={k.inhalt === 'ausgefuellt' ? 'ok
 const unterschriftChip = (k: KiBefund) => (
   <>
     <Chip kind={k.unterschrift === 'ja' ? 'ok' : k.unterschrift === 'nein' ? 'bad' : k.unterschrift === 'nicht_erforderlich' ? 'info' : 'warn'}>{k.unterschrift === 'ja' ? 'unterschrieben' : k.unterschrift === 'nein' ? 'nicht unterschrieben' : k.unterschrift === 'nicht_erforderlich' ? 'keine Unterschrift nötig' : 'unklar'}</Chip>
-    {k.stempel && <div className="muted" style={{ fontSize: 11 }}>mit Firmenstempel</div>}
+    {k.stempel && <div className="muted" style={{ fontSize: 'var(--fs-xs)' }}>mit Firmenstempel</div>}
   </>
 );
 

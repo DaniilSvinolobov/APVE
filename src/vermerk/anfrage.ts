@@ -1,5 +1,5 @@
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
-import { aufklMinEuro, losPositions, positionsVergleich, zkey, type AufklPos, type Cell } from '../domain/calc';
+import { engereWahl, mindestEuro, losPositions, positionsVergleich, zkey, type AufklPos, type Cell } from '../domain/calc';
 import { fmtNum, round2 } from '../domain/fmt';
 
 /** E-Mail an den Auftraggeber während der Angebotsprüfung: Ausschluss einzelner Bieter vorab empfehlen und für auffällige Positionen
@@ -24,21 +24,21 @@ export interface AnfrageBieter {
   manuell: boolean;
 }
 
-/** Mindestauswirkung je Position: von Hand gesetzt, sonst automatisch aus den Angebotssummen der Runde. */
-export const anfrageMinEuro = (a: Anfrage, cells: Cell[], runde: number) => a.minEuro ?? aufklMinEuro(cells, runde);
-
 /** Stand je Bieter: Modus (von Hand oder automatisch) und Positionen. Zum Ausschluss empfohlene Bieter zählen nicht zum Vergleich der übrigen. */
 export function anfrageBieter(s: State, los: Los, cells: Cell[], runde: number): AnfrageBieter[] {
   const a = anfrageOf(s, los);
   const rc = anfrageCells(cells, runde);
-  const min = anfrageMinEuro(a, cells, runde);
+  const min = mindestEuro(cells, runde);
   const aus = rc.filter((c) => a.modus[c.offer.id] === 'aus').map((c) => c.offer.id);
+  // Vorbelegung: Kalkulation nur bei Bietern der engeren Wahl nachfordern (in der ersten Runde)
+  const hr = Math.min(...cells.map((c) => c.offer.runde));
+  const engere = runde === hr ? engereWahl(s, cells).take : rc;
   return rc.map((c) => {
     const vergleich = positionsVergleich(s, los, cells, c, min, aus);
     const auto = vergleich.filter((p) => p.status === 'auffaellig').map((p) => p.oz).sort(ozSort);
     const hand = a.pos[c.offer.id];
     const liste = hand == null ? auto : [...new Set(hand.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean))].sort(ozSort);
-    return { c, modus: a.modus[c.offer.id] ?? (auto.length ? 'nach' : 'ohne'), vergleich, auto, liste, manuell: hand != null };
+    return { c, modus: a.modus[c.offer.id] ?? (auto.length && engere.includes(c) ? 'nach' : 'ohne'), vergleich, auto, liste, manuell: hand != null };
   });
 }
 

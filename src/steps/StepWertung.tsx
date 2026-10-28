@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import type { Bew, State } from '../domain/types';
 import { angemessenheit, auffaelligkeiten, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
-import { bewText, nichtGewertetAuto } from '../vermerk/vermerk';
+import { bewText, nichtGewertetAuto, nichtGewertetText } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
 import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
 import { EignungEinwilligung, EignungKi, useEignung } from './EignungKi';
@@ -30,6 +30,14 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
   const ew = engereWahl(s, cells);
   const first = ew.take;
   detail.push(...first, ...cells.filter((c) => c.offer.runde > hrl && c.rankAll).sort((a, b) => a.offer.runde - b.offer.runde || a.rankAll! - b.rankAll!));
+  // Engere Wahl per Haken in der Rangtabelle (nur erste Runde, mehr als ein Angebot)
+  const mitEw = ew.ranked.length > 1;
+  const setEw = (id: string, on: boolean) => up((d) => {
+    const ids = ew.take.map((x) => x.offer.id).filter((x) => x !== id);
+    if (on) ids.push(id);
+    d.engere = { ...(d.engere ?? {}), [los.id]: ids };
+  });
+  const raus = ew.ranked.filter((c) => !ew.take.includes(c));
 
   return (
     <div className="stack">
@@ -43,6 +51,8 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 
       {runden.map((r) => {
         const rc = cells.filter((c) => c.offer.runde === r);
+        const ewHier = mitEw && r === hrl;
+        const ncol = ewHier ? 9 : 8;
         return (
           <section className="card" key={r}>
             <h2>{los.nr} · {r === hrl ? (r === 1 ? 'Hauptangebote' : 'Angebote') : 'Nachverhandlung'}</h2>
@@ -51,17 +61,21 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 <textarea rows={2} value={s.nvGrund?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.nvGrund = { ...(d.nvGrund ?? {}), [los.id]: e.target.value }))} placeholder="z. B. Missverständnisse bei Positionen, falsche Menge im LV …" />
               </label>
             )}
+            {ewHier && <p className="lead">Haken bei <b>Engere Wahl</b> = Angebot wird im Vermerk einzeln geprüft. Für jedes Angebot ohne Haken steht im Vermerk ein Satz, warum es nicht weiter gewertet wird. {ew.manuell ? <button className="link" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Vorbelegung wiederherstellen</button> : `Vorbelegt: die ${Math.max(1, s.project.engereWahl)} günstigsten.`}</p>}
             <div className="scroll">
               <table className="matrix rank">
-                <thead><tr><th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Hinweise</th></tr></thead>
+                <thead><tr>{ewHier && <th>Engere Wahl</th>}<th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Hinweise</th></tr></thead>
                 <tbody>
                   {rc.map((c) => {
                     const b = getBew(s, c.offer.id, los.id);
                     const needsAufk = c.flags.some((f) => f.text.includes('Aufklärung')) || b.aufklaerung !== '';
                     const isWin = win?.offer.id === c.offer.id;
+                    const inEw = ew.ranked.includes(c);
+                    const ewOn = ew.take.includes(c);
                     return (
                       <Fragment key={c.offer.id}>
                         <tr className={c.excluded ? 'dim' : isWin ? 'first' : ''}>
+                          {ewHier && <td>{inEw && <input type="checkbox" checked={ewOn} disabled={ewOn && ew.take.length === 1} onChange={(e) => setEw(c.offer.id, e.target.checked)} aria-label={`Nr. ${c.offer.nr} in die engere Wahl`} />}</td>}
                           <td>{c.rankAll ? <span className={`rankbadge ${isWin ? 'one' : ''}`}>{c.rankAll}</span> : '–'}</td>
                           <td>{c.offer.nr}</td>
                           <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}{(() => { const e = entfernung(s, c.offer); return e ? ` · ca. ${e.km} km zur Baustelle` : ''; })()}</small></td>
@@ -81,11 +95,18 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                             </div>
                           </td>
                         </tr>
+                        {ewHier && inEw && !ewOn && (
+                          <tr><td colSpan={ncol} className="reason">
+                            <span>Grund</span>
+                            <input value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={nichtGewertetAuto(s, c, ew.take) ? 'leer lassen = Text aus den Preisen (siehe unten)' : 'Grund angeben – das Angebot ist günstiger als ein gewähltes'} />
+                            <small className="muted block ewvorschau">Im Vermerk: {nichtGewertetText(s, c, ew.take)}</small>
+                          </td></tr>
+                        )}
                         {b.ausschluss && (
-                          <tr><td colSpan={8} className="reason"><span>Aufgrund</span><input value={b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.value })} placeholder="… fehlender Referenzen in vergleichbaren Leistungen wurde das Angebot ausgeschlossen" /></td></tr>
+                          <tr><td colSpan={ncol} className="reason"><span>Aufgrund</span><input value={b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.value })} placeholder="… fehlender Referenzen in vergleichbaren Leistungen wurde das Angebot ausgeschlossen" /></td></tr>
                         )}
                         {b.aufklaerung && (
-                          <tr><td colSpan={8} className="reason"><span>Aufklärung</span><input value={b.aufklaerungNotiz} onChange={(e) => setBew(c.offer.id, { aufklaerungNotiz: e.target.value })} placeholder="Begründung des Bieters / Ergebnis kurz festhalten" /></td></tr>
+                          <tr><td colSpan={ncol} className="reason"><span>Aufklärung</span><input value={b.aufklaerungNotiz} onChange={(e) => setBew(c.offer.id, { aufklaerungNotiz: e.target.value })} placeholder="Begründung des Bieters / Ergebnis kurz festhalten" /></td></tr>
                         )}
                       </Fragment>
                     );
@@ -93,6 +114,12 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 </tbody>
               </table>
             </div>
+            {ewHier && raus.length > 0 && (
+              <label className="field wide"><span className="field-label">Festlegung zur engeren Wahl (optional, steht vor den Sätzen im Vermerk)</span>
+                <textarea rows={2} value={s.engereNotiz?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.engereNotiz = { ...(d.engereNotiz ?? {}), [los.id]: e.target.value }))} placeholder="z. B. In Abstimmung mit der Vergabestelle wurde die Prüfung auf die drei günstigsten Bieter beschränkt." />
+              </label>
+            )}
+            {ewHier && win && win.offer.runde === hrl && !ew.take.includes(win) && <FlagList items={[{ kind: 'warn', text: `Der vorgeschlagene Zuschlagsempfänger ${win.offer.firma} ist nicht in der engeren Wahl – im Vermerk fehlt dann die Begründung.` }]} />}
           </section>
         );
       })}
@@ -116,44 +143,6 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         </section>
       )}
 
-      {ew.ranked.length > 1 && (
-        <section className="card">
-          <div className="row"><h2>Engere Wahl</h2>
-            {ew.manuell && <button className="btn small ghost" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Automatisch wählen</button>}
-          </div>
-          <p className="lead">Angehakte Angebote werden im Vermerk einzeln geprüft. {ew.manuell ? 'Von Hand gewählt.' : `Automatisch: die ${Math.max(1, s.project.engereWahl)} günstigsten${s.zuschlag[los.id] ? ' und der abweichend gewählte Zuschlagsempfänger' : ''}.`}</p>
-          <label className="field wide"><span className="field-label">Festlegung zur engeren Wahl (optional)</span>
-            <textarea rows={2} value={s.engereNotiz?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.engereNotiz = { ...(d.engereNotiz ?? {}), [los.id]: e.target.value }))} placeholder="z. B. In Abstimmung mit der Vergabestelle wurde die Prüfung auf die drei günstigsten Bieter beschränkt." />
-          </label>
-          <div className="stack">
-            {ew.ranked.map((c) => {
-              const on = ew.take.includes(c);
-              const b = getBew(s, c.offer.id, los.id);
-              const auto = on ? '' : nichtGewertetAuto(s, c, ew.take);
-              return (
-                <div key={c.offer.id}>
-                  <label className="mini big">
-                    <input type="checkbox" checked={on} disabled={on && ew.take.length === 1} onChange={(e) => up((d) => {
-                      const ids = ew.take.map((x) => x.offer.id).filter((id) => id !== c.offer.id);
-                      if (e.target.checked) ids.push(c.offer.id);
-                      d.engere = { ...(d.engere ?? {}), [los.id]: ids };
-                    })} />
-                    Rang {c.rankAll} · Nr. {c.offer.nr} · {c.offer.firma} <span className="muted">({fmtEur(c.gross)} brutto{c.dKosten != null ? `, ${fmtPct(c.dKosten)} zum Kostenvoranschlag` : ''}{c.excluded ? ', ausgeschlossen' : ''})</span>
-                  </label>
-                  {!on && (
-                    <label className="field wide" style={{ margin: '4px 0 8px 26px' }}><span className="field-label">Warum nicht weiter gewertet?</span>
-                      <textarea rows={2} value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={auto ? `Leer = automatisch: … ${auto}` : 'Begründung angeben'} />
-                      {!b.nichtGewertet.trim() && !auto && <span className="field-hint">Günstiger als ein gewähltes Angebot – bitte Grund angeben.</span>}
-                    </label>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {win && win.offer.runde === hrl && !ew.take.includes(win) && <FlagList items={[{ kind: 'warn', text: `Der vorgeschlagene Zuschlagsempfänger ${win.offer.firma} ist nicht ausgewählt – im Vermerk fehlt dann die Begründung.` }]} />}
-        </section>
-      )}
-
       {detail.length > 0 && (
         <section className="card">
           <h2>Begründung im Vermerk</h2>
@@ -170,8 +159,8 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 <h3>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</h3>
                 {!nv && (
                   <div className="auff">
-                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Ø übrige ${fmtNum(x.avg)} €)`}>{x.oz}</span>)}</div>}
-                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Ø übrige ${fmtNum(x.avg)} €)`}>{x.oz}</span>)}</div>}
+                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
+                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
                     {a.titel.length > 0 && <div><Chip kind="info">Titel mit niedrigem Preisniveau</Chip> {a.titel.slice(0, 4).map((x) => <span key={x.oz} className="oz" title={x.name}>{x.oz}</span>)}</div>}
                     {ang.titel.length > 0 && <div><Chip kind="warn">Titel ggü. LV-Schätzpreis</Chip> {ang.titel.map((x) => <span key={x.oz} className="oz" title={`${x.name}: ${fmtEur(x.sum)} netto, geschätzt ${fmtEur(x.schaetz)}`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}
                     {ang.pos.length > 0 && <div><Chip kind="warn">Positionen ggü. LV-Schätzpreis</Chip> {ang.pos.slice(0, 8).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} €, geschätzt ${fmtNum(x.schaetz)} €`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}

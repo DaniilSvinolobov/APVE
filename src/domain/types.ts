@@ -115,10 +115,9 @@ export interface Bew {
 export type AnfrageModus = 'ohne' | 'nach' | 'aus'; // nicht erwähnen | Angebotskalkulation nachfordern | Ausschluss empfehlen
 export interface Anfrage {
   anrede: string; // leer = „Sehr geehrte Damen und Herren,“
-  modus: Record<string, AnfrageModus>; // [offerId]; fehlt = „nach“, wenn auffällige Positionen erkannt wurden, sonst „ohne“
+  modus: Record<string, AnfrageModus>; // [offerId]; fehlt = „nach“ bei auffälligen Positionen und Bieter in der engeren Wahl, sonst „ohne“
   grund: Record<string, string>; // [offerId] Begründung der Ausschlussempfehlung (leer = automatischer Text)
   pos: Record<string, string>; // [offerId] Positionen von Hand (kommagetrennt); fehlt = automatisch
-  minEuro?: number | null; // Mindestauswirkung je Position in € (Mehr-/Minderkosten ggü. Vergleichspreis); leer = automatisch
 }
 
 export interface Anlage {
@@ -140,8 +139,8 @@ export interface Project {
   kostenBasis: 'brutto' | 'netto';
   kostenDatum: string;
   mwst: number;
-  schwelle: number; // % für auffallend niedrig
-  abweichung: number; // % für Einzelpreis-Auffälligkeit
+  schwelle: number; // % Angebotssumme unter Kostenvoranschlag bzw. nächstem Angebot → Aufklärung prüfen
+  abweichung: number; // % Abweichung eines EP vom Median der übrigen Bieter bzw. vom LV-Schätzpreis
   engereWahl: number;
   eroeffnung: string;
   zuschlagsfrist: string;

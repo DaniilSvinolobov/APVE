@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ClipboardEvent } from 'react';
 import type { State } from '../domain/types';
-import { computeLos, losPositions, lvFremd, schaetzSumme, titelKey, zkey, zusatzWert } from '../domain/calc';
+import { computeLos, losPositions, lvFremd, mindestEuro, positionsVergleich, schaetzSumme, titelKey, zkey, zusatzWert } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, parseNum, round2 } from '../domain/fmt';
 import { Chip, FlagList, Icon, NumInput, Seg, Tabs } from '../components/ui';
 import { downloadCsv } from '../storage/exportCsv';
@@ -25,7 +25,6 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const cells = cellsAll.filter((c) => c.offer.runde === rd);
   const pos = losPositions(s, los);
   const hasLv = pos.length > 0;
-  const th = s.project.abweichung / 100;
 
   const groups = new Map<string, typeof pos>();
   for (const p of pos) { const k = titelKey(p.oz); groups.set(k, [...(groups.get(k) ?? []), p]); }
@@ -35,13 +34,10 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
     const v = cells.filter((c) => c.complete && !c.excluded).map((c) => epOf(c, oz)).filter((x): x is number => x != null && x > 0);
     return { low: v.length > 1 ? Math.min(...v) : null, high: v.length > 1 ? Math.max(...v) : null, n: v.length };
   };
-  const isOut = (c: (typeof cells)[number], oz: string) => {
-    const me = epOf(c, oz);
-    const others = cells.filter((x) => x !== c && x.complete && !x.excluded).map((x) => epOf(x, oz)).filter((x): x is number => x != null && x > 0);
-    if (me == null || me <= 0 || others.length < 2) return false;
-    const avg = others.reduce((a, b) => a + b, 0) / others.length;
-    return Math.abs(me / avg - 1) > th;
-  };
+  // auffällige Positionen nach derselben Regel wie Wertung, Vermerk und Rückfrage
+  const minEuro = mindestEuro(cells, rd);
+  const auff = new Map(cells.map((c) => [c.offer.id, new Set(positionsVergleich(s, los, cells, c, minEuro).filter((v) => v.status === 'auffaellig').map((v) => v.oz))]));
+  const isOut = (c: (typeof cells)[number], oz: string) => !!auff.get(c.offer.id)?.has(oz);
   const titelSum = (c: (typeof cells)[number], ps: typeof pos) => round2(ps.filter((p) => !p.bedarf).reduce((a, p) => a + (p.menge ?? 0) * (epOf(c, p.oz) ?? 0), 0));
 
   /* Vergleichswerte: Mittelwert und Günstigst über die gewerteten Bieter, LV-Schätzpreis = eigenes LV (GAEB 82 oder Handeingabe) */
@@ -137,7 +133,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const legend: [string, string][] = [
     ['low', 'günstigster EP'],
     ['high', 'höchster EP'],
-    ['out', `Ausreißer (> ${s.project.abweichung} % vom Mittel der übrigen)`],
+    ['out', `auffällig (> ${s.project.abweichung} % neben dem Median der übrigen Bieter, Auswirkung ab ${fmtNum(minEuro, 0)} €)`],
     ...(cells.some((c) => c.mengeAbw.length) ? [['mabw', 'Menge laut Bieter weicht vom LV ab'] as [string, string]] : []),
     ...(zList.length ? [['neu', 'neue Position (nicht im LV)'] as [string, string]] : []),
   ];

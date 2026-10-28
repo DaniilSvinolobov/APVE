@@ -230,46 +230,32 @@ export function zuschlagCell(s: State, los: Los, cells: Cell[]): Cell | undefine
   return cells.filter((c) => c.offer.runde === fr).find((c) => c.rank === 1);
 }
 
-export interface Auff {
-  guenstig: { oz: string; kurz: string; ep: number; avg: number; delta: number }[];
-  hoch: { oz: string; kurz: string; ep: number; avg: number; delta: number }[];
-  titel: { oz: string; name: string; sum: number; avg: number }[];
+export interface Auff { // ref = Median der übrigen Bieter
+  guenstig: { oz: string; kurz: string; ep: number; ref: number; delta: number }[];
+  hoch: { oz: string; kurz: string; ep: number; ref: number; delta: number }[];
+  titel: { oz: string; name: string; sum: number; ref: number }[];
 }
 
-/** Auffällige Einzelpreise und Titel gegenüber dem Mittel der übrigen Angebote derselben Runde. */
+/** Auffällige Einzelpreise und Titel gegenüber den übrigen Angeboten derselben Runde – dieselbe Regel wie Preisspiegel und Rückfrage
+ *  (positionsVergleich): EP weicht um mehr als „abweichung“ % vom Median der übrigen Bieter ab und wirkt sich mit mindestens mindestEuro aus. */
 export function auffaelligkeiten(s: State, los: Los, cells: Cell[], c: Cell): Auff {
-  const peers = cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded);
   const res: Auff = { guenstig: [], hoch: [], titel: [] };
+  const peers = vergleichsAngebote(cells, c, []);
   if (!peers.length || !c.complete) return res;
+  const min = mindestEuro(cells, c.offer.runde);
+  for (const v of positionsVergleich(s, los, cells, c, min)) {
+    if (v.status !== 'auffaellig' || v.refQuelle !== 'bieter') continue;
+    (v.delta < 0 ? res.guenstig : res.hoch).push({ oz: v.oz, kurz: v.kurz, ep: v.ep, ref: v.ref!, delta: v.delta });
+  }
   const th = s.project.abweichung / 100;
-  const pos = losPositions(s, los).filter((p) => !p.bedarf);
-  const titelSum = new Map<string, { me: number; peers: number[] }>();
-  const losSum = c.sumNet ?? 0;
-  for (const p of pos) {
-    const me = c.offer.prices[zkey(p.oz)]?.ep;
-    if (me == null) continue;
-    const pe = peers.map((x) => x.offer.prices[zkey(p.oz)]?.ep).filter((v): v is number => v != null);
-    const ts = titelKey(p.oz);
-    const t = titelSum.get(ts) ?? { me: 0, peers: peers.map(() => 0) };
-    t.me += (p.menge ?? 0) * me;
-    peers.forEach((x, i) => (t.peers[i] += (p.menge ?? 0) * (x.offer.prices[zkey(p.oz)]?.ep ?? 0)));
-    titelSum.set(ts, t);
-    if (!pe.length || me <= 0) continue;
-    const avg = pe.reduce((a, b) => a + b, 0) / pe.length;
-    if (avg <= 0) continue;
-    const delta = round2(((p.menge ?? 0) * (me - avg)));
-    if (Math.abs(delta) < Math.max(50, losSum * 0.0005)) continue;
-    const row = { oz: p.oz, kurz: p.kurz, ep: me, avg, delta };
-    if (me < avg * (1 - th)) res.guenstig.push(row);
-    else if (me > avg * (1 + th)) res.hoch.push(row);
+  const pm = peerMedian(s, los, cells, c);
+  const titel = new Set(losPositions(s, los).filter((p) => !p.bedarf).map((p) => titelKey(p.oz)));
+  for (const oz of titel) {
+    const me = titelSumme(s, los, c, oz);
+    const ref = pm.titel(oz);
+    if (ref && me < ref * (1 - th) && ref - me >= 2 * min) res.titel.push({ oz, name: s.titles[oz] ?? '', sum: me, ref });
   }
-  res.guenstig.sort((a, b) => a.delta - b.delta);
-  res.hoch.sort((a, b) => b.delta - a.delta);
-  for (const [oz, t] of titelSum) {
-    const avg = t.peers.reduce((a, b) => a + b, 0) / t.peers.length;
-    if (avg > 0 && t.me < avg * (1 - th) && avg - t.me > losSum * 0.01) res.titel.push({ oz, name: s.titles[oz] ?? '', sum: t.me, avg });
-  }
-  res.titel.sort((a, b) => a.avg - a.sum - (b.avg - b.sum));
+  res.titel.sort((a, b) => a.sum - a.ref - (b.sum - b.ref));
   return res;
 }
 
@@ -298,19 +284,19 @@ export function offerBrutto(s: State, o: Offer): number | null {
 
 /** Abweichung eines Angebots von den LV-Schätzpreisen: Titel und Positionen außerhalb der Schwelle (Projekteinstellung „abweichung“). */
 export interface Angemessen {
-  titel: { oz: string; name: string; sum: number; schaetz: number; pct: number; peer: number | null }[]; // pct = Angebot in % des geschätzten Titelpreises; peer = Mittel der übrigen Angebote
+  titel: { oz: string; name: string; sum: number; schaetz: number; pct: number; peer: number | null }[]; // pct = Angebot in % des geschätzten Titelpreises; peer = Median der übrigen Angebote
   pos: { oz: string; kurz: string; ep: number; schaetz: number; pct: number; delta: number; peer: number | null }[];
 }
 
-/** Mittel der übrigen wertbaren Angebote derselben Runde (EP einer Position bzw. Summe eines Titels); null ohne Vergleichsangebote. */
-function peerMittel(s: State, los: Los, cells: Cell[], c: Cell) {
-  const peers = cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded);
-  const ep = (oz: string) => { const v = peers.map((x) => x.offer.prices[zkey(oz)]?.ep).filter((e): e is number => e != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
-  const titel = (tk: string) => {
-    if (!peers.length) return null;
-    const pos = losPositions(s, los).filter((p) => !p.bedarf && titelKey(p.oz) === tk);
-    return peers.map((x) => pos.reduce((a, p) => a + round2((p.menge ?? 0) * (x.offer.prices[zkey(p.oz)]?.ep ?? 0)), 0)).reduce((a, b) => a + b, 0) / peers.length;
-  };
+/** Titelsumme eines Angebots (ohne Bedarfspositionen). */
+const titelSumme = (s: State, los: Los, c: Cell, tk: string) =>
+  round2(losPositions(s, los).filter((p) => !p.bedarf && titelKey(p.oz) === tk).reduce((a, p) => a + round2((p.menge ?? 0) * (c.offer.prices[zkey(p.oz)]?.ep ?? 0)), 0));
+
+/** Median der übrigen wertbaren Angebote derselben Runde (EP einer Position bzw. Summe eines Titels); null ohne Vergleichsangebote. */
+function peerMedian(s: State, los: Los, cells: Cell[], c: Cell) {
+  const peers = vergleichsAngebote(cells, c, []);
+  const ep = (oz: string) => { const v = peers.map((x) => x.offer.prices[zkey(oz)]?.ep).filter((e): e is number => e != null); return v.length ? median(v) : null; };
+  const titel = (tk: string) => (peers.length ? median(peers.map((x) => titelSumme(s, los, x, tk))) : null);
   return { ep, titel };
 }
 
@@ -318,9 +304,9 @@ export function angemessenheit(s: State, los: Los, c: Cell, cells: Cell[] = []):
   const res: Angemessen = { titel: [], pos: [] };
   if (!c.complete || !Object.keys(s.schaetz ?? {}).length) return res;
   const th = s.project.abweichung / 100;
-  const losSchaetz = schaetzSumme(s, los) ?? 0;
+  const min = mindestEuro(cells, c.offer.runde);
   const t = new Map<string, { me: number; sch: number }>();
-  const pm = peerMittel(s, los, cells, c);
+  const pm = peerMedian(s, los, cells, c);
   for (const p of losPositions(s, los)) {
     if (p.bedarf) continue;
     const me = c.offer.prices[zkey(p.oz)]?.ep;
@@ -333,12 +319,12 @@ export function angemessenheit(s: State, los: Los, c: Cell, cells: Cell[] = []):
     t.set(tk, x);
     if (sch <= 0) continue;
     const delta = round2(m * (me - sch));
-    // nur Positionen mit spürbarem Gewicht (mind. 0,5 % des geschätzten Lospreises bzw. 100 €)
-    if (Math.abs(delta) < Math.max(100, losSchaetz * 0.005)) continue;
+    // nur Positionen mit spürbarer Auswirkung (wie im Preisspiegel und in der Rückfrage)
+    if (Math.abs(delta) < min) continue;
     if (me > sch * (1 + th) || me < sch * (1 - th)) res.pos.push({ oz: p.oz, kurz: p.kurz, ep: me, schaetz: sch, pct: (me / sch) * 100, delta, peer: pm.ep(p.oz) });
   }
   for (const [oz, x] of t) {
-    if (x.sch <= 0 || Math.abs(x.me - x.sch) < Math.max(200, losSchaetz * 0.01)) continue;
+    if (x.sch <= 0 || Math.abs(x.me - x.sch) < 2 * min) continue;
     if (x.me > x.sch * (1 + th) || x.me < x.sch * (1 - th)) res.titel.push({ oz, name: s.titles[oz] ?? '', sum: round2(x.me), schaetz: round2(x.sch), pct: (x.me / x.sch) * 100, peer: pm.titel(oz) });
   }
   res.titel.sort((a, b) => a.oz.localeCompare(b.oz, 'de', { numeric: true }));
@@ -442,8 +428,9 @@ const median = (v: number[]) => { const a = [...v].sort((x, y) => x - y); const 
 /** Übrige Angebote derselben Runde als Vergleich (vollständig, nicht ausgeschlossen, nicht in „ohne“). */
 const vergleichsAngebote = (cells: Cell[], c: Cell, ohne: string[]) => cells.filter((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded && !ohne.includes(x.offer.id));
 
-/** Standard für die Mindestauswirkung je Position: 0,5 % der mittleren Angebotssumme der Runde, mindestens 250 €, auf 50 € gerundet. */
-export function aufklMinEuro(cells: Cell[], runde: number): number {
+/** Mindestauswirkung je Position (Menge × EP-Differenz), ab der eine Abweichung überall als auffällig gilt – Preisspiegel, Wertung,
+ *  Vermerk und Rückfrage: 0,5 % der mittleren Angebotssumme der Runde, mindestens 250 €, auf 50 € gerundet. Titel: das Doppelte. */
+export function mindestEuro(cells: Cell[], runde: number): number {
   const sums = cells.filter((c) => c.offer.runde === runde && c.complete && c.sumNet).map((c) => c.sumNet!);
   return sums.length ? Math.max(250, Math.round((median(sums) * 0.005) / 50) * 50) : 250;
 }

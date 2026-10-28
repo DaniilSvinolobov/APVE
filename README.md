@@ -38,6 +38,7 @@ Maßnahme, Auftraggeber und Lose werden daraus vorbelegt, außerdem – soweit v
 - **Kein Ordner geht verloren:** Lassen sich aus einem Bieterordner keine Preise lesen (keine Preisdatei, PDF nicht lesbar, eigenes LV noch nicht geladen), wird das Angebot trotzdem angelegt („ohne Preise“), deutlich gemeldet und in der Vollständigkeitsprüfung bei „Preise vollständig“ als „nicht beigefügt“ eingetragen. Wird der Ordner später mit Preisdatei erneut eingelesen, ersetzt das neue Angebot den Platzhalter (Nummer, Eingaben von Hand und Markierungen „nachgereicht“ bleiben; die Preisdatei gilt als nachgereicht).
 - Dateinamen aus ZIP-Dateien, die Windows ohne UTF-8-Kennung packt (Umlaute, ß), werden richtig gelesen.
 - PDF-Scans ohne Text können nicht ausgewertet werden
+- **Vollständigkeitsprüfung als PDF** (Schritt 2, „Als PDF herunterladen“; auch unter „Anlagen bearbeiten“ im Vermerk): Tabelle Unterlagen × Angebote (A4 quer) und je Angebot die **nachzufordernden Unterlagen** (nicht beigefügt, nicht ausgefüllt, teilweise ausgefüllt, nicht unterschrieben) – zum Versand an den Auftraggeber. Nach dem Eingang der Nachreichungen das PDF erneut erzeugen; nachgereichte Unterlagen erscheinen mit Datum. Das PDF entsteht im Browser, es werden keine Daten übermittelt.
 - **Unterlagen je Angebot** (aufklappbar an der Angebotskarte): alle eingelesenen Dateien mit Kategorie; einzelne Dateien entfernen, Dateien (auch ZIP) ergänzen, als **nachgereicht** markieren und das Eingangsdatum setzen. Nachgereichte Unterlagen werden in der Vollständigkeitsprüfung als „nachgereicht“ mit Datum eingetragen (fehlt eine passende Zeile, entsteht eine neue); Einträge von Hand oder durch die KI bleiben dabei unverändert. Neue Preisdateien (X84) gehören nicht hierher, sondern als neues Angebot (Nachverhandlung) in das Ablagefeld oben.
 
 ## Dokumentprüfung mit Claude (Schritt 2, optional)
@@ -103,7 +104,8 @@ Die Vercel-Variablennamen `AWS_*` sind reserviert, daher die eigenen Namen.
 
 ## Vergabevermerk (Schritt 5)
 Aufbau wie der bisherige manuelle Vermerk (Veranlassung, Gegenstand, Verfahren, Prüfung und Wertung 4.1–4.n,
-Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen) mit Vollständigkeitsprüfung als Anlage.
+Nachverhandlung, Vergabevorschlag je Los, Gesamtbudget, Unterschrift, Anlagen). Die Vollständigkeitsprüfung steht nur im Anlagenverzeichnis;
+sie wird wie der Preisspiegel als eigenes PDF heruntergeladen (siehe Schritt 2).
 Inhalte der Wertungsschritte der bisherigen Vergabeempfehlungen sind in Abschnitt 4 enthalten: Tabelle der geprüften Angebotssummen
 netto/brutto mit dem verpreisten LV (4.3), offene Unterlagen getrennt nach fehlt / unausgefüllt / teilweise / nicht unterschrieben (4.4),
 **Nachweise und Eignungsprüfung** je einzeln geprüftem Bieter mit Eignungsnachweis (VVB 124 bzw. PQ-Nummer) und Nachunternehmereinsatz (4.5),

@@ -150,7 +150,7 @@ export interface Project {
   budgetBrutto: number | null;
   unterzeichner: string;
   datum: string; // Datum des Vermerks
-  vollstaendigkeit: boolean; // Vollständigkeitsprüfung als Anlage drucken
+  vollstaendigkeit: boolean; // Vollständigkeitsprüfung im Anlagenverzeichnis aufführen (eigenes PDF)
 }
 
 export interface State {

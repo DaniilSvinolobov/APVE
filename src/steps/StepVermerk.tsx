@@ -6,6 +6,7 @@ import { uid } from '../domain/fmt';
 import { downloadJson } from '../storage/exportCsv';
 import { Icon } from '../components/ui';
 import { useGeo } from '../geo/entfernung';
+import { VollstaendigkeitPdfButton } from './Vollstaendigkeit';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -98,6 +99,7 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
               <div className="row" key={a.key}>
                 <span className="anr">{i + 1}</span>
                 <input value={a.titel} onChange={(e) => up((d) => { if (a.custom) { const x = d.anlagen.find((z) => z.id === a.key); if (x) x.titel = e.target.value; } else d.texte[`anlage:${a.key}`] = e.target.value; })} />
+                {a.key === 'vollstaendigkeit' && <VollstaendigkeitPdfButton s={s} small />}
                 {a.custom && <button className="icon-btn" onClick={() => up((d) => void (d.anlagen = d.anlagen.filter((z) => z.id !== a.key)))}><Icon name="trash" /></button>}
               </div>
             ))}
@@ -131,18 +133,6 @@ function BlockView({ b, s, up }: { b: Block; s: State; up: Up }) {
       return (
         <div className={`v-kv ${b.ra ? 'ra' : ''}`}>
           {b.rows.map((r, i) => <div key={i} className={r.bold ? 'b' : ''}><span>{r.k}</span><span>{r.v}</span></div>)}
-        </div>
-      );
-    case 'pruef':
-      return (
-        <div className="v-pruef">
-          <h4 className="v-h l1 nobreak">{b.title}</h4>
-          <table className="v-tab pr">
-            <colgroup><col style={{ width: '36%' }} />{b.head.map((_, i) => <col key={i} />)}</colgroup>
-            <thead><tr><th />{b.head.map((h, i) => <th key={i} className="c">{h}</th>)}</tr></thead>
-            <tbody>{b.rows.map((r, i) => <tr key={i}><td>{r.label}</td>{r.cells.map((c, k) => <td key={k} className={`c st-${c.kind}`}>{c.txt}</td>)}</tr>)}</tbody>
-          </table>
-          <div className="v-foot">{b.foot.filter(Boolean).map((f, i) => <div key={i}>{f}</div>)}</div>
         </div>
       );
     case 'tab':

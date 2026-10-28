@@ -170,8 +170,8 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 <h3>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</h3>
                 {!nv && (
                   <div className="auff">
-                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Ø übrige ${fmtNum(x.avg)} €)`}>{x.oz}</span>)}</div>}
-                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Ø übrige ${fmtNum(x.avg)} €)`}>{x.oz}</span>)}</div>}
+                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
+                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
                     {a.titel.length > 0 && <div><Chip kind="info">Titel mit niedrigem Preisniveau</Chip> {a.titel.slice(0, 4).map((x) => <span key={x.oz} className="oz" title={x.name}>{x.oz}</span>)}</div>}
                     {ang.titel.length > 0 && <div><Chip kind="warn">Titel ggü. LV-Schätzpreis</Chip> {ang.titel.map((x) => <span key={x.oz} className="oz" title={`${x.name}: ${fmtEur(x.sum)} netto, geschätzt ${fmtEur(x.schaetz)}`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}
                     {ang.pos.length > 0 && <div><Chip kind="warn">Positionen ggü. LV-Schätzpreis</Chip> {ang.pos.slice(0, 8).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} €, geschätzt ${fmtNum(x.schaetz)} €`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}

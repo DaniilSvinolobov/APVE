@@ -1,5 +1,5 @@
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
-import { aufklMinEuro, losPositions, positionsVergleich, zkey, type AufklPos, type Cell } from '../domain/calc';
+import { mindestEuro, losPositions, positionsVergleich, zkey, type AufklPos, type Cell } from '../domain/calc';
 import { fmtNum, round2 } from '../domain/fmt';
 
 /** E-Mail an den Auftraggeber während der Angebotsprüfung: Ausschluss einzelner Bieter vorab empfehlen und für auffällige Positionen
@@ -24,14 +24,11 @@ export interface AnfrageBieter {
   manuell: boolean;
 }
 
-/** Mindestauswirkung je Position: von Hand gesetzt, sonst automatisch aus den Angebotssummen der Runde. */
-export const anfrageMinEuro = (a: Anfrage, cells: Cell[], runde: number) => a.minEuro ?? aufklMinEuro(cells, runde);
-
 /** Stand je Bieter: Modus (von Hand oder automatisch) und Positionen. Zum Ausschluss empfohlene Bieter zählen nicht zum Vergleich der übrigen. */
 export function anfrageBieter(s: State, los: Los, cells: Cell[], runde: number): AnfrageBieter[] {
   const a = anfrageOf(s, los);
   const rc = anfrageCells(cells, runde);
-  const min = anfrageMinEuro(a, cells, runde);
+  const min = mindestEuro(cells, runde);
   const aus = rc.filter((c) => a.modus[c.offer.id] === 'aus').map((c) => c.offer.id);
   return rc.map((c) => {
     const vergleich = positionsVergleich(s, los, cells, c, min, aus);

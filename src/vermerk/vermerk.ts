@@ -388,8 +388,8 @@ export function preisAuffaelligkeiten(s: State, l: Los, cells: Cell[], c: Cell, 
   const hatPeers = cells.some((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded);
   const L: string[] = [];
   const name = (oz: string, t: string) => `${oz}${t ? ` „${t}“` : ''}`;
-  const peerT = (v: number | null, me: number) => (v ? `; ${me > v ? 'über' : 'unter'} dem Mittel der übrigen Bieter von ${fmtEUR(round2(v))}` : '');
-  const peerP = (v: number | null) => (v ? `; Mittel der übrigen Bieter ${fmtEUR(round2(v))}` : '');
+  const peerT = (v: number | null, me: number) => (v ? `; ${me > v ? 'über' : 'unter'} dem Median der übrigen Bieter von ${fmtEUR(round2(v))}` : '');
+  const peerP = (v: number | null) => (v ? `; Median der übrigen Bieter ${fmtEUR(round2(v))}` : '');
   const tHoch = ang.titel.filter((t) => t.pct > 100), tNied = ang.titel.filter((t) => t.pct < 100);
   const pHoch = ang.pos.filter((x) => x.pct > 100).slice(0, 6), pNied = ang.pos.filter((x) => x.pct < 100).slice(0, 6);
   const tz = (t: (typeof tHoch)[number]) => `- Titel ${name(t.oz, t.name)}: ${fmtEUR(t.sum)} netto = ${pctDe(t.pct)} % des geschätzten Titelpreises von ${fmtEUR(t.schaetz)} netto${peerT(t.peer, t.sum)}`;
@@ -400,14 +400,14 @@ export function preisAuffaelligkeiten(s: State, l: Los, cells: Cell[], c: Cell, 
   const titelNied = a.titel.filter((t) => !ang.titel.some((x) => x.oz === t.oz)).slice(0, 4);
   if (tHoch.length) L.push('', 'Deutlich über den geschätzten Preisen liegen die Titelpreise folgender Titel:', ...tHoch.map(tz));
   if (pHoch.length) L.push('', 'Auffallend hohe Einheitspreise:', ...pHoch.map(pz));
-  if (hoch.length) L.push('', `Überdurchschnittlich hochpreisig im Vergleich zu den übrigen Bietern: ${listDe(hoch.map((x) => `Pos. ${x.oz} (EP ${fmtEUR(x.ep)}, Mittel ${fmtEUR(round2(x.avg))})`))}.`);
+  if (hoch.length) L.push('', `Überdurchschnittlich hochpreisig im Vergleich zu den übrigen Bietern: ${listDe(hoch.map((x) => `Pos. ${x.oz} (EP ${fmtEUR(x.ep)}, Median ${fmtEUR(round2(x.ref))})`))}.`);
   if (tNied.length) L.push('', 'Deutlich unter den geschätzten Preisen liegen die Titelpreise folgender Titel:', ...tNied.map(tz));
   if (pNied.length) L.push('', 'Auffallend niedrige Einheitspreise:', ...pNied.map(pz));
   if (gue.length || titelNied.length) {
     const platz = c.rankAll === 1 ? 'erste' : c.rankAll === 2 ? 'zweite' : `${c.rankAll}.`;
     L.push('', `Fa. ${c.offer.firma} bietet gegenüber den übrigen Bietern diverse Leistungen mit sehr niedrigen Preisen an, auf Grund derer der ${platz} Platz in der Rangfolge erreicht wird.`);
     if (titelNied.length) L.push(`Es handelt sich hierbei insbesondere um Leistungen unter Titel ${listDe(titelNied.map((t) => name(t.oz, t.name)))}.`);
-    if (gue.length) L.push(`Überdurchschnittlich günstig im Vergleich zu den übrigen Bietern: ${listDe(gue.map((x) => `Pos. ${x.oz} (EP ${fmtEUR(x.ep)}, Mittel ${fmtEUR(round2(x.avg))})`))}.`);
+    if (gue.length) L.push(`Überdurchschnittlich günstig im Vergleich zu den übrigen Bietern: ${listDe(gue.map((x) => `Pos. ${x.oz} (EP ${fmtEUR(x.ep)}, Median ${fmtEUR(round2(x.ref))})`))}.`);
   }
   if (erlaeuterung.trim()) L.push(erlaeuterung.trim());
   if (!L.length) {

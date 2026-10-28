@@ -118,7 +118,6 @@ export interface Anfrage {
   modus: Record<string, AnfrageModus>; // [offerId]; fehlt = „nach“, wenn auffällige Positionen erkannt wurden, sonst „ohne“
   grund: Record<string, string>; // [offerId] Begründung der Ausschlussempfehlung (leer = automatischer Text)
   pos: Record<string, string>; // [offerId] Positionen von Hand (kommagetrennt); fehlt = automatisch
-  minEuro?: number | null; // Mindestauswirkung je Position in € (Mehr-/Minderkosten ggü. Vergleichspreis); leer = automatisch
 }
 
 export interface Anlage {
@@ -140,8 +139,8 @@ export interface Project {
   kostenBasis: 'brutto' | 'netto';
   kostenDatum: string;
   mwst: number;
-  schwelle: number; // % für auffallend niedrig
-  abweichung: number; // % für Einzelpreis-Auffälligkeit
+  schwelle: number; // % Angebotssumme unter Kostenvoranschlag bzw. nächstem Angebot → Aufklärung prüfen
+  abweichung: number; // % Abweichung eines EP vom Median der übrigen Bieter bzw. vom LV-Schätzpreis
   engereWahl: number;
   eroeffnung: string;
   zuschlagsfrist: string;

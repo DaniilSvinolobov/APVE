@@ -145,7 +145,7 @@ export default async function handler(req: Req, res: Res) {
       output_config: { effort },
       messages: [{ role: 'user', content }],
     });
-    if (r.stop_reason === 'refusal') return res.status(422).json({ error: 'Die Prüfung wurde von Claude abgelehnt. Bitte manuell prüfen.' });
+    if (r.stop_reason === 'refusal') return res.status(422).json({ error: 'Die Prüfung wurde von der KI abgelehnt. Bitte manuell prüfen.' });
     const text = r.content.filter((x): x is Anthropic.TextBlock => x.type === 'text').map((x) => x.text).join('');
     const parsed = jsonAus(text) as { dokumente?: unknown };
     let list = Array.isArray(parsed.dokumente) ? (parsed.dokumente as Record<string, unknown>[]) : [];
@@ -172,8 +172,8 @@ export default async function handler(req: Req, res: Res) {
   } catch (e) {
     if (e instanceof KonfigFehler) return res.status(500).json({ error: `KI-Konfiguration: ${e.message}` });
     if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return res.status(500).json({ error: 'Bedrock-Zugang des Betreibers ist ungültig oder ohne Berechtigung für das Modell.' });
-    if (e instanceof Anthropic.RateLimitError) return res.status(429).json({ error: 'Bedrock-Limit erreicht – bitte später erneut versuchen.' });
-    if (e instanceof Anthropic.APIError) return res.status(502).json({ error: `Bedrock-Fehler (${e.status}): ${e.message.slice(0, 200)}` });
+    if (e instanceof Anthropic.RateLimitError) return res.status(429).json({ error: 'KI-Limit erreicht – bitte später erneut versuchen.' });
+    if (e instanceof Anthropic.APIError) return res.status(502).json({ error: `KI-Fehler (${e.status}): ${e.message.slice(0, 200)}` });
     return res.status(500).json({ error: 'Antwort der Prüfung war nicht lesbar.' });
   }
 }

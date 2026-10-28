@@ -274,7 +274,7 @@ td.reason .ewvorschau{margin-top:4px}td.reason{background:#fafbfd;text-align:lef
 .matrix.rank td.r{white-space:nowrap}
 .card.winner{display:flex;gap:20px;align-items:center;background:linear-gradient(135deg,#eafaf3,#f4fbf8);border-color:#bfe9d6;flex-wrap:wrap}
 .bewcard{border-top:1px solid var(--line);padding:4px 0}.bewcard:first-of-type{border-top:0}
-.bewkopf{display:flex;align-items:center;gap:10px;width:100%;padding:12px 0;border:0;background:none;cursor:pointer;text-align:left}.bewkopf h3{margin:0!important;flex:1}.bewkopf .muted{font-size:var(--fs-xs)}.bewkopf:hover h3{color:var(--brand)}
+.bewkopf{display:flex;align-items:center;gap:10px;width:100%;padding:12px 0;border:0;background:none;cursor:pointer;text-align:left}.bewkopf h3{margin:0!important;flex:1}.bewinfo{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.bewkopf:hover h3{color:var(--brand)}
 .bewinhalt{padding:0 0 16px 28px}.bewcard h3{font-size:var(--fs-base);margin-bottom:10px}
 .grid.g2{grid-template-columns:1fr 1fr 1fr;gap:12px 18px}.grid.g2 .wide{grid-column:1/-1}
 .auff{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}.oz{display:inline-block;background:var(--line2);border-radius:6px;padding:1px 7px;margin:2px 3px;font-size:var(--fs-xs);font-variant-numeric:tabular-nums;cursor:help}

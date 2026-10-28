@@ -1,6 +1,6 @@
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
-import { engereWahl, mindestEuro, losPositions, positionsVergleich, zkey, type AufklPos, type Cell } from '../domain/calc';
-import { fmtNum, round2 } from '../domain/fmt';
+import { engereWahl, mindestEuro, positionsVergleich, type AufklPos, type Cell } from '../domain/calc';
+import { fmtNum } from '../domain/fmt';
 
 /** E-Mail an den Auftraggeber während der Angebotsprüfung: Ausschluss einzelner Bieter vorab empfehlen und für auffällige Positionen
  *  eine detaillierte Angebotskalkulation nachfordern lassen. Nur Text – ändert weder Wertung noch Vergabevermerk. */
@@ -40,26 +40,6 @@ export function anfrageBieter(s: State, los: Los, cells: Cell[], runde: number):
     const liste = hand == null ? auto : [...new Set(hand.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean))].sort(ozSort);
     return { c, modus: a.modus[c.offer.id] ?? (auto.length && engere.includes(c) ? 'nach' : 'ohne'), vergleich, auto, liste, manuell: hand != null };
   });
-}
-
-/** Positionen, bei denen die Bieter untereinander ähnlich liegen, unser LV-Schätzpreis aber deutlich abweicht (Median aller Bieter der Runde). */
-export function schaetzAbweichungen(s: State, los: Los, cells: Cell[], runde: number, minEuro: number) {
-  const rc = anfrageCells(cells, runde).filter((c) => !c.excluded);
-  if (rc.length < 2) return [];
-  const th = s.project.abweichung / 100;
-  const out: { oz: string; kurz: string; schaetz: number; median: number; pct: number; delta: number }[] = [];
-  for (const p of losPositions(s, los)) {
-    const sch = s.schaetz?.[zkey(p.oz)];
-    if (p.bedarf || sch == null || sch <= 0) continue;
-    const eps = rc.map((c) => c.offer.prices[zkey(p.oz)]?.ep).filter((v): v is number => v != null).sort((x, y) => x - y);
-    if (eps.length < 2) continue;
-    const m = eps.length % 2 ? eps[eps.length >> 1] : (eps[eps.length / 2 - 1] + eps[eps.length / 2]) / 2;
-    // alle Bieter weichen in dieselbe Richtung vom Schätzpreis ab
-    if (!(eps[0] > sch * (1 + th) || eps[eps.length - 1] < sch * (1 - th))) continue;
-    const delta = round2((p.menge ?? 0) * (m - sch));
-    if (Math.abs(delta) >= minEuro) out.push({ oz: p.oz, kurz: p.kurz, schaetz: sch, median: m, pct: (m / sch - 1) * 100, delta });
-  }
-  return out.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
 }
 
 /** Vorschlag für die Begründung der Ausschlussempfehlung aus Abstand zum Schätzpreis und Ausreißern nach oben. */

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
 import type { AufklPos, Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, round2 } from '../domain/fmt';
-import { anfrageBieter, anfrageOf, anfrageText, ausschlussAuto, leereAnfrage, schaetzAbweichungen, type AnfrageBieter } from '../vermerk/anfrage';
+import { anfrageBieter, anfrageOf, anfrageText, ausschlussAuto, leereAnfrage, type AnfrageBieter } from '../vermerk/anfrage';
 import { mindestEuro } from '../domain/calc';
 import { FlagList, Icon, Seg } from '../components/ui';
 import { downloadText } from '../storage/exportCsv';
@@ -23,6 +23,7 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
   const runden = [...new Set(cells.map((c) => c.offer.runde))].sort();
   const [rundeSel, setRunde] = useState<number | null>(null);
   const [kopiert, setKopiert] = useState(false);
+  const [offen, setOffen] = useState(!!s.anfrage?.[los.id]);
   const runde = rundeSel != null && runden.includes(rundeSel as 1 | 2 | 3) ? rundeSel : runden[0] ?? 1;
   const bieter = anfrageBieter(s, los, cells, runde);
   if (!bieter.length) return null;
@@ -31,7 +32,6 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
   const p = s.project;
   const mitSchaetz = Object.keys(s.schaetz ?? {}).length > 0;
   const minEuro = mindestEuro(cells, runde);
-  const lvHinweis = mitSchaetz ? schaetzAbweichungen(s, los, cells, runde, minEuro) : [];
   const set: SetA = (fn) => up((d) => {
     const x: Anfrage = { ...leereAnfrage(), ...(d.anfrage?.[los.id] ?? {}) };
     fn(x);
@@ -46,32 +46,24 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
 
   return (
     <section className="card anfrage">
-      <h2>Rückfrage an den Auftraggeber</h2>
-      <p className="lead">E-Mail während der Prüfung: Angebotskalkulation zu auffälligen Positionen nachfordern oder einen Bieter vorab zum Ausschluss empfehlen. Wertung und Rangfolge ändern sich dadurch nicht; im Vermerk steht, bei welchen Bietern Unterlagen zur Preisaufklärung angefordert wurden.</p>
+      <div className="card-head">
+        <div>
+          <h2>Rückfrage an den Auftraggeber <span className="muted">(optional)</span></h2>
+          <p className="lead">E-Mail, um Angebotskalkulationen zu auffälligen Positionen nachzufordern oder einen Ausschluss zu empfehlen. Die Rangfolge ändert sich dadurch nicht.</p>
+        </div>
+        <button className="btn" onClick={() => setOffen(!offen)}>{offen ? 'Einklappen' : 'E-Mail erstellen'}</button>
+      </div>
+      {offen && <>
       {runden.length > 1 && <div className="anfrage-runde"><Seg small value={runde} onChange={setRunde} options={runden.map((r) => ({ value: r, label: r === runden[0] ? 'Hauptangebote' : `Nachverhandlung ${r - 1}` }))} /></div>}
 
-      <h3 className="anf-h">1 · Welche Bieter kommen in die E-Mail?</h3>
-      <p className="muted small">Haken = Bieter steht in der E-Mail; vorbelegt sind Bieter der engeren Wahl mit auffälligen Positionen. Vorgeschlagen sind die im Preisspiegel markierten Positionen: Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben dem Median der übrigen Bieter und Auswirkung (Menge × Differenz) ab {fmtNum(minEuro, 0)} €. Positionen per Haken ab- oder zuwählen.</p>
-
-      {lvHinweis.length > 0 && (
-        <details className="det anf-lv">
-          <summary>LV-Schätzpreis prüfen: bei {lvHinweis.length} Position{lvHinweis.length > 1 ? 'en' : ''} liegen alle Bieter deutlich neben unserem Schätzpreis – dort eher nicht nachfragen</summary>
-          <div className="scroll">
-            <table className="anf-tab">
-              <thead><tr><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">Schätzpreis EP</th><th className="r">Bieter (Median) EP</th><th className="r">Auswirkung</th></tr></thead>
-              <tbody>{lvHinweis.map((x) => (
-                <tr key={x.oz}><td className="left nowrap">{x.oz}</td><td className="left">{x.kurz}</td><td className="r">{fmtEur(x.schaetz)}</td><td className="r">{fmtEur(x.median)}<small className="muted block">{fmtPct(x.pct, 0)}</small></td><td className="r nowrap">{eur0(x.delta)}</td></tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </details>
-      )}
+      <h3 className="anf-h">Bieter und Positionen</h3>
+      <p className="muted small">Vorbelegt: Bieter der engeren Wahl mit auffälligen Positionen (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben dem Median der übrigen Bieter, Auswirkung ab {fmtNum(minEuro, 0)} €). Per Haken ab- oder zuwählen.</p>
 
       <div className="stack">
         {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} mitSchaetz={mitSchaetz} minEuro={minEuro} />)}
       </div>
 
-      <h3 className="anf-h">2 · E-Mail</h3>
+      <h3 className="anf-h">E-Mail-Text</h3>
       <label className="field wide"><span className="field-label">Anrede</span>
         <textarea rows={2} value={a.anrede} onChange={(e) => set((x) => void (x.anrede = e.target.value))} placeholder="Sehr geehrte Damen und Herren," />
       </label>
@@ -81,6 +73,7 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
         <a className="btn" href={`mailto:?subject=${encodeURIComponent(betreff)}&body=${encodeURIComponent(text)}`}><Icon name="arrow" /> In E-Mail-Programm öffnen</a>
         <button className="btn" onClick={() => downloadText(`Rueckfrage_${los.nr}.txt`, text)}><Icon name="download" /> Als Textdatei</button>
       </div>
+      </>}
     </section>
   );
 }

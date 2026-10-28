@@ -351,23 +351,62 @@ export function nuOf(s: State, o: Offer): Nachunternehmer[] | undefined {
   return docs.every((k) => k.inhalt === 'leer' || k.vorlage) ? [] : undefined;
 }
 
-/** Erste Wörter des Firmennamens, klein („Luhs & Voigt Inh. …“ und „Luhs & Voigt“ gelten als dasselbe Unternehmen). */
+/** Erste Wörter des Firmennamens, klein („Luks & Voigt Inh. …“ und „Luks & Voigt“ gelten als dasselbe Unternehmen). */
 const firmaKey = (f: string) => f.toLowerCase().replace(/^(fa\.|firma)\s*/, '').replace(/[^a-zäöüß0-9&]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
-const gleicheFirma = (a: string, b: string) => { const x = firmaKey(a), y = firmaKey(b); return !!x && !!y && (x === y || x.startsWith(`${y} `) || y.startsWith(`${x} `)); };
+/** Editierabstand – Handschrift wird mal „Luhs“, mal „Luks“ gelesen. */
+function abstand(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+const ziffern = (k: string) => k.replace(/\D/g, '');
+/** Gleiches Unternehmen: gleicher Anfang des Namens oder ein Lesefehler von einem Buchstaben („Straat 1“/„Staat 1“); Ziffern müssen gleich sein. */
+const gleicheFirma = (a: string, b: string) => {
+  const x = firmaKey(a), y = firmaKey(b);
+  if (!x || !y) return false;
+  if (x === y || x.startsWith(`${y} `) || y.startsWith(`${x} `)) return true;
+  if (ziffern(x) !== ziffern(y)) return false;
+  const [k, l] = x.length <= y.length ? [x, y] : [y, x]; // kürzerer Name gegen gleich langen Anfang des längeren (± 1 Zeichen)
+  return k.length >= 5 && [-1, 0, 1].some((d) => abstand(k, l.slice(0, k.length + d)) <= 1 && (l.length <= k.length + d || l[k.length + d] === ' '));
+};
 const leistungKey = (l: string) => l.toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
+/** OZ-Bereich „von – bis“ absteigend („0.5 - 0.3“) ist ein Lesefehler. */
+const ozPlausibel = (oz: string) => {
+  const m = oz.match(/^\s*(\d+(?:[.,]\d+)?)\s*[-–]\s*(\d+(?:[.,]\d+)?)\s*$/);
+  return !m || Number(m[1].replace(',', '.')) <= Number(m[2].replace(',', '.'));
+};
+/** Bessere Lesart des Firmennamens: die mit PQ-Nummer, sonst die vollständigere. */
+const besserName = (a: Nachunternehmer, b: Nachunternehmer) => (!!b.pq?.trim() !== !!a.pq?.trim() ? (b.pq?.trim() ? b.firma : a.firma) : b.firma.trim().length > a.firma.trim().length ? b.firma : a.firma);
 
 /**
- * Dasselbe Unternehmen für dieselbe Teilleistung steht oft in VVB 233 (Nachunternehmer) und VVB 235 (Kapazitäten) –
- * das ist eine Angabe, keine zwei: zusammenführen (Werte aus 233, Art „beide“). Doppelte Zeilen fallen weg.
+ * VVB 233 (Nachunternehmer) und VVB 235 (andere Unternehmen/Kapazitäten) nennen meist dieselben Unternehmen –
+ * keine Angabe doppelt: Zeilen derselben Firma (auch bei Lesefehlern) und Zeilen ohne Firma mit gleicher Teilleistung
+ * werden zusammengeführt, weitere Teilleistungen angehängt; steht die Firma in 233 und 235, ist die Art „beide“.
  */
 export function nuZusammen(liste: Nachunternehmer[]): Nachunternehmer[] {
   const out: Nachunternehmer[] = [];
-  for (const n of [...liste].sort((a, b) => Number(a.art === 'kapazitaet') - Number(b.art === 'kapazitaet'))) {
-    const x = out.find((y) => gleicheFirma(y.firma, n.firma) && leistungKey(y.leistung) === leistungKey(n.leistung));
-    if (!x) { out.push({ ...n }); continue; }
-    if ((x.art ?? 'nu') !== (n.art ?? 'nu')) x.art = 'beide';
-    if (!x.oz.trim()) x.oz = n.oz;
-    if (!x.pq?.trim() && n.pq?.trim()) x.pq = n.pq;
+  const mitFirma = liste.filter((n) => n.firma.trim()), ohne = liste.filter((n) => !n.firma.trim());
+  for (const n of mitFirma) {
+    const gleich = out.filter((y) => gleicheFirma(y.firma, n.firma));
+    // eigene Zeile nur für eine weitere Teilleistung mit eigener OZ; Angaben ohne OZ (z. B. wirtschaftliche Eignung) gehören dazu
+    const x = gleich.find((y) => leistungKey(y.leistung).includes(leistungKey(n.leistung)) || leistungKey(n.leistung).includes(leistungKey(y.leistung)))
+      ?? (!n.oz.trim() || gleich.some((y) => !y.oz.trim()) ? gleich[0] : undefined);
+    if (!x) { out.push({ oz: n.oz, leistung: n.leistung, firma: n.firma, art: n.art ?? 'nu', ...(n.pq?.trim() ? { pq: n.pq.trim() } : {}) }); continue; }
+    if (x.art !== (n.art ?? 'nu')) x.art = 'beide';
+    x.firma = besserName(x, n);
+    if (!x.pq?.trim() && n.pq?.trim()) x.pq = n.pq.trim();
+    if (n.leistung.trim() && !leistungKey(x.leistung).includes(leistungKey(n.leistung))) x.leistung = [x.leistung.trim(), n.leistung.trim()].filter(Boolean).join('; ');
+    if (!x.oz.trim() || (!ozPlausibel(x.oz) && ozPlausibel(n.oz) && n.oz.trim())) x.oz = n.oz;
+  }
+  for (const n of ohne) {
+    const x = out.find((y) => y.leistung.split(';').some((t) => leistungKey(t) === leistungKey(n.leistung)));
+    if (!x) { out.push({ oz: n.oz, leistung: n.leistung, firma: '', art: n.art ?? 'nu', ...(n.pq?.trim() ? { pq: n.pq.trim() } : {}) }); continue; }
+    if (x.art !== (n.art ?? 'nu')) x.art = 'beide';
+    if (!x.oz.trim() || (!ozPlausibel(x.oz) && ozPlausibel(n.oz) && n.oz.trim())) x.oz = n.oz;
   }
   return out;
 }

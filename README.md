@@ -108,7 +108,7 @@ Inhalte der Wertungsschritte der bisherigen Vergabeempfehlungen sind in Abschnit
 netto/brutto mit dem verpreisten LV (4.3), offene Unterlagen getrennt nach fehlt / unausgefüllt / teilweise / nicht unterschrieben (4.4),
 **Nachweise und Eignungsprüfung** je einzeln geprüftem Bieter mit Eignungsnachweis (VVB 124 bzw. PQ-Nummer) und Nachunternehmereinsatz (4.5),
 je Los die Lage der Angebote zum Kostenvoranschlag sowie je Bieter Titel und Positionen mit deutlicher Abweichung vom LV-Schätzpreis
-(Schwelle „Abweichung“), jeweils getrennt nach auffallend hoch und auffallend niedrig und mit dem Mittel der übrigen Bieter, und die
+(Prüfregel „Einzelpreis auffällig ab“), jeweils getrennt nach auffallend hoch und auffallend niedrig und mit dem Median der übrigen Bieter, und die
 fachliche Auswertung. Gibt es nichts Auffälliges, steht das ausdrücklich im Text. **Engere Wahl:** In Schritt 4 wählt man per Haken,
 welche Bieter einzeln geprüft werden; für jeden anderen nennt 4.4 den Grund (eigener Text oder automatisch: Abstand in % zu den
 gewählten Angeboten und zum Kostenvoranschlag), dazu optional die Festlegung (z. B. Abstimmung mit der Vergabestelle). Ohne eingetragenes Gesamtbudget nennt Abschnitt 6 den Kostenvoranschlag.
@@ -119,8 +119,8 @@ Texte sind anklickbar und editierbar.
 ## Fachliche Logik
 - Nachlass ohne Bedingung wird eingerechnet, Skonto nicht gewertet
 - Rang je Los und Runde; maßgeblich ist die letzte Runde mit wertbaren Angeboten
-- Auffällige Einzelpreise/Titel (Abweichung vom Mittel der übrigen Angebote) fließen in die Begründung ein
-- **Rückfrage an den Auftraggeber** (Schritt 4): E-Mail-Text während der Prüfung. Je Bieter wählbar: nicht erwähnen, detaillierte Angebotskalkulation nachfordern (vorgeschlagen werden Positionen, deren EP deutlich – Einstellung „Abweichung“ – vom Median der übrigen Bieter abweicht und deren Mehr-/Minderkosten eine Mindestauswirkung erreichen, Standard 0,5 % der mittleren Angebotssumme; liegt der Bieter bei unserem Schätzpreis, wird nicht nachgefragt; Positionen, bei denen alle Bieter vom LV-Schätzpreis abweichen, werden als „Schätzpreis prüfen“ gezeigt; Tabelle mit Menge, EP, GP und Auswirkung, Liste änderbar) oder Ausschluss vorab empfehlen (zählt dann nicht zum Mittel der übrigen). Gilt nur für die E-Mail, Wertung und Vergabevermerk bleiben unverändert. Text kopieren, ins E-Mail-Programm übergeben (mailto, ohne Server) oder als Textdatei speichern
+- **Eine Regel für auffällige Einzelpreise** – gleich in Preisspiegel (Markierung), Wertung, Vermerk und Rückfrage: EP weicht um mehr als „Einzelpreis auffällig ab“ (Standard 30 %) vom Median der übrigen Bieter ab (ohne übrige Bieter: vom LV-Schätzpreis) **und** die Mehr-/Minderkosten der Position (Menge × Differenz) erreichen 0,5 % der mittleren Angebotssumme der Runde (mind. 250 €, auf 50 € gerundet; Titel: das Doppelte). Die Prüfregeln stehen in Schritt 1 in einer eigenen Karte
+- **Rückfrage an den Auftraggeber** (Schritt 4): E-Mail-Text während der Prüfung. Je Bieter wählbar: nicht erwähnen, detaillierte Angebotskalkulation nachfordern (vorgeschlagen werden die nach der Regel oben auffälligen Positionen, also dieselben wie im Preisspiegel; liegt der Bieter bei unserem Schätzpreis, wird nicht nachgefragt; Positionen, bei denen alle Bieter vom LV-Schätzpreis abweichen, werden als „Schätzpreis prüfen“ gezeigt; Tabelle mit Menge, EP, GP und Auswirkung, Liste änderbar) oder Ausschluss vorab empfehlen (zählt dann nicht zum Median der übrigen). Gilt nur für die E-Mail, Wertung und Vergabevermerk bleiben unverändert. Text kopieren, ins E-Mail-Programm übergeben (mailto, ohne Server) oder als Textdatei speichern
 - Auffallend niedrige Gesamtpreise (Standard 15 % unter Kostenvoranschlag bzw. Nächstbieter) → Hinweis zur Aufklärung
 - Die App ersetzt keine Rechtsprüfung.
 

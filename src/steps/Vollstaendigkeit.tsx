@@ -1,4 +1,5 @@
-import type { HsEintrag, PStatus, State } from '../domain/types';
+import type { HsEintrag, Offer, PStatus, State } from '../domain/types';
+import { istHaupt } from '../domain/runden';
 import { PSTATUS } from '../domain/types';
 import { pruefStatus } from '../domain/calc';
 import { uid } from '../domain/fmt';
@@ -20,10 +21,14 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
   const needCode = !!status?.code && !getCode();
   const [consent, setConsentState] = useState(hasConsent());
   // Nach einem abgebrochenen oder teilweise gescheiterten Lauf nur die noch fehlenden Angebote prüfen, nicht wieder alle
-  const offen = s.offers.filter((o) => !(o.kiInfo?.s === 'ok' || o.kiDocs)).map((o) => o.id);
-  const nurOffene = offen.length > 0 && offen.length < s.offers.length;
-  const set = (oi: number, id: string, st: PStatus | '') =>
-    up((d) => { const o = d.offers[oi]; if (!o.pruef) o.pruef = {}; if (st) o.pruef[id] = { s: st, d: o.pruef[id]?.d ?? '', k: 'user' }; else delete o.pruef[id]; });
+  // nur Hauptangebote: die Unterlagen einer Nachverhandlung ergänzen das Angebot, sie sind keine eigene Angebotsabgabe
+  const offers = s.offers.filter(istHaupt);
+  const alle = offers.map((o) => o.id);
+  const offen = offers.filter((o) => !(o.kiInfo?.s === 'ok' || o.kiDocs)).map((o) => o.id);
+  const nurOffene = offen.length > 0 && offen.length < offers.length;
+  const upOffer = (oid: string, fn: (o: Offer) => void) => up((d) => { const o = d.offers.find((x) => x.id === oid); if (o) { if (!o.pruef) o.pruef = {}; fn(o); } });
+  const set = (oid: string, id: string, st: PStatus | '') =>
+    upOffer(oid, (o) => { if (st) o.pruef[id] = { s: st, d: o.pruef[id]?.d ?? '', k: 'user' }; else delete o.pruef[id]; });
   return (
     <section className="card">
       <div className="card-head">
@@ -42,12 +47,12 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
           <p className="muted" style={{ margin: '6px 0 10px' }}>
             Die KI von NodeArq liest und analysiert die Unterlagen der Angebote – auch Scans und handschriftliche Eintragungen – und trägt die Ergebnisse in die Tabelle ein. Ihre Projektdaten bleiben in Ihrem Browser. Wie die Dokumente verarbeitet werden: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>.
           </p>
-          <button className="btn primary" onClick={() => { setConsent(true); setConsentState(true); runKi(s.offers.map((o) => o.id)); }}>Verstanden – Prüfung aktivieren</button>
+          <button className="btn primary" onClick={() => { setConsent(true); setConsentState(true); runKi(alle); }}>Verstanden – Prüfung aktivieren</button>
         </div>
       ) : status?.enabled ? (
         <div className="kibox">
           <div className="row">
-            <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(nurOffene ? offen : s.offers.map((o) => o.id))}>
+            <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(nurOffene ? offen : alle)}>
               <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : nurOffene ? `Noch nicht geprüfte Angebote prüfen (${offen.length})` : 'Dokumente mit KI prüfen'}
             </button>
             <span className="muted">Läuft beim Einlesen automatisch; unsichere Befunde bleiben offen.</span>
@@ -56,7 +61,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
           {needCode && (
             <div className="keyform">
               <p className="muted">Zugangscode des Betreibers eingeben (einmalig):</p>
-              <div className="row"><input type="password" value={codeVal} onChange={(e) => setCodeVal(e.target.value)} autoComplete="off" /><button className="btn" onClick={() => { setCode(codeVal.trim()); setCodeVal(''); runKi(s.offers.map((o) => o.id)); }}>OK</button></div>
+              <div className="row"><input type="password" value={codeVal} onChange={(e) => setCodeVal(e.target.value)} autoComplete="off" /><button className="btn" onClick={() => { setCode(codeVal.trim()); setCodeVal(''); runKi(alle); }}>OK</button></div>
             </div>
           )}
           {ki.running && <p className="infobox"><Icon name="sparkle" /> {ki.text}</p>}
@@ -67,11 +72,11 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
         <p className="infobox" style={{ marginBottom: 14 }}><Icon name="alert" /> Vorbelegt anhand der Dateinamen – Inhalt und Unterschrift bitte selbst prüfen.</p>
       )}
       <div className="scroll">
-        <table className="matrix vtab" style={{ minWidth: 340 + s.offers.length * 190 }}>
+        <table className="matrix vtab" style={{ minWidth: 340 + offers.length * 190 }}>
           <thead>
             <tr>
               <th className="left">Unterlage / Prüfpunkt</th>
-              {s.offers.map((o, oi) => {
+              {offers.map((o) => {
                 const ps = pruefStatus(s, o);
                 return (
                   <th key={o.id}>
@@ -82,7 +87,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
                       : o.kiInfo
                         ? <div style={{ fontSize: 'var(--fs-xs)', marginTop: 4, color: '#b42318' }} title={o.kiInfo.t}>KI: {o.kiInfo.s === 'skip' ? 'übersprungen' : 'Fehler'} – {o.kiInfo.t.slice(0, 80)}</div>
                         : <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 4 }}>KI: noch nicht geprüft</div>)}
-                    {ps.ungeprueft > 0 && <div><button className="link small" title="Alle noch offenen Zeilen dieses Angebots auf „vorhanden“ setzen" onClick={() => up((d) => { const x = d.offers[oi]; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>offene = vorhanden</button></div>}
+                    {ps.ungeprueft > 0 && <div><button className="link small" title="Alle noch offenen Zeilen dieses Angebots auf „vorhanden“ setzen" onClick={() => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (!x) return; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>offene = vorhanden</button></div>}
                   </th>
                 );
               })}
@@ -93,16 +98,16 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
             {s.unterlagen.map((u, ui) => (
               <tr key={u.id}>
                 <td className="left"><textarea className="plain wide vlabel" rows={1} value={u.label} onChange={(e) => up((d) => void (d.unterlagen[ui].label = e.target.value))} aria-label="Unterlage / Prüfpunkt" /></td>
-                {s.offers.map((o, oi) => {
+                {offers.map((o) => {
                   const p = o.pruef?.[u.id];
                   return (
                     <td key={o.id} title={p?.n}>
                       {p?.k === 'ki' && <span className="kitag" title={p.n}>KI</span>}
-                      <select className={`pst ${p?.s ?? ''}`} value={p?.s ?? ''} onChange={(e) => set(oi, u.id, e.target.value as PStatus | '')} aria-label={`${u.label} – Nr. ${o.nr}`}>
+                      <select className={`pst ${p?.s ?? ''}`} value={p?.s ?? ''} onChange={(e) => set(o.id, u.id, e.target.value as PStatus | '')} aria-label={`${u.label} – Nr. ${o.nr}`}>
                         <option value="">– offen –</option>
                         {PSTATUS.map((x) => <option key={x.v} value={x.v}>{x.v === 'ok' ? '✓ ' : ''}{x.label}</option>)}
                       </select>
-                      {p?.s === 'nach' && <input type="date" className="pdate" value={p.d} onChange={(e) => up((d) => void (d.offers[oi].pruef[u.id].d = e.target.value))} aria-label="Nachgereicht am" />}
+                      {p?.s === 'nach' && <input type="date" className="pdate" value={p.d} onChange={(e) => upOffer(o.id, (x) => { if (x.pruef[u.id]) x.pruef[u.id].d = e.target.value; })} aria-label="Nachgereicht am" />}
                     </td>
                   );
                 })}

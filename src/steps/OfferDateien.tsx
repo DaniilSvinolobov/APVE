@@ -65,7 +65,7 @@ export function OfferDateien({ o, up, onAdded }: { o: Offer; up: Up; onAdded: (o
             const dq = preisAbweichungen(ref, q.doc);
             if (!dq.length) { gleich.push(`„${n}“`); continue; }
             warn = true;
-            const text = `Nachgereichte Preisdatei „${n}“ weicht in ${dq.length} Position(en) ${ersetzen ? `von „${name}“` : 'vom eingereichten Angebot'} ab (${dq.slice(0, 5).join(', ')}${dq.length > 5 ? ' …' : ''}). Die Preise wurden nicht übernommen – maßgeblich bleibt das Angebot; Preisänderungen durch Nachreichung sind unzulässig (§ 15 Abs. 3 VOB/A).${o.preisQuelle === 'pdf' ? ' Falls die Preise aus dem PDF falsch gelesen wurden: Datei mit „mit dem Angebot“ erneut hinzufügen.' : ' Geänderte Preise aus einer Nachverhandlung bitte oben unter „Angebote der Bieter“ als neues Angebot einlesen.'}`;
+            const text = `Nachgereichte Preisdatei „${n}“ weicht in ${dq.length} Position(en) ${ersetzen ? `von „${name}“` : 'vom eingereichten Angebot'} ab (${dq.slice(0, 5).join(', ')}${dq.length > 5 ? ' …' : ''}). Die Preise wurden nicht übernommen – maßgeblich bleibt das Angebot; Preisänderungen durch Nachreichung sind unzulässig (§ 15 Abs. 3 VOB/A).${o.preisQuelle === 'pdf' ? ' Falls die Preise aus dem PDF falsch gelesen wurden: Datei mit „mit dem Angebot“ erneut hinzufügen.' : ' Geänderte Preise aus einer Nachverhandlung bitte am Hauptangebot über „Nachverhandlung einlesen“ hinzufügen – sie werden als eigene Runde geführt.'}`;
             upOffer((_, x) => { x.warnungen = [...x.warnungen.filter((w) => !w.includes(`„${n}“`)), text]; });
             texte.push(text);
           }

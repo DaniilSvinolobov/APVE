@@ -230,6 +230,9 @@ input.ort:placeholder-shown{color:var(--muted)}
 .nvgrund{display:flex;margin:0 0 14px}
 .opt-l{font-size:var(--fs-sm);color:var(--muted);font-weight:400;margin-right:4px}
 .offer-check{margin:12px 0 0;font-size:var(--fs-sm)}
+.nv-block{margin:16px 0 0;padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;background:#fafbfd}
+.nv-titel{font-size:var(--fs-base);font-weight:600;padding:4px 0}.nv-titel .muted{font-weight:400;font-size:var(--fs-sm);margin-left:6px}
+.nv-add{margin-top:14px}
 .filelist{list-style:none;margin:12px 0 0;padding:0;border:1px solid var(--line2);border-radius:10px;font-size:var(--fs-sm)}
 .filelist li{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;border-top:1px solid var(--line2);flex-wrap:wrap}.filelist li:first-child{border-top:0}
 .filelist li>.icon{width:15px;height:15px;color:var(--muted);flex:none}

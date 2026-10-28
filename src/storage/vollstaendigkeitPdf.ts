@@ -6,6 +6,7 @@ import type { PDFPage, RGB, PDFFont } from 'pdf-lib';
 import type { Offer, PStatus, State } from '../domain/types';
 import { PSTATUS } from '../domain/types';
 import { fmtDate } from '../domain/fmt';
+import { istHaupt } from '../domain/runden';
 import { BOTTOM, C, M, PH, PW, TOP, clean, downloadPdf, fit, hex, neuesPdf, wrap } from './pdfBasis';
 
 const TITEL = 'Prüfung auf Vollständigkeit der Angebotsunterlagen';
@@ -46,7 +47,7 @@ export async function vollstaendigkeitPdf(s: State): Promise<Uint8Array> {
   doc.setAuthor(p.ersteller || p.vergabestelle || '');
   doc.setSubject(p.titel || '');
 
-  const offers = s.offers;
+  const offers = s.offers.filter(istHaupt); // Nachverhandlungen ergänzen das Hauptangebot, keine eigene Spalte
   const rows = s.unterlagen.filter((u) => u.label.trim());
   const heute = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const projTxt = [p.nummer, p.titel].filter(Boolean).join(' · ') || 'Vergabe';

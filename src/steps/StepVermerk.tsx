@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { State } from '../domain/types';
 import { buildVermerk, anlagenList, budgetAusKosten, footerText, nichtGewertetAuto, type Block } from '../vermerk/vermerk';
 import { computeLos, engereWahl, getBew, nuOf, pruefStatus } from '../domain/calc';
+import { istHaupt, nvHinweis } from '../domain/runden';
 import { uid } from '../domain/fmt';
 import { downloadJson } from '../storage/exportCsv';
 import { Icon } from '../components/ui';
@@ -50,7 +51,7 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
       if (c.rechenDiff != null && Math.abs(c.rechenDiff) > 0.01 && !c.mengeAbw.length) open.push(`${l.nr}, Nr. ${c.offer.nr}: Rechenabweichung`);
     }
   }
-  for (const o of s.offers.filter((x) => !x.status)) {
+  for (const o of s.offers.filter((x) => !x.status && istHaupt(x))) {
     const ps = pruefStatus(s, o);
     if (ps.fehlt.length) open.push(`Nr. ${o.nr}: Unterlagen fehlen (${ps.fehlt.join(', ')}) – nachfordern oder Ausschluss prüfen`);
     else if (ps.ungeprueft) open.push(`Nr. ${o.nr}: Vollständigkeitsprüfung unvollständig (${ps.ungeprueft} Zeile(n) offen)`);
@@ -60,6 +61,8 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
     if (rs.length && Math.max(...rs) > Math.min(...rs) && !s.nvGrund?.[l.id]?.trim()) open.push(`${l.nr}: Anlass der Nachverhandlung fehlt (Schritt Wertung)`);
   }
   for (const o of s.offers) if (o.status === 'formal' && !o.statusGrund?.trim()) open.push(`Nr. ${o.nr}: Grund des formalen Ausschlusses fehlt (Schritt Unterlagen)`);
+  for (const o of s.offers) if (o.runde > 1 && !o.basis) open.push(`Nr. ${o.nr}: Nachverhandlung keinem Hauptangebot zugeordnet (Schritt Unterlagen)`);
+  if (s.offers.some((o) => o.runde > 1) && nvHinweis(s.project.verfahren)) open.push(`Nachverhandlung: ${nvHinweis(s.project.verfahren)}`);
   if (!p.budgetBrutto && budgetAusKosten(s) == null) open.push('Gesamtbudget für Abschnitt 6 fehlt');
   for (const l of s.lose.filter((x) => x.imVermerk)) {
     const ew = engereWahl(s, computeLos(s, l));

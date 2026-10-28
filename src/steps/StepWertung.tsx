@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import type { Bew, State } from '../domain/types';
 import { angemessenheit, auffaelligkeiten, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
@@ -43,7 +43,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
     <div className="stack">
       <section className="card">
         <h2>Wertung</h2>
-        <p className="lead">Rangfolge, Ausschlüsse, Preisaufklärung und Begründung je Los.</p>
+        <p className="lead">Je Los: <b>1</b> Rangfolge prüfen · <b>2</b> Vergabevorschlag bestätigen · <b>3</b> Begründung für den Vermerk ergänzen.</p>
         <Tabs value={los.id} onChange={setLosId} items={s.lose.map((l) => ({ value: l.id, label: l.nr, sub: l.name }))} />
       </section>
 
@@ -55,13 +55,13 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         const ncol = ewHier ? 9 : 8;
         return (
           <section className="card" key={r}>
-            <h2>{los.nr} · {r === hrl ? (r === 1 ? 'Hauptangebote' : 'Angebote') : 'Nachverhandlung'}</h2>
+            <h2><span className="stepno">1</span>Rangfolge {los.nr} · {r === hrl ? (r === 1 ? 'Hauptangebote' : 'Angebote') : 'Nachverhandlung'}</h2>
             {r !== hrl && (
               <label className="field wide nvgrund"><span className="field-label">Anlass der Nachverhandlung</span>
                 <textarea rows={2} value={s.nvGrund?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.nvGrund = { ...(d.nvGrund ?? {}), [los.id]: e.target.value }))} placeholder="z. B. Missverständnisse bei Positionen, falsche Menge im LV …" />
               </label>
             )}
-            {ewHier && <p className="lead">Haken bei <b>Engere Wahl</b> = Angebot wird im Vermerk einzeln geprüft. Für jedes Angebot ohne Haken steht im Vermerk ein Satz, warum es nicht weiter gewertet wird. {ew.manuell ? <button className="link" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Vorbelegung wiederherstellen</button> : `Vorbelegt: die ${Math.max(1, s.project.engereWahl)} günstigsten.`}</p>}
+            {ewHier && <p className="lead">Haken bei <b>Engere Wahl</b>: Angebot wird im Vermerk einzeln begründet, für die übrigen steht dort ein kurzer Satz. {ew.manuell ? <button className="link" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Vorbelegung wiederherstellen</button> : `Vorbelegt: die ${Math.max(1, s.project.engereWahl)} günstigsten.`}</p>}
             <div className="scroll">
               <table className="matrix rank">
                 <thead><tr>{ewHier && <th>Engere Wahl</th>}<th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Hinweise</th></tr></thead>
@@ -124,13 +124,11 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         );
       })}
 
-      {cells.length > 0 && <AnfrageKarte s={s} up={up} los={los} cells={cells} />}
-
       {win && (
         <section className="card winner">
           <div className="trophy"><Icon name="check" /></div>
           <div className="winner-main">
-            <small>Vergabevorschlag {los.nr}{finalR && finalR > 1 ? ' · nach Nachverhandlung' : ''}</small>
+            <small>2 · Vergabevorschlag {los.nr}{finalR && finalR > 1 ? ' · nach Nachverhandlung' : ''}</small>
             <h3>{win.offer.firma}</h3>
             <div className="winner-nums"><b>{fmtEur(win.net)}</b> netto · {fmtEur(win.gross)} brutto{win.dKosten != null && ` · ${fmtPct(win.dKosten)} zum Kostenvoranschlag`}</div>
           </div>
@@ -145,8 +143,8 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 
       {detail.length > 0 && (
         <section className="card">
-          <h2>Begründung im Vermerk</h2>
-          <p className="lead">Der Text entsteht automatisch – nur ergänzen, was nur Sie wissen.</p>
+          <h2><span className="stepno">3</span>Begründung im Vermerk</h2>
+          <p className="lead">Der Text entsteht automatisch. Je Bieter aufklappen und nur ergänzen, was nur Sie wissen.</p>
           <EignungEinwilligung ctx={eig} />
           {detail.map((c) => {
             const b = getBew(s, c.offer.id, los.id);
@@ -155,8 +153,9 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
             const nv = c.offer.runde > hrl;
             const e = entfernung(s, c.offer);
             return (
-              <div className="bewcard" key={c.offer.id}>
-                <h3>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</h3>
+              <BewKarte key={c.offer.id} offen={c.offer.id === win?.offer.id}
+                titel={<>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</>}
+                info={c.offer.id === win?.offer.id ? 'Vergabevorschlag' : !nv && a.guenstig.length + a.hoch.length + ang.pos.length + ang.titel.length > 0 ? 'Preisauffälligkeiten' : ''}>
                 {!nv && (
                   <div className="auff">
                     {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
@@ -186,11 +185,28 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                   <label className="field wide"><span className="field-label">Zusätzliche Anmerkung (optional)</span><textarea rows={2} value={b.zusatz} onChange={(e) => setBew(c.offer.id, { zusatz: e.target.value })} /></label>
                 </div>
                 <details className="det"><summary>Textvorschau</summary><pre className="prev">{bewText(s, los, cells, c, nv)}</pre></details>
-              </div>
+              </BewKarte>
             );
           })}
         </section>
       )}
+
+      {cells.length > 0 && <AnfrageKarte s={s} up={up} los={los} cells={cells} />}
+    </div>
+  );
+}
+
+/** Begründung je Bieter, aufklappbar; der Vergabevorschlag ist anfangs offen. */
+function BewKarte({ titel, info, offen, children }: { titel: ReactNode; info: string; offen: boolean; children: ReactNode }) {
+  const [auf, setAuf] = useState(offen);
+  return (
+    <div className={`bewcard ${auf ? 'auf' : ''}`}>
+      <button type="button" className="bewkopf" aria-expanded={auf} onClick={() => setAuf(!auf)}>
+        <Icon name={auf ? 'down' : 'right'} />
+        <h3>{titel}</h3>
+        {info && <span className="muted">{info}</span>}
+      </button>
+      {auf && <div className="bewinhalt">{children}</div>}
     </div>
   );
 }

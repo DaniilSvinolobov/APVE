@@ -273,7 +273,9 @@ td.flags{text-align:left;font-size:var(--fs-xs);vertical-align:top}
 td.reason .ewvorschau{margin-top:4px}td.reason{background:#fafbfd;text-align:left;padding:8px 14px}td.reason span{font-size:var(--fs-sm);color:var(--muted);margin-right:10px}td.reason input{width:calc(100% - 100px);display:inline-block}
 .matrix.rank td.r{white-space:nowrap}
 .card.winner{display:flex;gap:20px;align-items:center;background:linear-gradient(135deg,#eafaf3,#f4fbf8);border-color:#bfe9d6;flex-wrap:wrap}
-.bewcard{border-top:1px solid var(--line);padding:18px 0}.bewcard:first-of-type{border-top:0}.bewcard h3{font-size:var(--fs-base);margin-bottom:10px}
+.bewcard{border-top:1px solid var(--line);padding:4px 0}.bewcard:first-of-type{border-top:0}
+.bewkopf{display:flex;align-items:center;gap:10px;width:100%;padding:12px 0;border:0;background:none;cursor:pointer;text-align:left}.bewkopf h3{margin:0!important;flex:1}.bewkopf .muted{font-size:var(--fs-xs)}.bewkopf:hover h3{color:var(--brand)}
+.bewinhalt{padding:0 0 16px 28px}.bewcard h3{font-size:var(--fs-base);margin-bottom:10px}
 .grid.g2{grid-template-columns:1fr 1fr 1fr;gap:12px 18px}.grid.g2 .wide{grid-column:1/-1}
 .auff{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}.oz{display:inline-block;background:var(--line2);border-radius:6px;padding:1px 7px;margin:2px 3px;font-size:var(--fs-xs);font-variant-numeric:tabular-nums;cursor:help}
 a.btn{color:inherit;text-decoration:none}.anfrage-runde{margin:4px 0 12px}
@@ -431,3 +433,4 @@ table.hstab td.feld{color:var(--muted)}
 @media (max-width:900px){.top-actions{flex-wrap:wrap;gap:2px 4px;min-width:0}.top-actions .saved{flex-basis:100%}.top-actions .btn{padding:7px 10px}}
 @media screen and (max-width:600px){.v-kv>div,.v-kv.ra>div{grid-template-columns:minmax(0,1fr) auto}.v-meta{column-gap:3mm}}
 @media (max-width:900px){.top{position:static}}
+.scroll+.field{margin-top:14px}

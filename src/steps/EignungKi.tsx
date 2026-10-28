@@ -27,9 +27,9 @@ export function EignungEinwilligung({ ctx }: { ctx: EignungCtx }) {
   return (
     <div className="kibox">
       <b>Eignung mit KI prüfen (optional)</b>
-      <p className="muted" style={{ margin: '6px 0 8px' }}>Jede Funktion wird nur nach Ihrer Aktivierung genutzt und nur auf Knopfdruck je Bieter ausgeführt. Die Referenzauswertung läuft über den Server dieser Anwendung (Frankfurt) und <b>Amazon Bedrock in der EU (Frankfurt)</b>; die Internetrecherche nutzt die Websuche der <b>Anthropic-API (USA)</b> und erhält nur Firmenname, Ort und Losbezeichnungen. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>.</p>
-      <label className="mini big consent"><input type="checkbox" checked={ctx.consent.referenzen} onChange={(e) => ctx.setConsent('referenzen', e.target.checked)} /> <span><b>Referenzen auswerten:</b> die Referenzunterlagen des Bieters (auch nachgereichte) und die Bezeichnungen seiner Lose. Referenzen können Namen und Kontaktdaten von Ansprechpartnern enthalten.</span></label>
-      <label className="mini big consent"><input type="checkbox" checked={ctx.consent.recherche} onChange={(e) => ctx.setConsent('recherche', e.target.checked)} /> <span><b>Im Internet recherchieren:</b> nur Firmenname, Ort und die Bezeichnungen der Lose; Claude sucht damit nach öffentlich zugänglichen Informationen (Leistungsprofil, Referenzprojekte).</span></label>
+      <p className="muted" style={{ margin: '6px 0 8px' }}>Die KI von NodeArq wertet auf Knopfdruck die Referenzen eines Bieters aus und recherchiert öffentliche Informationen zum Unternehmen. Jede Funktion einzeln aktivieren. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>.</p>
+      <label className="mini big consent"><input type="checkbox" checked={ctx.consent.referenzen} onChange={(e) => ctx.setConsent('referenzen', e.target.checked)} /> <span><b>Referenzen auswerten:</b> die KI liest die Referenzunterlagen des Bieters.</span></label>
+      <label className="mini big consent"><input type="checkbox" checked={ctx.consent.recherche} onChange={(e) => ctx.setConsent('recherche', e.target.checked)} /> <span><b>Im Internet recherchieren:</b> die KI sucht nur mit Firmenname, Ort und Losbezeichnungen.</span></label>
       {needCode && (
         <div className="keyform">
           <p className="muted">Zugangscode des Betreibers eingeben (einmalig):</p>

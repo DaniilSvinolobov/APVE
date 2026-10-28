@@ -38,9 +38,9 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
       </div>
       {status?.enabled && !consent ? (
         <div className="kibox">
-          <b>Automatische Dokumentprüfung (optional)</b>
+          <b>KI-Dokumentprüfung (optional)</b>
           <p className="muted" style={{ margin: '6px 0 10px' }}>
-            Wenn Sie die Prüfung aktivieren, werden <b>alle Unterlagen</b> der Angebote (PDFs, Scans, Fotos und Word-Formblätter, Letztere als im Browser ausgelesener Text – auch Meisterbriefe, Referenzen, Versicherungs- und Präqualifikationsnachweise sowie das LV mit Preisen) über den Server dieser Anwendung (Frankfurt) an <b>Claude bei Amazon Bedrock in der EU (Frankfurt)</b> übermittelt und dort mit KI ausgewertet, auch handschriftliche Eintragungen. Große Dateien werden dafür im Browser in Teile zerlegt. Die Dokumente enthalten personenbezogene Daten (z. B. Namen, Unterschriften, Qualifikationsnachweise). Ihre Projektdaten bleiben in Ihrem Browser. Details: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>. Bitte nur aktivieren, wenn dies mit Ihren Vertraulichkeits- und Datenschutzvorgaben vereinbar ist.
+            Die KI von NodeArq liest und analysiert die Unterlagen der Angebote – auch Scans und handschriftliche Eintragungen – und trägt die Ergebnisse in die Tabelle ein. Ihre Projektdaten bleiben in Ihrem Browser. Wie die Dokumente verarbeitet werden: <a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutzhinweise</a>.
           </p>
           <button className="btn primary" onClick={() => { setConsent(true); setConsentState(true); runKi(s.offers.map((o) => o.id)); }}>Verstanden – Prüfung aktivieren</button>
         </div>
@@ -48,7 +48,7 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
         <div className="kibox">
           <div className="row">
             <button className="btn primary" disabled={ki.running || needCode} onClick={() => runKi(nurOffene ? offen : s.offers.map((o) => o.id))}>
-              <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : nurOffene ? `Noch nicht geprüfte Angebote prüfen (${offen.length})` : 'Dokumente automatisch prüfen (Claude)'}
+              <Icon name="sparkle" /> {ki.running ? 'Wird geprüft …' : nurOffene ? `Noch nicht geprüfte Angebote prüfen (${offen.length})` : 'Dokumente mit KI prüfen'}
             </button>
             <span className="muted">Läuft beim Einlesen automatisch; unsichere Befunde bleiben offen.</span>
             <button className="link danger" onClick={() => { setConsent(false); setConsentState(false); }}>Prüfung deaktivieren</button>
@@ -233,7 +233,7 @@ function KiBefunde({ s }: { s: State }) {
   );
   return (
     <details className="det" style={{ marginTop: 14 }} open>
-      <summary><b>Befunde je Dokument (Claude)</b></summary>
+      <summary><b>Befunde je Dokument (KI)</b></summary>
       <div className="row" style={{ margin: '10px 0' }}>
         {mit.map((x) => <button key={x.id} className={`pill btnpill ${x.id === o.id ? 'on' : ''}`} onClick={() => setSel(x.id)}>Nr. {x.nr} · {x.firma}</button>)}
       </div>

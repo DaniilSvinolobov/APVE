@@ -7,7 +7,7 @@ import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
 import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
 import { EignungEinwilligung, EignungKi, useEignung } from './EignungKi';
 import { NuEditor } from './Nachunternehmer';
-import { AnfrageKarte } from './Anfrage';
+import { AnfrageKarte, ozSort } from './Anfrage';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -155,14 +155,17 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
             return (
               <BewKarte key={c.offer.id} offen={c.offer.id === win?.offer.id}
                 titel={<>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</>}
-                info={c.offer.id === win?.offer.id ? 'Vergabevorschlag' : !nv && a.guenstig.length + a.hoch.length + ang.pos.length + ang.titel.length > 0 ? 'Preisauffälligkeiten' : ''}>
+                info={<>
+                  {c.offer.id === win?.offer.id && <Chip kind="ok" title="Wirtschaftlichstes Angebot – wird zur Vergabe vorgeschlagen">Vergabevorschlag</Chip>}
+                  {!nv && a.guenstig.length + a.hoch.length + a.titel.length + ang.pos.length + ang.titel.length > 0 && <Chip kind="warn" title="Einzelpreise oder Titel weichen deutlich von den übrigen Angeboten bzw. vom LV-Schätzpreis ab – Details nach dem Aufklappen">Preisauffälligkeiten</Chip>}
+                </>}>
                 {!nv && (
                   <div className="auff">
-                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
-                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
-                    {a.titel.length > 0 && <div><Chip kind="info">Titel mit niedrigem Preisniveau</Chip> {a.titel.slice(0, 4).map((x) => <span key={x.oz} className="oz" title={x.name}>{x.oz}</span>)}</div>}
+                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
+                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
+                    {a.titel.length > 0 && <div><Chip kind="info">Titel mit niedrigem Preisniveau</Chip> {a.titel.slice(0, 4).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={x.name}>{x.oz}</span>)}</div>}
                     {ang.titel.length > 0 && <div><Chip kind="warn">Titel ggü. LV-Schätzpreis</Chip> {ang.titel.map((x) => <span key={x.oz} className="oz" title={`${x.name}: ${fmtEur(x.sum)} netto, geschätzt ${fmtEur(x.schaetz)}`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}
-                    {ang.pos.length > 0 && <div><Chip kind="warn">Positionen ggü. LV-Schätzpreis</Chip> {ang.pos.slice(0, 8).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} €, geschätzt ${fmtNum(x.schaetz)} €`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}
+                    {ang.pos.length > 0 && <div><Chip kind="warn">Positionen ggü. LV-Schätzpreis</Chip> {ang.pos.slice(0, 8).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} €, geschätzt ${fmtNum(x.schaetz)} €`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}
                     {a.guenstig.length + a.hoch.length + a.titel.length === 0 && <span className="muted">Keine Preisauffälligkeiten gegenüber den übrigen Angeboten erkannt{cells.filter((x) => x.offer.runde === c.offer.runde).length < 2 ? ' (nur ein Angebot in dieser Runde)' : ''}.</span>}
                   </div>
                 )}
@@ -197,14 +200,14 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 }
 
 /** Begründung je Bieter, aufklappbar; der Vergabevorschlag ist anfangs offen. */
-function BewKarte({ titel, info, offen, children }: { titel: ReactNode; info: string; offen: boolean; children: ReactNode }) {
+function BewKarte({ titel, info, offen, children }: { titel: ReactNode; info: ReactNode; offen: boolean; children: ReactNode }) {
   const [auf, setAuf] = useState(offen);
   return (
     <div className={`bewcard ${auf ? 'auf' : ''}`}>
       <button type="button" className="bewkopf" aria-expanded={auf} onClick={() => setAuf(!auf)}>
         <Icon name={auf ? 'down' : 'right'} />
         <h3>{titel}</h3>
-        {info && <span className="muted">{info}</span>}
+        <span className="bewinfo">{info}</span>
       </button>
       {auf && <div className="bewinhalt">{children}</div>}
     </div>

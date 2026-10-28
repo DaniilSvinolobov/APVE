@@ -15,7 +15,7 @@ const MODI: { value: AnfrageModus; label: string }[] = [
   { value: 'aus', label: 'Ausschluss empfehlen' },
 ];
 
-const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true });
+export const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true });
 const eur0 = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), 0)} €`;
 
 /** E-Mail an den Auftraggeber: je Bieter Angebotskalkulation zu auffälligen Positionen nachfordern oder Ausschluss vorab empfehlen. */
@@ -85,10 +85,11 @@ function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: 
   const setListe = (l: string[]) => set((x) => void (x.pos = { ...x.pos, [id]: [...new Set(l)].sort(ozSort).join(', ') }));
   const toggle = (oz: string) => setListe(b.liste.includes(oz) ? b.liste.filter((o) => o !== oz) : [...b.liste, oz]);
   const byOz = new Map(b.vergleich.map((v) => [v.oz, v]));
-  // Hauptliste: Vorschläge und von Hand gewählte, nach Auswirkung; darunter abweichende Positionen mit geringer Auswirkung
-  const haupt = b.vergleich.filter((v) => v.status === 'auffaellig' || b.liste.includes(v.oz));
+  // Hauptliste: Vorschläge und von Hand gewählte, in LV-Reihenfolge (Ordnungszahl); darunter abweichende Positionen mit geringer Auswirkung
+  const nachOz = (x: AufklPos, y: AufklPos) => ozSort(x.oz, y.oz);
+  const haupt = b.vergleich.filter((v) => v.status === 'auffaellig' || b.liste.includes(v.oz)).sort(nachOz);
   const fremd = b.liste.filter((oz) => !byOz.has(oz));
-  const gering = b.vergleich.filter((v) => v.status === 'gering' && !b.liste.includes(v.oz));
+  const gering = b.vergleich.filter((v) => v.status === 'gering' && !b.liste.includes(v.oz)).sort(nachOz);
   const gewaehlt = b.vergleich.filter((v) => b.liste.includes(v.oz));
   const summe = round2(gewaehlt.reduce((acc, v) => acc + v.delta, 0));
   const hinzu = () => {

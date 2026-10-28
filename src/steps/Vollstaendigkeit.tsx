@@ -29,9 +29,12 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
       <div className="card-head">
         <div>
           <h2>Prüfung auf Vollständigkeit der Angebotsunterlagen</h2>
-          <p className="lead">Anlage zum Vermerk. Erkanntes ist vorbelegt.</p>
+          <p className="lead">Eigene Anlage zum Vermerk (PDF). Erkanntes ist vorbelegt. Das PDF listet je Angebot die nachzufordernden Unterlagen – zur Abstimmung mit dem Auftraggeber.</p>
         </div>
-        <label className="mini big"><input type="checkbox" checked={s.project.vollstaendigkeit} onChange={(e) => up((d) => void (d.project.vollstaendigkeit = e.target.checked))} /> als Anlage drucken</label>
+        <div className="row">
+          <label className="mini big" title="Im Anlagenverzeichnis des Vermerks aufführen"><input type="checkbox" checked={s.project.vollstaendigkeit} onChange={(e) => up((d) => void (d.project.vollstaendigkeit = e.target.checked))} /> als Anlage aufführen</label>
+          <VollstaendigkeitPdfButton s={s} primary />
+        </div>
       </div>
       {status?.enabled && !consent ? (
         <div className="kibox">
@@ -114,6 +117,18 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
       <p className="tip" style={{ marginTop: 14 }}><b>Gut zu wissen:</b> Fehlende Erklärungen oder Nachweise dürfen nachgefordert werden, bevor ein Angebot ausgeschlossen wird (§ 16a VOB/A). Ausschlüsse tragen Sie je Los im Schritt „Wertung“ ein.</p>
     </section>
   );
+}
+
+/** Vollständigkeitsprüfung als PDF herunterladen; Modul erst bei Bedarf laden. */
+export function VollstaendigkeitPdfButton({ s, primary, small }: { s: State; primary?: boolean; small?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try { const { downloadVollstaendigkeitPdf } = await import('../storage/vollstaendigkeitPdf'); await downloadVollstaendigkeitPdf(s); }
+    catch (e) { alert(`PDF konnte nicht erstellt werden: ${e instanceof Error ? e.message : e}`); }
+    finally { setBusy(false); }
+  };
+  return <button className={`btn${primary ? ' primary' : ''}${small ? ' small' : ''}`} disabled={busy || !s.offers.length} onClick={run}><Icon name="download" /> {busy ? 'PDF wird erstellt …' : 'Als PDF herunterladen'}</button>;
 }
 
 const byName = (x: KiBefund, y: KiBefund) => x.datei.localeCompare(y.datei, 'de', { numeric: true });

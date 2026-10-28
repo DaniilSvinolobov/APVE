@@ -1,6 +1,6 @@
 import type { Los, State } from '../domain/types';
 import { angemessenheit, bieterPq, auffaelligkeiten, computeLos, eignungsNachweis, engereWahl, finalRound, getBew, kostenOf, nuOf, offerBrutto, pruefStatus, schaetzSumme, unterlageZeile, zuschlagCell, type Cell } from '../domain/calc';
-import { PSTATUS, type Nachunternehmer, type Offer } from '../domain/types';
+import type { Nachunternehmer, Offer } from '../domain/types';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
 import { kmFuerVermerk } from '../geo/entfernung';
 import { anfrageBieter } from './anfrage';
@@ -11,7 +11,6 @@ export type Block =
   | { t: 'p'; id: string; text: string }
   | { t: 'kv'; rows: { k: string; v: string; bold?: boolean }[]; ra?: boolean }
   | { t: 'tab'; cols: { h: string; w: number; a?: 'l' | 'c' | 'r' }[]; rows: string[][]; hl?: number[] }
-  | { t: 'pruef'; title: string; head: string[]; rows: { label: string; cells: { txt: string; kind: string }[] }[]; foot: string[] }
   | { t: 'sign'; lines: string[] }
   | { t: 'anlagen'; items: string[] }
   | { t: 'gap' };
@@ -295,23 +294,6 @@ export function buildVermerk(s: State): Block[] {
   B.push({ t: 'gap' });
   B.push({ t: 'sign', lines: [`${p.ort || '…'}, den ${fmtDate(p.datum)}`, p.unterzeichner ? `${p.unterzeichner},` : '', p.ersteller] });
   B.push({ t: 'anlagen', items: anl.map((a, i) => `${i + 1} - ${a.titel}`) });
-  if (p.vollstaendigkeit && s.offers.length) {
-    const st = Object.fromEntries(PSTATUS.map((x) => [x.v, x]));
-    B.push({
-      t: 'pruef',
-      title: 'Prüfung auf Vollständigkeit der abgegebenen Angebotsunterlagen',
-      head: s.offers.map((o) => `${o.nr}_${o.firma}`),
-      rows: s.unterlagen.filter((u) => u.label.trim()).map((u) => ({
-        label: u.label,
-        cells: s.offers.map((o) => {
-          const x = o.pruef?.[u.id];
-          if (!x) return { txt: '', kind: '' };
-          return { txt: x.s === 'nach' ? `Nachgereicht${x.d ? ' ' + fmtDate(x.d) : ''}` : st[x.s].cell, kind: x.s };
-        }),
-      })),
-      foot: [fmtDate(p.datum), p.ersteller],
-    });
-  }
   void finalRound; void hasR2; void getBew;
   return B;
 }

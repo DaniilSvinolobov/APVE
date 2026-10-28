@@ -66,52 +66,55 @@ export function Vollstaendigkeit({ s, up, ki, runKi, status }: { s: State; up: U
           )}
           {ki.running && <p className="infobox"><Icon name="sparkle" /> {ki.text}</p>}
           {ki.error && <p className="warnbox slim"><Icon name="alert" /> {ki.error}</p>}
-          {!ki.running && ki.text && <p className="okbox"><Icon name="check" /> {ki.text} Bitte Ergebnisse kurz gegenprüfen – KI-Befunde sind mit „KI“ markiert und bleiben änderbar.</p>}
+          {!ki.running && ki.text && <p className="okbox"><Icon name="check" /> {ki.text} Bitte Ergebnisse kurz gegenprüfen – die Befunde der KI sind vorbelegt und bleiben änderbar (Begründung beim Überfahren der Zelle).</p>}
         </div>
       ) : status && (
         <p className="infobox" style={{ marginBottom: 14 }}><Icon name="alert" /> Vorbelegt anhand der Dateinamen – Inhalt und Unterschrift bitte selbst prüfen.</p>
       )}
       <div className="scroll">
-        <table className="matrix vtab" style={{ minWidth: 340 + offers.length * 190 }}>
+        <table className="matrix vtab" style={{ minWidth: 340 + offers.length * 220 }}>
           <thead>
             <tr>
-              <th className="left">Unterlage / Prüfpunkt</th>
+              <th className="left vfirst">Unterlage / Prüfpunkt</th>
               {offers.map((o) => {
                 const ps = pruefStatus(s, o);
                 return (
-                  <th key={o.id}>
-                    <div className="vfirma">{o.nr} · {o.firma}</div>
-                    {ps.fehlt.length > 0 ? <Chip kind="bad">{ps.fehlt.length} fehlt</Chip> : ps.nurPdf.length > 0 ? <Chip kind="warn">Preise nur als PDF</Chip> : ps.ungeprueft > 0 ? <Chip kind="warn">{ps.ungeprueft} offen</Chip> : <Chip kind="ok">vollständig</Chip>}
-                    {status?.enabled && consent && (o.kiInfo?.s === 'ok' || o.kiDocs
-                      ? <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 4 }} title={o.kiInfo?.t || undefined}>KI geprüft{o.kiInfo?.t ? ' (mit Hinweis)' : ''}</div>
-                      : o.kiInfo
-                        ? <div style={{ fontSize: 'var(--fs-xs)', marginTop: 4, color: '#b42318' }} title={o.kiInfo.t}>KI: {o.kiInfo.s === 'skip' ? 'übersprungen' : 'Fehler'} – {o.kiInfo.t.slice(0, 80)}</div>
-                        : <div className="muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 4 }}>KI: noch nicht geprüft</div>)}
-                    {ps.ungeprueft > 0 && <div><button className="link small" title="Alle noch offenen Zeilen dieses Angebots auf „vorhanden“ setzen" onClick={() => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (!x) return; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>offene = vorhanden</button></div>}
+                  <th key={o.id} className="vhead">
+                    <div className="vfirma" title={o.firma}>{o.nr} · {o.firma}</div>
+                    <div className="vmeta">
+                      {ps.fehlt.length > 0 ? <Chip kind="bad">{ps.fehlt.length} fehlt</Chip> : ps.nurPdf.length > 0 ? <Chip kind="warn">Preise nur als PDF</Chip> : ps.ungeprueft > 0 ? <Chip kind="warn">{ps.ungeprueft} offen</Chip> : <Chip kind="ok">vollständig</Chip>}
+                      {status?.enabled && consent && (o.kiInfo?.s === 'ok' || o.kiDocs
+                        ? <span className="vki" title={o.kiInfo?.t || 'Ergebnisse der KI sind vorbelegt und bleiben änderbar.'}><Icon name="sparkle" /> mit KI geprüft{o.kiInfo?.t ? ' (Hinweis)' : ''}</span>
+                        : o.kiInfo
+                          ? <span className="vki bad" title={o.kiInfo.t}>KI: {o.kiInfo.s === 'skip' ? 'übersprungen' : 'Fehler'}</span>
+                          : <span className="vki">KI: noch nicht geprüft</span>)}
+                    </div>
+                    {ps.ungeprueft > 0 && <button className="link small" title="Alle noch offenen Zeilen dieses Angebots auf „vorhanden“ setzen" onClick={() => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (!x) return; if (!x.pruef) x.pruef = {}; d.unterlagen.forEach((u) => { if (!x.pruef[u.id]) x.pruef[u.id] = { s: 'ok', d: '', k: 'user' }; }); })}>offene = vorhanden</button>}
                   </th>
                 );
               })}
-              <th />
+              <th className="vdel" />
             </tr>
           </thead>
           <tbody>
             {s.unterlagen.map((u, ui) => (
               <tr key={u.id}>
-                <td className="left"><textarea className="plain wide vlabel" rows={1} value={u.label} onChange={(e) => up((d) => void (d.unterlagen[ui].label = e.target.value))} aria-label="Unterlage / Prüfpunkt" /></td>
+                <td className="left vfirst"><textarea className="plain wide vlabel" rows={1} value={u.label} onChange={(e) => up((d) => void (d.unterlagen[ui].label = e.target.value))} aria-label="Unterlage / Prüfpunkt" /></td>
                 {offers.map((o) => {
                   const p = o.pruef?.[u.id];
                   return (
                     <td key={o.id} title={p?.n}>
-                      {p?.k === 'ki' && <span className="kitag" title={p.n}>KI</span>}
-                      <select className={`pst ${p?.s ?? ''}`} value={p?.s ?? ''} onChange={(e) => set(o.id, u.id, e.target.value as PStatus | '')} aria-label={`${u.label} – Nr. ${o.nr}`}>
-                        <option value="">– offen –</option>
-                        {PSTATUS.map((x) => <option key={x.v} value={x.v}>{x.v === 'ok' ? '✓ ' : ''}{x.label}</option>)}
-                      </select>
-                      {p?.s === 'nach' && <input type="date" className="pdate" value={p.d} onChange={(e) => upOffer(o.id, (x) => { if (x.pruef[u.id]) x.pruef[u.id].d = e.target.value; })} aria-label="Nachgereicht am" />}
+                      <div className="vcell">
+                        <select className={`pst ${p?.s ?? ''}`} value={p?.s ?? ''} onChange={(e) => set(o.id, u.id, e.target.value as PStatus | '')} aria-label={`${u.label} – Nr. ${o.nr}`}>
+                          <option value="">– offen –</option>
+                          {PSTATUS.map((x) => <option key={x.v} value={x.v}>{x.v === 'ok' ? '✓ ' : ''}{x.label}</option>)}
+                        </select>
+                        {p?.s === 'nach' && <input type="date" className="pdate" value={p.d} onChange={(e) => upOffer(o.id, (x) => { if (x.pruef[u.id]) x.pruef[u.id].d = e.target.value; })} aria-label="Nachgereicht am" />}
+                      </div>
                     </td>
                   );
                 })}
-                <td><button className="icon-btn" title="Zeile entfernen" onClick={() => up((d) => { d.unterlagen.splice(ui, 1); d.offers.forEach((o) => { if (o.pruef) delete o.pruef[u.id]; }); })}><Icon name="trash" /></button></td>
+                <td className="vdel"><button className="icon-btn" title="Zeile entfernen" onClick={() => up((d) => { d.unterlagen.splice(ui, 1); d.offers.forEach((o) => { if (o.pruef) delete o.pruef[u.id]; }); })}><Icon name="trash" /></button></td>
               </tr>
             ))}
           </tbody>

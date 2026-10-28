@@ -108,7 +108,7 @@ export function OfferDateien({ o, up, onAdded }: { o: Offer; up: Up; onAdded: (o
       <summary><span className="opt-l">Unterlagen</span> {o.dateien.length + (o.quelle ? 1 : 0)} Datei(en){anzNach > 0 && <> · <Chip kind="warn">{anzNach} nachgereicht</Chip></>}{kats.length > 0 && <span className="muted"> – {kats.map(([k, n]) => `${k}${n > 1 ? ` (${n})` : ''}`).join(' · ')}</span>}</summary>
       <ul className="filelist">
         {o.preisQuelle === 'keine'
-          ? <li className="nach"><Icon name="alert" /><span className="fname">Keine Preisdatei</span><Chip kind="warn">Preise fehlen</Chip><span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>Ordner mit Preisdatei erneut einlesen</span></li>
+          ? <li className="nach"><Icon name="alert" /><span className="fname">Keine Preisdatei</span><Chip kind="warn">Preise fehlen</Chip><span className="muted" style={{ marginLeft: 'auto', fontSize: 'var(--fs-xs)' }}>Ordner mit Preisdatei erneut einlesen</span></li>
           : <li><Icon name="file" /><span className="fname" title={o.quelle}>{o.quelle}</span><Chip kind="info">{o.preisQuelle === 'pdf' ? 'Preise (PDF)' : 'Preisdatei'}</Chip></li>}
         {o.dateien.map((f) => {
           const n = istNach(f);
@@ -131,7 +131,7 @@ export function OfferDateien({ o, up, onAdded }: { o: Offer; up: Up; onAdded: (o
         <Seg small value={modus} onChange={setModus} options={[{ value: 'nach', label: 'nachgereicht' }, { value: 'mit', label: 'mit dem Angebot' }]} />
         {modus === 'nach' && <label className="mini">am <input type="date" className="pdate" value={datum} onChange={(e) => setDatum(e.target.value)} /></label>}
         <button className="btn small" onClick={() => fileRef.current?.click()}><Icon name="plus" /> Dateien hinzufügen</button>
-        <span className="muted" style={{ fontSize: 12 }}>oder hierher ziehen (auch ZIP)</span>
+        <span className="muted" style={{ fontSize: 'var(--fs-xs)' }}>oder hierher ziehen (auch ZIP)</span>
         <input ref={fileRef} type="file" hidden multiple onChange={async (e) => { if (e.target.files) add(await fromInput(e.target.files)); e.target.value = ''; }} />
       </div>
       {msg && <p className={msg.ok ? 'okbox' : 'warnbox slim'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}

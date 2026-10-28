@@ -67,3 +67,12 @@ export function setzeBasis(s: State, offerId: string, hauptId: string | null) {
   o.basis = h.id;
   o.nebenangebot = false;
 }
+
+/** Umschalter „Nachverhandlung“: dem Hauptangebot desselben Bieters zuordnen; ohne eindeutigen Bieter bleibt die Zuordnung offen (Auswahl in der Karte). */
+export function alsNachverhandlung(s: State, offerId: string) {
+  const o = s.offers.find((x) => x.id === offerId);
+  if (!o || nachverhandlungen(s, o).length) return;
+  const kandidaten = s.offers.filter((x) => x !== o && !x.basis && gleicherBieter(x.firma, o.firma));
+  if (kandidaten.length === 1) setzeBasis(s, o.id, kandidaten[0].id);
+  else { delete o.basis; o.runde = 2; o.nebenangebot = false; }
+}

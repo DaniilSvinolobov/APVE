@@ -145,8 +145,9 @@ function verknuepfen(d: State, offer: Offer, doc: GaebDoc) {
   offer.runde = naechsteRunde(d, haupt);
   offer.firma = haupt.firma;
   if (!offer.ort) offer.ort = haupt.ort;
-  if (offer.quelle && vorher.bidPos?.length && !preisAbweichungen(vorher.bidPos, doc).length)
-    warn(`Die Einheitspreise sind identisch mit Angebot Nr. ${vorher.nr}.${ausdruecklich ? ' Nachlass ggf. eintragen.' : ' Falls versehentlich doppelt eingelesen: diese Nachverhandlung entfernen.'}`);
+  // gleiche Preise zeigt die Karte ohnehin an; nur ohne Hinweis auf eine Nachverhandlung könnte es ein doppeltes Einlesen sein
+  if (!ausdruecklich && offer.quelle && vorher.bidPos?.length && !preisAbweichungen(vorher.bidPos, doc).length)
+    warn(`Die Einheitspreise sind identisch mit Angebot Nr. ${vorher.nr}. Falls versehentlich doppelt eingelesen: diese Nachverhandlung entfernen.`);
 }
 
 /**
@@ -410,5 +411,3 @@ export function nachverhandlungAnfuegen(d: State, hauptId: string, parsed: Parse
 export function preiseAlsDoc(o: Pick<Offer, 'firma' | 'bidPos'>): GaebDoc {
   return { format: 'X', phase: 84, projekt: '', bezeichnung: '', auftraggeber: '', bieter: o.firma, datum: '', titles: {}, positions: (o.bidPos ?? []).map((p) => ({ ...p })), totals: {}, total: { net: null, gross: null } };
 }
-
-export const VORRUNDE_HINWEIS = 'Keine Preisdatei in der Nachverhandlung – die Einheitspreise der vorigen Runde gelten als bestätigt. Nachlass bzw. geänderte Preise bitte eintragen.';

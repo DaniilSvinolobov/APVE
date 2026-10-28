@@ -51,7 +51,7 @@ export function analyzeGroup(g: BidGroup, nextNr: number, DP?: typeof DOMParser,
   }
   let doc: GaebDoc | null = pre?.doc ?? null;
   let used: { path: string } | null = pre ? { path: pre.quelle } : null;
-  if (pre) warnungen.push(pre.hinweis);
+  if (pre?.hinweis) warnungen.push(pre.hinweis);
   const formats = new Set(distinct.map((f) => f.path.slice(-3).toLowerCase()));
   if (!pre) for (const f of distinct) {
     try { doc = parseGaeb(base(f.path), f.data, DP); used = f; break; } catch (e) { warnungen.push(`„${base(f.path)}“ konnte nicht gelesen werden.`); }

@@ -10,8 +10,8 @@ import type { GaebDoc } from '../gaeb/gaeb';
 import type { ParsedBid } from '../import/analyze';
 import { base } from '../import/zip';
 import { analyzeGroup } from '../import/analyze';
-import { applyOffer, summenCheck, VORRUNDE_HINWEIS } from '../import/apply';
-import { hauptVon, istHaupt, nachverhandlungen, nvHinweis, setzeBasis } from '../domain/runden';
+import { applyOffer, summenCheck } from '../import/apply';
+import { alsNachverhandlung, hauptVon, istHaupt, nachverhandlungen, nvHinweis, setzeBasis } from '../domain/runden';
 import { NvAenderung, NvEinlesen, rundeName } from './Nachverhandlung';
 import { pdfSummenCheck } from '../import/pdfSumme';
 import { docStore } from '../import/docStore';
@@ -94,7 +94,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         else if (t.haupt) hauptOhne.push(t.haupt);
         for (const nv of t.nv) {
           const p = nv.bids.length ? analyzeGroup(nv, nextNr())
-            : haupt ? analyzeGroup(nv, nextNr(), undefined, { doc: haupt.doc, quelle: '', hinweis: VORRUNDE_HINWEIS, art: 'vorrunde' }) : null;
+            : haupt ? analyzeGroup(nv, nextNr(), undefined, { doc: haupt.doc, quelle: '', hinweis: '', art: 'vorrunde' }) : null;
           if (!p) continue;
           if (nv.bids.length) withGroup.push({ g: nv, p });
           parsed.push(p);
@@ -171,7 +171,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
             <div className="offer-meta">
               {!nv && <input className="ort" value={o.ort} style={{ width: `${(o.ort || 'Ort ergänzen').length + 3}ch` }} onChange={(e) => setOffer(o.id, (x) => void (x.ort = e.target.value))} placeholder="Ort ergänzen" />}
               {nv
-                ? <span>eingereicht am <input type="date" className="pdate" value={o.datum} onChange={(e) => setOffer(o.id, (x) => void (x.datum = e.target.value))} aria-label="Nachverhandlung eingereicht am" /></span>
+                ? <span className="nv-datum">eingereicht am <input type="date" className="pdate" value={o.datum} onChange={(e) => setOffer(o.id, (x) => void (x.datum = e.target.value))} aria-label="Nachverhandlung eingereicht am" /></span>
                 : <span>Angebot vom {fmtDate(o.datum)}</span>}
               <span className="src" title={o.quelle}>{o.quelle || (nv ? 'Preise der vorigen Runde' : '')}</span>
               {nv && <button className="link small" title="Verknüpfung lösen: als eigenständiges Hauptangebot führen" onClick={() => up((d) => setzeBasis(d, o.id, null))}>als Hauptangebot führen</button>}
@@ -185,14 +185,16 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
           <button className="icon-btn" title={nv ? 'Nachverhandlung entfernen' : nachverhandlungen(s, o).length ? 'Angebot samt Nachverhandlung(en) entfernen' : 'Angebot entfernen'} onClick={() => up((d) => void (d.offers = d.offers.filter((x) => x.id !== o.id && x.basis !== o.id)))}><Icon name="trash" /></button>
         </div>
         <div className="offer-opts">
-          {!nv && !nachverhandlungen(s, o).length && haupt.length > 1 && (
+          {!nv && !nachverhandlungen(s, o).length && (
             <div>
               <span className="opt-l">Runde</span>
-              <select value={o.runde > 1 ? '?' : ''} onChange={(e) => up((d) => setzeBasis(d, o.id, e.target.value || null))} aria-label="Runde des Angebots">
-                <option value="">Hauptangebot</option>
-                {o.runde > 1 && <option value="?" disabled>Nachverhandlung – Hauptangebot wählen</option>}
-                {haupt.filter((h) => h.id !== o.id).map((h) => <option key={h.id} value={h.id}>Nachverhandlung zu Nr. {h.nr} · {h.firma}</option>)}
-              </select>
+              <Seg small value={o.runde > 1 ? 2 : 1} onChange={(v) => up((d) => (v === 1 ? setzeBasis(d, o.id, null) : alsNachverhandlung(d, o.id)))} options={[{ value: 1, label: 'Hauptangebot' }, { value: 2, label: 'Nachverhandlung' }]} />
+              {o.runde > 1 && (
+                <select className="nv-zu" value="" onChange={(e) => e.target.value && up((d) => setzeBasis(d, o.id, e.target.value))} aria-label="Zugehöriges Hauptangebot">
+                  <option value="">zu Angebot … wählen</option>
+                  {haupt.filter((h) => h.id !== o.id).map((h) => <option key={h.id} value={h.id}>Nr. {h.nr} · {h.firma}</option>)}
+                </select>
+              )}
             </div>
           )}
           <div>
@@ -223,11 +225,11 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
             {!nv && o.runde === 1 && <label className={`pill ${o.nebenangebot ? 'on' : ''}`}><input type="checkbox" checked={!!o.nebenangebot} onChange={(e) => setOffer(o.id, (x) => void (x.nebenangebot = e.target.checked))} />Nebenangebot beigefügt</label>}
           </div>
         </div>
-        {nv && <NvAenderung s={s} o={o} />}
-        {o.check && (
+        {(nv || o.check) && (
           <div className="row offer-check">
-            <span className="muted">Summe Bieterdatei: <b>{fmtNum(o.check.gaeb ?? o.check.positionen)} €</b></span>
-            {summenFlags(s, o).map((f, k) => <Chip key={k} kind={f.kind}>{f.text}</Chip>)}
+            {nv && <NvAenderung s={s} o={o} />}
+            {o.check && <span className="muted">Summe Bieterdatei: <b>{fmtNum(o.check.gaeb ?? o.check.positionen)} €</b></span>}
+            {o.check && summenFlags(s, o).map((f, k) => <Chip key={k} kind={f.kind}>{f.text}</Chip>)}
           </div>
         )}
         {o.runde > 1 && o.lose.length > 1 && <p className="infobox"><Icon name="alert" /> Nicht nachverhandelte Lose bitte abwählen.</p>}

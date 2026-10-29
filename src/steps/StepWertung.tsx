@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import type { Bew, State } from '../domain/types';
-import { angemessenheit, auffaelligkeiten, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
+import { angemessenheit, auffaelligkeiten, type Angemessen, type Auff, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
 import { bewText, nichtGewertetAuto, nichtGewertetText } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
@@ -161,12 +161,8 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 </>}>
                 {!nv && (
                   <div className="auff">
-                    {a.guenstig.length > 0 && <div><Chip kind="info">überdurchschnittlich günstig</Chip> {a.guenstig.slice(0, 5).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
-                    {a.hoch.length > 0 && <div><Chip kind="warn">überdurchschnittlich hochpreisig</Chip> {a.hoch.slice(0, 3).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} € (Median übrige ${fmtNum(x.ref)} €)`}>{x.oz}</span>)}</div>}
-                    {a.titel.length > 0 && <div><Chip kind="info">Titel mit niedrigem Preisniveau</Chip> {a.titel.slice(0, 4).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={x.name}>{x.oz}</span>)}</div>}
-                    {ang.titel.length > 0 && <div><Chip kind="warn">Titel ggü. LV-Schätzpreis</Chip> {ang.titel.map((x) => <span key={x.oz} className="oz" title={`${x.name}: ${fmtEur(x.sum)} netto, geschätzt ${fmtEur(x.schaetz)}`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}
-                    {ang.pos.length > 0 && <div><Chip kind="warn">Positionen ggü. LV-Schätzpreis</Chip> {ang.pos.slice(0, 8).sort((x, y) => ozSort(x.oz, y.oz)).map((x) => <span key={x.oz} className="oz" title={`${x.kurz}: EP ${fmtNum(x.ep)} €, geschätzt ${fmtNum(x.schaetz)} €`}>{x.oz} ({fmtNum(x.pct, 0)} %)</span>)}</div>}
-                    {a.guenstig.length + a.hoch.length + a.titel.length === 0 && <span className="muted">Keine Preisauffälligkeiten gegenüber den übrigen Angeboten erkannt{cells.filter((x) => x.offer.runde === c.offer.runde).length < 2 ? ' (nur ein Angebot in dieser Runde)' : ''}.</span>}
+                    <AuffRaster a={a} ang={ang} />
+                    {a.guenstig.length + a.hoch.length + a.titel.length + ang.pos.length + ang.titel.length === 0 && <span className="muted">Keine Preisauffälligkeiten gegenüber den übrigen Angeboten oder dem LV-Schätzpreis erkannt{cells.filter((x) => x.offer.runde === c.offer.runde).length < 2 ? ' (nur ein Angebot in dieser Runde)' : ''}.</span>}
                   </div>
                 )}
                 <div className="grid g2">
@@ -200,6 +196,48 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
 }
 
 /** Begründung je Bieter, aufklappbar; der Vergabevorschlag ist anfangs offen. */
+type Marke = { oz: string; pct: number; tip: string };
+
+/** Abweichung in % (vorzeichenbehaftet): −42 % = 42 % günstiger als die Vergleichsgröße. */
+const abw = (wert: number, ref: number) => (wert / ref - 1) * 100;
+
+/** Preisauffälligkeiten eines Bieters als Raster: Spalten günstiger/teurer (Farben wie im Preisspiegel), Zeilen je Vergleichsgröße. */
+function AuffRaster({ a, ang }: { a: Auff; ang: Angemessen }) {
+  const sortOz = (l: Marke[]) => l.sort((x, y) => ozSort(x.oz, y.oz));
+  const posBieter = [...a.guenstig, ...a.hoch].map((x) => ({ oz: x.oz, pct: abw(x.ep, x.ref), tip: `${x.kurz}: EP ${fmtNum(x.ep)} € · Median übrige Bieter ${fmtNum(x.ref)} €` }));
+  const titBieter = a.titel.map((x) => ({ oz: x.oz, pct: abw(x.sum, x.ref), tip: `${x.name}: ${fmtEur(x.sum)} netto · Median übrige Bieter ${fmtEur(x.ref)}` }));
+  const posLv = ang.pos.map((x) => ({ oz: x.oz, pct: x.pct - 100, tip: `${x.kurz}: EP ${fmtNum(x.ep)} € · LV-Schätzpreis ${fmtNum(x.schaetz)} €` }));
+  const titLv = ang.titel.map((x) => ({ oz: x.oz, pct: x.pct - 100, tip: `${x.name}: ${fmtEur(x.sum)} netto · LV-Schätzpreis ${fmtEur(x.schaetz)}` }));
+  const zeilen = [
+    { label: 'ggü. übrigen Bietern', sub: 'Median', tit: titBieter, pos: posBieter },
+    { label: 'ggü. LV-Schätzpreis', sub: 'eigenes LV', tit: titLv, pos: posLv },
+  ].filter((z) => z.tit.length + z.pos.length > 0);
+  if (!zeilen.length) return null;
+  const zelle = (tit: Marke[], pos: Marke[], low: boolean) => {
+    const t = sortOz(tit.filter((x) => (x.pct < 0) === low));
+    const p = pos.filter((x) => (x.pct < 0) === low);
+    // die gewichtigsten Positionen zuerst auswählen (Reihenfolge aus calc), dann nach OZ ordnen
+    const pz = sortOz(p.slice(0, 8));
+    const marke = (x: Marke, titel = false) => <span key={x.oz} className={`oz ${low ? 'low' : 'high'} ${titel ? 'tit' : ''}`} title={x.tip}>{titel && 'Titel '}{x.oz} <b>{x.pct > 0 ? '+' : '−'}{fmtNum(Math.abs(x.pct), 0)} %</b></span>;
+    if (!t.length && !pz.length) return <span className="muted">–</span>;
+    return <>{t.map((x) => marke(x, true))}{pz.map((x) => marke(x))}{p.length > pz.length && <span className="muted mehr">+{p.length - pz.length} weitere</span>}</>;
+  };
+  return (
+    <div className="auffraster">
+      <div className="ah" />
+      <div className="ah"><i className="sw low" /> günstiger</div>
+      <div className="ah"><i className="sw high" /> teurer</div>
+      {zeilen.map((z) => (
+        <Fragment key={z.label}>
+          <div className="al">{z.label}<small className="muted">{z.sub}</small></div>
+          <div className="ac" data-label="günstiger">{zelle(z.tit, z.pos, true)}</div>
+          <div className="ac" data-label="teurer">{zelle(z.tit, z.pos, false)}</div>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 function BewKarte({ titel, info, offen, children }: { titel: ReactNode; info: ReactNode; offen: boolean; children: ReactNode }) {
   const [auf, setAuf] = useState(offen);
   return (

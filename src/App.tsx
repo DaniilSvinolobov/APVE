@@ -48,7 +48,7 @@ export function App() {
   return (
     <div className="app">
       <header className="top no-print">
-        <div className="brand"><span className="logo"><i /><i /><i /></span><div><b>Angebotsauswertung</b><small>Preisspiegel & Vergabeempfehlung</small></div></div>
+        <div className="brand"><svg className="logo" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M1 14h26M14 1v26" stroke="currentColor" strokeWidth="1" opacity=".5" /><circle cx="14" cy="14" r="4" fill="currentColor" /></svg><div><b>Angebotsauswertung</b><small>Preisspiegel & Vergabeempfehlung</small></div></div>
         <div className="top-title">{s.project.titel || 'Neue Vergabe'}</div>
         <div className="top-actions">
           <span className={`saved ${saved && !err ? '' : 'busy'}`}>{err || (saved ? 'Automatisch gespeichert' : 'Speichert …')}</span>

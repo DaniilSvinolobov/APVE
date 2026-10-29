@@ -1,13 +1,14 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import type { Bew, State } from '../domain/types';
-import { angemessenheit, auffaelligkeiten, type Angemessen, type Auff, computeLos, emptyBew, engereWahl, getBew, zuschlagCell, bewKey, type Cell } from '../domain/calc';
+import { computeLos, emptyBew, engereWahl, getBew, mindestEuro, positionsVergleich, titelVergleich, zuschlagCell, bewKey, type AufklPos, type Cell, type RefQuelle, type TitelVergleich } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct } from '../domain/fmt';
 import { bewText, nichtGewertetAuto, nichtGewertetText } from '../vermerk/vermerk';
 import { Chip, FlagList, Icon, NumInput, Tabs } from '../components/ui';
 import { entfernung, KM_HINWEIS, useGeo } from '../geo/entfernung';
 import { EignungEinwilligung, EignungKi, useEignung } from './EignungKi';
 import { NuEditor } from './Nachunternehmer';
-import { AnfrageKarte, ozSort } from './Anfrage';
+import { AnfrageKarte } from './Anfrage';
+import { leereAnfrage } from '../vermerk/anfrage';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -15,6 +16,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
   const [losId, setLosId] = useState(s.lose[0]?.id ?? '');
   useGeo();
   const eig = useEignung();
+  const [anfrageOffen, setAnfrageOffen] = useState<Record<string, boolean>>({});
   const los = s.lose.find((l) => l.id === losId) ?? s.lose[0];
   const cells = useMemo(() => (los ? computeLos(s, los) : []), [s, los]);
   if (!los) return <section className="card"><h2>Wertung</h2><p className="muted">Bitte zuerst Lose anlegen bzw. das LV laden.</p></section>;
@@ -148,8 +150,9 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
           <EignungEinwilligung ctx={eig} />
           {detail.map((c) => {
             const b = getBew(s, c.offer.id, los.id);
-            const a = auffaelligkeiten(s, los, cells, c);
-            const ang = angemessenheit(s, los, c, cells);
+            const min = mindestEuro(cells, c.offer.runde);
+            const tAuff = titelVergleich(s, los, cells, c, min).filter((t) => t.status === 'auffaellig');
+            const pAuff = positionsVergleich(s, los, cells, c, min).filter((v) => v.status === 'auffaellig');
             const nv = c.offer.runde > hrl;
             const e = entfernung(s, c.offer);
             return (
@@ -157,13 +160,15 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 titel={<>{nv ? 'Nachverhandlung · ' : `Rang ${c.rankAll} · `}Nr. {c.offer.nr} · {c.offer.firma}</>}
                 info={<>
                   {c.offer.id === win?.offer.id && <Chip kind="ok" title="Wirtschaftlichstes Angebot – wird zur Vergabe vorgeschlagen">Vergabevorschlag</Chip>}
-                  {!nv && a.guenstig.length + a.hoch.length + a.titel.length + ang.pos.length + ang.titel.length > 0 && <Chip kind="warn" title="Einzelpreise oder Titel weichen deutlich von den übrigen Angeboten bzw. vom LV-Schätzpreis ab – Details nach dem Aufklappen">Preisauffälligkeiten</Chip>}
+                  {!nv && tAuff.length + pAuff.length > 0 && <Chip kind="warn" title="Titel bzw. Einheitspreise weichen deutlich vom LV-Schätzpreis bzw. vom günstigsten Angebot ab – Details nach dem Aufklappen">{tAuff.length ? `${tAuff.length} Titel auffällig` : `${pAuff.length} Pos. auffällig`}</Chip>}
                 </>}>
                 {!nv && (
-                  <div className="auff">
-                    <AuffRaster a={a} ang={ang} />
-                    {a.guenstig.length + a.hoch.length + a.titel.length + ang.pos.length + ang.titel.length === 0 && <span className="muted">Keine Preisauffälligkeiten gegenüber den übrigen Angeboten oder dem LV-Schätzpreis erkannt{cells.filter((x) => x.offer.runde === c.offer.runde).length < 2 ? ' (nur ein Angebot in dieser Runde)' : ''}.</span>}
-                  </div>
+                  <AuffTitel titel={tAuff} pos={pAuff} einzeln={cells.filter((x) => x.offer.runde === c.offer.runde).length < 2}
+                    zurRueckfrage={() => {
+                      up((d) => { const x = { ...leereAnfrage(), ...(d.anfrage?.[los.id] ?? {}) }; d.anfrage = { ...(d.anfrage ?? {}), [los.id]: { ...x, modus: { ...x.modus, [c.offer.id]: 'nach' } } }; });
+                      setAnfrageOffen((o) => ({ ...o, [los.id]: true }));
+                      setTimeout(() => document.getElementById(`anf-${c.offer.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                    }} />
                 )}
                 <div className="grid g2">
                   {!nv && <div className="wide"><EignungKi s={s} up={up} o={c.offer} b={b} setBew={(patch) => setBew(c.offer.id, patch)} ctx={eig} /></div>}
@@ -190,50 +195,42 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
         </section>
       )}
 
-      {cells.length > 0 && <AnfrageKarte s={s} up={up} los={los} cells={cells} />}
+      {cells.length > 0 && <AnfrageKarte s={s} up={up} los={los} cells={cells} offen={anfrageOffen[los.id] ?? !!s.anfrage?.[los.id]} setOffen={(v) => setAnfrageOffen((o) => ({ ...o, [los.id]: v }))} />}
     </div>
   );
 }
 
 /** Begründung je Bieter, aufklappbar; der Vergabevorschlag ist anfangs offen. */
-type Marke = { oz: string; pct: number; tip: string };
+const bezug = (q: RefQuelle | null) => (q === 'schaetz' ? 'LV-Schätzpreis' : 'günstigstem Angebot');
 
-/** Abweichung in % (vorzeichenbehaftet): −42 % = 42 % günstiger als die Vergleichsgröße. */
-const abw = (wert: number, ref: number) => (wert / ref - 1) * 100;
-
-/** Preisauffälligkeiten eines Bieters als Raster: Spalten günstiger/teurer (Farben wie im Preisspiegel), Zeilen je Vergleichsgröße. */
-function AuffRaster({ a, ang }: { a: Auff; ang: Angemessen }) {
-  const sortOz = (l: Marke[]) => l.sort((x, y) => ozSort(x.oz, y.oz));
-  const posBieter = [...a.guenstig, ...a.hoch].map((x) => ({ oz: x.oz, pct: abw(x.ep, x.ref), tip: `${x.kurz}: EP ${fmtNum(x.ep)} € · Median übrige Bieter ${fmtNum(x.ref)} €` }));
-  const titBieter = a.titel.map((x) => ({ oz: x.oz, pct: abw(x.sum, x.ref), tip: `${x.name}: ${fmtEur(x.sum)} netto · Median übrige Bieter ${fmtEur(x.ref)}` }));
-  const posLv = ang.pos.map((x) => ({ oz: x.oz, pct: x.pct - 100, tip: `${x.kurz}: EP ${fmtNum(x.ep)} € · LV-Schätzpreis ${fmtNum(x.schaetz)} €` }));
-  const titLv = ang.titel.map((x) => ({ oz: x.oz, pct: x.pct - 100, tip: `${x.name}: ${fmtEur(x.sum)} netto · LV-Schätzpreis ${fmtEur(x.schaetz)}` }));
-  const zeilen = [
-    { label: 'ggü. übrigen Bietern', sub: 'Median', tit: titBieter, pos: posBieter },
-    { label: 'ggü. LV-Schätzpreis', sub: 'eigenes LV', tit: titLv, pos: posLv },
-  ].filter((z) => z.tit.length + z.pos.length > 0);
-  if (!zeilen.length) return null;
-  const zelle = (tit: Marke[], pos: Marke[], low: boolean) => {
-    const t = sortOz(tit.filter((x) => (x.pct < 0) === low));
-    const p = pos.filter((x) => (x.pct < 0) === low);
-    // die gewichtigsten Positionen zuerst auswählen (Reihenfolge aus calc), dann nach OZ ordnen
-    const pz = sortOz(p.slice(0, 8));
-    const marke = (x: Marke, titel = false) => <span key={x.oz} className={`oz ${low ? 'low' : 'high'} ${titel ? 'tit' : ''}`} title={x.tip}>{titel && 'Titel '}{x.oz} <b>{x.pct > 0 ? '+' : '−'}{fmtNum(Math.abs(x.pct), 0)} %</b></span>;
-    if (!t.length && !pz.length) return <span className="muted">–</span>;
-    return <>{t.map((x) => marke(x, true))}{pz.map((x) => marke(x))}{p.length > pz.length && <span className="muted mehr">+{p.length - pz.length} weitere</span>}</>;
-  };
+/** Preisauffälligkeiten eines Bieters kompakt: nur die auffälligen Titel (Richtung über Pfeil und Vorzeichen, eine Warnfarbe wie im Preisspiegel);
+ *  die einzelnen Positionen werden in der Rückfrage gezeigt und ausgewählt. */
+function AuffTitel({ titel, pos, einzeln, zurRueckfrage }: { titel: TitelVergleich[]; pos: AufklPos[]; einzeln: boolean; zurRueckfrage: () => void }) {
+  const quellen = new Set([...titel, ...pos].map((x) => x.refQuelle));
+  const ggue = quellen.size > 1 ? 'LV-Schätzpreis bzw. günstigstem Angebot' : bezug([...quellen][0] ?? null);
+  const teurer = pos.filter((v) => v.delta > 0).length;
+  if (!titel.length && !pos.length) return <p className="muted auff-leer">Keine auffälligen Titel oder Einheitspreise{einzeln ? ' (nur ein Angebot in dieser Runde, kein LV-Schätzpreis)' : ''}.</p>;
   return (
-    <div className="auffraster">
-      <div className="ah" />
-      <div className="ah"><i className="sw low" /> günstiger</div>
-      <div className="ah"><i className="sw high" /> teurer</div>
-      {zeilen.map((z) => (
-        <Fragment key={z.label}>
-          <div className="al">{z.label}<small className="muted">{z.sub}</small></div>
-          <div className="ac" data-label="günstiger">{zelle(z.tit, z.pos, true)}</div>
-          <div className="ac" data-label="teurer">{zelle(z.tit, z.pos, false)}</div>
-        </Fragment>
-      ))}
+    <div className="auff">
+      <div className="auff-zeile">
+        <span className="auff-l">Auffällige Titel<small>ggü. {ggue}</small></span>
+        <span className="auff-w">
+          {titel.length ? titel.map((t) => (
+            <span key={t.oz} className="tmark" title={`${t.name}: ${fmtEur(t.sum)} netto · ${bezug(t.refQuelle)} ${fmtEur(t.ref)}`}>
+              <b>{t.oz}</b> <span className="tname">{t.name}</span> <b className="tpct">{t.pct! > 0 ? '↑ +' : '↓ −'}{fmtNum(Math.abs(t.pct!), 0)} %</b>
+            </span>
+          )) : <span className="muted">keine</span>}
+        </span>
+      </div>
+      {pos.length > 0 && (
+        <div className="auff-zeile">
+          <span className="auff-l">Positionen</span>
+          <span className="auff-w">
+            <span>{pos.length} auffällig <span className="muted">({[teurer && `${teurer} teurer`, pos.length - teurer && `${pos.length - teurer} günstiger`].filter(Boolean).join(', ')})</span></span>
+            <button type="button" className="btn small" onClick={zurRueckfrage}><Icon name="arrow" /> In Rückfrage prüfen</button>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

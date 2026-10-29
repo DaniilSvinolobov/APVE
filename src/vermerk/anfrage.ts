@@ -49,7 +49,7 @@ export function ausschlussAuto(b: AnfrageBieter): string {
   if (c.dKosten != null && c.dKosten > 0) teile.push(`das Angebot rund ${fmtNum(c.dKosten, 0)} % über unserem Schätzpreis liegt`);
   else if (c.dMin != null && c.dMin > 0) teile.push(`das Angebot rund ${fmtNum(c.dMin, 0)} % über dem günstigsten Angebot liegt`);
   const hoch = b.vergleich.filter((p) => p.status === 'auffaellig' && p.delta > 0).length;
-  if (hoch >= 3) teile.push('im Vergleich zu den anderen Bietern teilweise extreme Ausreißer nach oben aufweist');
+  if (hoch >= 3) teile.push('teilweise extreme Ausreißer nach oben aufweist');
   return teile.join(' und ');
 }
 
@@ -67,7 +67,7 @@ export function anfrageText(s: State, los: Los, cells: Cell[], runde: number): s
     out.push('', `Wir empfehlen vorab, den ${bieterNr(b.c.offer.nr)} ${b.c.offer.firma} von der weiteren Angebotsprüfung auszuschließen, da ${grund.replace(/\.$/, '')}.`);
   }
   if (nach.length) {
-    out.push('', `Wir bitten, für ${nach.length > 1 ? 'folgende Bieter' : 'folgenden Bieter'} für die jeweils aufgeführten Positionen eine detaillierte Angebotskalkulation nachzufordern, da diese von den übrigen Angebotspreisen${schaetz ? ' und unserem LV-Schätzpreis' : ''} deutlich abweichen.`);
+    out.push('', `Wir bitten, für ${nach.length > 1 ? 'folgende Bieter' : 'folgenden Bieter'} für die jeweils aufgeführten Positionen eine detaillierte Angebotskalkulation nachzufordern, da diese ${schaetz ? 'von unserem LV-Schätzpreis' : 'vom günstigsten Angebot'} deutlich abweichen.`);
     for (const b of nach) out.push('', `${bieterNr(b.c.offer.nr)} ${b.c.offer.firma}:`, `Pos. ${b.liste.join(', ')}`);
   }
   out.push('', 'Für weitere Rückfragen stehe ich gerne zur Verfügung.', '', 'Mit freundlichen Grüßen');

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
 import type { AufklPos, Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, round2 } from '../domain/fmt';
 import { anfrageBieter, anfrageOf, anfrageText, ausschlussAuto, leereAnfrage, type AnfrageBieter } from '../vermerk/anfrage';
-import { mindestEuro } from '../domain/calc';
+import { mindestEuro, titelKey } from '../domain/calc';
 import { FlagList, Icon, Seg } from '../components/ui';
 import { downloadText } from '../storage/exportCsv';
 
@@ -19,11 +19,10 @@ export const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numer
 const eur0 = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), 0)} €`;
 
 /** E-Mail an den Auftraggeber: je Bieter Angebotskalkulation zu auffälligen Positionen nachfordern oder Ausschluss vorab empfehlen. */
-export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los; cells: Cell[] }) {
+export function AnfrageKarte({ s, up, los, cells, offen, setOffen }: { s: State; up: Up; los: Los; cells: Cell[]; offen: boolean; setOffen: (v: boolean) => void }) {
   const runden = [...new Set(cells.map((c) => c.offer.runde))].sort();
   const [rundeSel, setRunde] = useState<number | null>(null);
   const [kopiert, setKopiert] = useState(false);
-  const [offen, setOffen] = useState(!!s.anfrage?.[los.id]);
   const runde = rundeSel != null && runden.includes(rundeSel as 1 | 2 | 3) ? rundeSel : runden[0] ?? 1;
   const bieter = anfrageBieter(s, los, cells, runde);
   if (!bieter.length) return null;
@@ -57,10 +56,10 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
       {runden.length > 1 && <div className="anfrage-runde"><Seg small value={runde} onChange={setRunde} options={runden.map((r) => ({ value: r, label: r === runden[0] ? 'Hauptangebote' : `Nachverhandlung ${r - 1}` }))} /></div>}
 
       <h3 className="anf-h">Bieter und Positionen</h3>
-      <p className="muted small">Vorbelegt: Bieter der engeren Wahl mit auffälligen Positionen (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben dem Median der übrigen Bieter, Auswirkung ab {fmtNum(minEuro, 0)} €). Per Haken ab- oder zuwählen.</p>
+      <p className="muted small">Vorbelegt: Bieter der engeren Wahl mit auffälligen Positionen (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben {mitSchaetz ? 'unserem LV-Schätzpreis, ohne Schätzpreis dem günstigsten Angebot' : 'dem günstigsten Angebot'}, Auswirkung ab {fmtNum(minEuro, 0)} €). Positionen nach Titeln geordnet; per Haken einzeln oder je Titel ab- oder zuwählen.</p>
 
       <div className="stack">
-        {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} mitSchaetz={mitSchaetz} minEuro={minEuro} />)}
+        {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} titles={s.titles} minEuro={minEuro} />)}
       </div>
 
       <h3 className="anf-h">E-Mail-Text</h3>
@@ -78,12 +77,13 @@ export function AnfrageKarte({ s, up, los, cells }: { s: State; up: Up; los: Los
   );
 }
 
-function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: Anfrage; set: SetA; mitSchaetz: boolean; minEuro: number }) {
+function BieterZeile({ b, a, set, titles, minEuro }: { b: AnfrageBieter; a: Anfrage; set: SetA; titles: Record<string, string>; minEuro: number }) {
   const [neu, setNeu] = useState('');
   const { c } = b;
   const id = c.offer.id;
   const setListe = (l: string[]) => set((x) => void (x.pos = { ...x.pos, [id]: [...new Set(l)].sort(ozSort).join(', ') }));
   const toggle = (oz: string) => setListe(b.liste.includes(oz) ? b.liste.filter((o) => o !== oz) : [...b.liste, oz]);
+  const toggleAlle = (ozs: string[], an: boolean) => setListe(an ? [...b.liste, ...ozs] : b.liste.filter((o) => !ozs.includes(o)));
   const byOz = new Map(b.vergleich.map((v) => [v.oz, v]));
   // Hauptliste: Vorschläge und von Hand gewählte, in LV-Reihenfolge (Ordnungszahl); darunter abweichende Positionen mit geringer Auswirkung
   const nachOz = (x: AufklPos, y: AufklPos) => ozSort(x.oz, y.oz);
@@ -100,7 +100,7 @@ function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: 
   const auto = ausschlussAuto(b);
   const setModus = (m: AnfrageModus) => set((x) => void (x.modus = { ...x.modus, [id]: m }));
   const kopf = (
-    <tr><th /><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">Menge</th><th className="r">EP Bieter</th><th className="r">GP Bieter</th><th className="r">Median übrige EP</th>{mitSchaetz && <th className="r">Schätzpreis EP</th>}<th className="r">Auswirkung</th></tr>
+    <tr><th /><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">Menge</th><th className="r">EP Bieter</th><th className="r">GP Bieter</th><th className="r">Vergleichs-EP</th><th className="r">Auswirkung</th></tr>
   );
   const zeile = (v: AufklPos) => {
     const on = b.liste.includes(v.oz);
@@ -112,15 +112,33 @@ function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: 
         <td className="r nowrap">{fmtNum(v.menge, v.menge % 1 ? 2 : 0)} {v.einheit}</td>
         <td className="r nowrap">{fmtEur(v.ep)}</td>
         <td className="r nowrap">{fmtEur(v.gp)}</td>
-        <td className="r nowrap">{v.ref != null ? <>{fmtEur(v.ref)}<small className="muted block">{fmtPct(v.pct, 0)}{v.refQuelle === 'schaetz' ? ' · Schätzpreis' : ''}</small></> : '–'}</td>
-        {mitSchaetz && <td className="r nowrap">{v.schaetz != null ? fmtEur(v.schaetz) : '–'}</td>}
+        <td className="r nowrap">{v.ref != null ? <>{fmtEur(v.ref)}<small className="muted block">{fmtPct(v.pct, 0)} · {v.refQuelle === 'schaetz' ? 'LV-Schätzpreis' : 'günstigster'}</small></> : '–'}</td>
         <td className={`r nowrap anf-delta ${v.delta > 0 ? 'hoch' : 'tief'}`}>{eur0(v.delta)}</td>
       </tr>
     );
   };
 
+  /** Positionen je Titel mit Kopfzeile; der Haken im Kopf wählt alle Positionen des Titels ab bzw. zu. */
+  const gruppen = (vs: AufklPos[]) => {
+    const g = new Map<string, AufklPos[]>();
+    for (const v of vs) g.set(titelKey(v.oz), [...(g.get(titelKey(v.oz)) ?? []), v]);
+    return [...g].map(([tk, ps]) => {
+      const ozs = ps.map((v) => v.oz);
+      const alle = ozs.every((o) => b.liste.includes(o));
+      return (
+        <Fragment key={tk}>
+          <tr className="anf-titel" onClick={() => toggleAlle(ozs, !alle)}>
+            <td><input type="checkbox" checked={alle} ref={(el) => { if (el) el.indeterminate = !alle && ozs.some((o) => b.liste.includes(o)); }} readOnly aria-label={`Titel ${tk} in die E-Mail`} /></td>
+            <td className="left nowrap">{tk}</td><td className="left" colSpan={6}>{titles[tk] || `Titel ${tk}`} <small className="muted">· {ps.length} Pos.</small></td>
+          </tr>
+          {ps.map(zeile)}
+        </Fragment>
+      );
+    });
+  };
+
   return (
-    <div className={`anf-bieter ${b.modus}`}>
+    <div className={`anf-bieter ${b.modus}`} id={`anf-${id}`}>
       <div className="anf-kopf">
         <label className="mini big">
           <input type="checkbox" checked={b.modus !== 'ohne'} onChange={(e) => setModus(e.target.checked ? 'nach' : 'ohne')} aria-label={`Nr. ${c.offer.nr} in die E-Mail`} />
@@ -137,13 +155,13 @@ function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: 
               <table className="anf-tab">
                 <thead>{kopf}</thead>
                 <tbody>
-                  {haupt.map(zeile)}
+                  {gruppen(haupt)}
                   {fremd.map((oz) => (
-                    <tr key={oz} onClick={() => toggle(oz)}><td><input type="checkbox" checked readOnly aria-label={`Pos. ${oz} in die E-Mail`} /></td><td className="left nowrap">{oz}</td><td className="left muted" colSpan={mitSchaetz ? 7 : 6}>nicht im LV dieses Loses</td></tr>
+                    <tr key={oz} onClick={() => toggle(oz)}><td><input type="checkbox" checked readOnly aria-label={`Pos. ${oz} in die E-Mail`} /></td><td className="left nowrap">{oz}</td><td className="left muted" colSpan={6}>nicht im LV dieses Loses</td></tr>
                   ))}
                 </tbody>
                 {gewaehlt.length > 0 && (
-                  <tfoot><tr><td /><td className="left" colSpan={mitSchaetz ? 7 : 6}>{gewaehlt.length} Position{gewaehlt.length > 1 ? 'en' : ''} in der E-Mail · zusammen {c.sumNet ? `${fmtNum(Math.abs(summe) / c.sumNet * 100, 1)} % der Angebotssumme` : ''}</td><td className={`r nowrap anf-delta ${summe > 0 ? 'hoch' : 'tief'}`}>{eur0(summe)}</td></tr></tfoot>
+                  <tfoot><tr><td /><td className="left" colSpan={6}>{gewaehlt.length} Position{gewaehlt.length > 1 ? 'en' : ''} in der E-Mail · zusammen {c.sumNet ? `${fmtNum(Math.abs(summe) / c.sumNet * 100, 1)} % der Angebotssumme` : ''}</td><td className={`r nowrap anf-delta ${summe > 0 ? 'hoch' : 'tief'}`}>{eur0(summe)}</td></tr></tfoot>
                 )}
               </table>
             </div>
@@ -151,7 +169,7 @@ function BieterZeile({ b, a, set, mitSchaetz, minEuro }: { b: AnfrageBieter; a: 
           {gering.length > 0 && (
             <details className="det">
               <summary>{gering.length} weitere Position{gering.length > 1 ? 'en' : ''} mit deutlicher Abweichung, aber Auswirkung unter {fmtNum(minEuro, 0)} €</summary>
-              <div className="scroll"><table className="anf-tab"><thead>{kopf}</thead><tbody>{gering.map(zeile)}</tbody></table></div>
+              <div className="scroll"><table className="anf-tab"><thead>{kopf}</thead><tbody>{gruppen(gering)}</tbody></table></div>
             </details>
           )}
           <div className="row anf-add">

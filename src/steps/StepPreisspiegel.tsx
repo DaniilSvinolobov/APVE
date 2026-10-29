@@ -133,7 +133,7 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const legend: [string, string][] = [
     ['low', 'günstigster EP'],
     ['high', 'höchster EP'],
-    ['out', `auffällig (> ${s.project.abweichung} % neben dem Median der übrigen Bieter, Auswirkung ab ${fmtNum(minEuro, 0)} €)`],
+    ['out', `auffällig (> ${s.project.abweichung} % neben ${hasSch ? 'dem LV-Schätzpreis, ohne Schätzpreis dem günstigsten EP' : 'dem günstigsten EP'}, Auswirkung ab ${fmtNum(minEuro, 0)} €)`],
     ...(cells.some((c) => c.mengeAbw.length) ? [['mabw', 'Menge laut Bieter weicht vom LV ab'] as [string, string]] : []),
     ...(zList.length ? [['neu', 'neue Position (nicht im LV)'] as [string, string]] : []),
   ];

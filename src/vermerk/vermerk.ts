@@ -1,5 +1,5 @@
 import type { Los, State } from '../domain/types';
-import { angemessenheit, bieterPq, auffaelligkeiten, computeLos, eignungsNachweis, engereWahl, finalRound, getBew, kostenOf, nuOf, offerBrutto, pruefStatus, schaetzSumme, unterlageZeile, zuschlagCell, type Cell } from '../domain/calc';
+import { bieterPq, computeLos, mindestEuro, positionsVergleich, titelVergleich, eignungsNachweis, engereWahl, finalRound, getBew, kostenOf, nuOf, offerBrutto, pruefStatus, schaetzSumme, unterlageZeile, zuschlagCell, type Cell, type RefQuelle } from '../domain/calc';
 import type { Nachunternehmer, Offer } from '../domain/types';
 import { istHaupt, selberBieter, vorRunde } from '../domain/runden';
 import { fmtDate, fmtEUR, fmtNum, fmtDateTime, listDe, round2 } from '../domain/fmt';
@@ -364,53 +364,34 @@ export function angemessenText(s: State, l: Los, take: Cell[]): string {
   return L.join('\n');
 }
 
-/** Auffallend hohe und niedrige Titel- und Einheitspreise eines Angebots als Absätze für den Vermerk (Aufbau wie die bisherigen Vergabeempfehlungen:
- *  je Titel bzw. Position nur der Anteil am geschätzten Preis; der Vergleich mit den übrigen Bietern als kurzer Satz ohne Zahlen). */
+/** Auffallend hohe und niedrige Titel- und Einheitspreise eines Angebots als Absätze für den Vermerk – dieselbe Regel wie Preisspiegel,
+ *  Wertung und Rückfrage: Vergleich mit unserem LV-Schätzpreis, für Positionen ohne Schätzpreis mit dem günstigsten Angebot der Runde. */
 export function preisAuffaelligkeiten(s: State, l: Los, cells: Cell[], c: Cell, erlaeuterung = ''): string[] {
-  const ang = angemessenheit(s, l, c, cells);
-  const a = auffaelligkeiten(s, l, cells, c);
+  const min = mindestEuro(cells, c.offer.runde);
+  const tv = titelVergleich(s, l, cells, c, min).filter((t) => t.status === 'auffaellig');
+  const pv = positionsVergleich(s, l, cells, c, min).filter((v) => v.status === 'auffaellig');
   const hatSchaetz = Object.keys(s.schaetz ?? {}).length > 0;
   const hatPeers = cells.some((x) => x !== c && x.offer.runde === c.offer.runde && x.complete && !x.excluded);
-  const th = s.project.abweichung / 100;
   const L: string[] = [];
   const name = (oz: string, t: string) => `${oz}${t ? ` „${t}“` : ''}`;
   const byOz = <T extends { oz: string }>(xs: T[]) => [...xs].sort((x, y) => x.oz.localeCompare(y.oz, 'de', { numeric: true }));
-  const tHoch = ang.titel.filter((t) => t.pct > 100), tNied = ang.titel.filter((t) => t.pct < 100);
-  const pHoch = byOz(ang.pos.filter((x) => x.pct > 100).slice(0, 6)), pNied = byOz(ang.pos.filter((x) => x.pct < 100).slice(0, 6));
-  const tz = (t: (typeof tHoch)[number]) => `- Titel ${name(t.oz, t.name)}: ${pctDe(t.pct)} % des geschätzten Titelpreises`;
-  const pz = (x: (typeof pHoch)[number]) => `- ${name(x.oz, x.kurz)}: ${pctDe(x.pct)} % des geschätzten Preises`;
-  // Lage zu den übrigen Bietern in einem Satz: „zudem“ in gleicher Richtung, „jedoch“ in Gegenrichtung (jeweils über der Schwelle)
-  const peerSatz = (xs: { oz: string; me: number; peer: number | null }[], hoch: boolean, wer: string) => {
-    const ueber = xs.filter((x) => x.peer && x.me > x.peer * (1 + th)).map((x) => x.oz);
-    const unter = xs.filter((x) => x.peer && x.me < x.peer * (1 - th)).map((x) => x.oz);
-    const satz = (oz: string[], wort: string, richtung: string) =>
-      `${wer} ${listDe(oz)} ${oz.length > 1 ? 'liegen' : 'liegt'} ${wort} deutlich ${richtung} dem Preisniveau der übrigen Bieter.`;
-    const R: string[] = [];
-    if (ueber.length) R.push(satz(ueber, hoch ? 'zudem' : 'jedoch', 'über'));
-    if (unter.length) R.push(satz(unter, hoch ? 'jedoch' : 'zudem', 'unter'));
-    return R;
-  };
-  const tPeer = (ts: typeof tHoch) => ts.map((t) => ({ oz: t.oz, me: t.sum, peer: t.peer }));
-  const pPeer = (ps: typeof pHoch) => ps.map((x) => ({ oz: x.oz, me: x.ep, peer: x.peer }));
-  // Vergleich mit den übrigen Bietern für Positionen, die nicht schon gegenüber dem Schätzpreis genannt sind
-  const schon = new Set(ang.pos.map((x) => x.oz));
-  const gue = byOz(a.guenstig.filter((x) => !schon.has(x.oz)).slice(0, 5)), hoch = byOz(a.hoch.filter((x) => !schon.has(x.oz)).slice(0, 5));
-  const titelNied = a.titel.filter((t) => !ang.titel.some((x) => x.oz === t.oz)).slice(0, 4);
-  const posListe = (xs: { oz: string }[], vor = '') => `${xs.length > 1 ? 'liegen' : 'liegt'}${vor} ${xs.length > 1 ? 'die Einheitspreise der Positionen' : 'der Einheitspreis der Position'} ${listDe(xs.map((x) => x.oz))}`;
-  if (tHoch.length) L.push('', 'Deutlich über den geschätzten Preisen liegen die Titelpreise folgender Titel:', ...tHoch.map(tz), ...peerSatz(tPeer(tHoch), true, 'Titel'));
-  if (pHoch.length) L.push('', 'Deutlich über den geschätzten Preisen liegen die Einheitspreise folgender Positionen:', ...pHoch.map(pz), ...peerSatz(pPeer(pHoch), true, 'Pos.'));
-  if (hoch.length) L.push('', `Deutlich über dem Preisniveau der übrigen Bieter ${posListe(hoch)}.`);
-  if (tNied.length) L.push('', 'Deutlich unter den geschätzten Preisen liegen die Titelpreise folgender Titel:', ...tNied.map(tz), ...peerSatz(tPeer(tNied), false, 'Titel'));
-  if (pNied.length) L.push('', 'Deutlich unter den geschätzten Preisen liegen die Einheitspreise folgender Positionen:', ...pNied.map(pz), ...peerSatz(pPeer(pNied), false, 'Pos.'));
-  if (gue.length || titelNied.length) {
-    const platz = c.rankAll === 1 ? 'erste' : c.rankAll === 2 ? 'zweite' : `${c.rankAll}.`;
-    L.push('', `Fa. ${c.offer.firma} bietet gegenüber den übrigen Bietern diverse Leistungen mit sehr niedrigen Preisen an, auf Grund derer der ${platz} Platz in der Rangfolge erreicht wird.`);
-    if (titelNied.length) L.push(`Es handelt sich hierbei insbesondere um Leistungen unter Titel ${listDe(titelNied.map((t) => name(t.oz, t.name)))}.`);
-    if (gue.length) L.push(`Deutlich unter dem Preisniveau der übrigen Bieter ${posListe(gue, ' insbesondere')}.`);
+  const bezug = (q: RefQuelle) => (q === 'schaetz' ? 'den geschätzten Preisen' : 'dem günstigsten Angebot');
+  const wert = (pct: number, q: RefQuelle, titel: boolean) => q === 'schaetz'
+    ? `${pctDe(100 + pct)} % des geschätzten ${titel ? 'Titelpreises' : 'Preises'}`
+    : `${pctDe(Math.abs(pct))} % ${pct > 0 ? 'über' : 'unter'} dem günstigsten Angebot`;
+  for (const hoch of [true, false]) {
+    for (const q of ['schaetz', 'guenstig'] as RefQuelle[]) {
+      const richtung = `Deutlich ${hoch ? 'über' : 'unter'} ${bezug(q)} liegen`;
+      const ts = tv.filter((t) => t.refQuelle === q && t.pct != null && t.pct > 0 === hoch);
+      // je Richtung höchstens sechs Positionen, die mit der größten Auswirkung
+      const ps = byOz(pv.filter((v) => v.refQuelle === q && v.pct != null && v.pct > 0 === hoch).slice(0, 6));
+      if (ts.length) L.push('', `${richtung} die Titelpreise folgender Titel:`, ...ts.map((t) => `- Titel ${name(t.oz, t.name)}: ${wert(t.pct!, q, true)}`));
+      if (ps.length) L.push('', `${richtung} die Einheitspreise folgender Positionen:`, ...ps.map((v) => `- ${name(v.oz, v.kurz)}: ${wert(v.pct!, q, false)}`));
+    }
   }
   if (erlaeuterung.trim()) L.push(erlaeuterung.trim());
   if (!L.length) {
-    if (hatSchaetz || hatPeers) L.push('', `Auffallend hohe oder niedrige Titel- bzw. Einheitspreise wurden ${hatSchaetz ? `gegenüber den geschätzten Preisen${hatPeers ? ' und ' : ''}` : ''}${hatPeers ? 'gegenüber den übrigen Angeboten' : ''} nicht festgestellt (Schwelle ${pctDe(s.project.abweichung)} %).`);
+    if (hatSchaetz || hatPeers) L.push('', `Auffallend hohe oder niedrige Titel- bzw. Einheitspreise wurden gegenüber ${hatSchaetz ? 'den geschätzten Preisen' : 'dem günstigsten Angebot'} nicht festgestellt (Schwelle ${pctDe(s.project.abweichung)} %).`);
     else L.push('', 'Eine Prüfung der Einzelpreise auf auffallend hohe oder niedrige Preise war mangels LV-Schätzpreisen und weiterer Angebote nicht möglich.');
   }
   return L;

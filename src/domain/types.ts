@@ -141,7 +141,7 @@ export interface Project {
   kostenDatum: string;
   mwst: number;
   schwelle: number; // % Angebotssumme unter Kostenvoranschlag bzw. nächstem Angebot → Aufklärung prüfen
-  abweichung: number; // % Abweichung eines EP vom Median der übrigen Bieter bzw. vom LV-Schätzpreis
+  abweichung: number; // % Abweichung eines EP vom LV-Schätzpreis, ohne Schätzpreis vom günstigsten Angebot
   engereWahl: number;
   eroeffnung: string;
   zuschlagsfrist: string;

@@ -114,7 +114,7 @@ export function StepVergabe({ s, up }: { s: State; up: Up }) {
         <h2>Prüfregeln</h2>
         <p className="lead">Gelten für Preisspiegel, Wertung, Rückfrage und Vermerk gleichermaßen. Die engere Wahl legen Sie in „Wertung“ per Haken fest. Die Vorgaben passen in der Regel – nur bei Bedarf ändern.</p>
         <div className="grid">
-          <Field label="Einzelpreis auffällig ab" hint="Abweichung vom Median der übrigen Bieter bzw. vom LV-Schätzpreis; zählt erst ab einer Auswirkung von 0,5 % der Angebotssumme"><NumInput value={p.abweichung} onChange={(v) => set('abweichung', v ?? 30)} decimals={0} suffix="%" /></Field>
+          <Field label="Einzelpreis auffällig ab" hint="Abweichung vom LV-Schätzpreis, ohne Schätzpreis vom günstigsten Angebot; zählt erst ab einer Auswirkung von 0,5 % der Angebotssumme"><NumInput value={p.abweichung} onChange={(v) => set('abweichung', v ?? 30)} decimals={0} suffix="%" /></Field>
           <Field label="Angebot auffallend niedrig ab" hint="unter Kostenvoranschlag bzw. nächstem Angebot – Hinweis auf Aufklärung"><NumInput value={p.schwelle} onChange={(v) => set('schwelle', v ?? 15)} decimals={0} suffix="%" /></Field>
         </div>
       </section>

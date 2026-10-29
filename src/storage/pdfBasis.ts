@@ -12,8 +12,8 @@ import inter700 from '@fontsource/inter/files/inter-latin-700-normal.woff?url';
 export const hex = (h: string) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 /** Farben aus styles.css */
 export const C = {
-  ink: hex('#18202f'), muted: hex('#667085'), faint: hex('#98a2b3'), line: hex('#e4e8f0'), line2: hex('#eef1f6'),
-  brand: hex('#2f5bea'), brandL: hex('#eaf0ff'), head: hex('#f8f9fc'), ref: hex('#f9fafc'), titel: hex('#f6f8fc'),
+  ink: hex('#0f1230'), muted: hex('#575c7a'), faint: hex('#98a2b3'), line: hex('#e4e8f0'), line2: hex('#eef1f6'),
+  brand: hex('#4d4ae0'), brandL: hex('#edecfc'), head: hex('#f8f9fc'), ref: hex('#f9fafc'), titel: hex('#f6f8fc'),
   okL: hex('#e3f6ee'), ok: hex('#067a53'), okB: hex('#9ad9bf'), high: hex('#7c3aed'), highL: hex('#f3edff'), highB: hex('#c4b5fd'),
   warn: hex('#b76e00'), amber: hex('#f59e0b'), warnL: hex('#fff3dc'), blue: hex('#3b82f6'), neu: hex('#f8f5ff'), neuK: hex('#f1ebff'), neuT: hex('#6d28d9'),
   bedarf: hex('#f6f7fb'), white: rgb(1, 1, 1), bad: hex('#d92d20'),

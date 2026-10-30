@@ -49,15 +49,18 @@ export function anfrageBieter(s: State, los: Los, cells: Cell[], runde: number):
   });
 }
 
-/** Vorschlag für die Begründung der Ausschlussempfehlung aus Abstand zum Schätzpreis und Ausreißern nach oben. */
-export function ausschlussAuto(b: AnfrageBieter): string {
+/** Vorschlag für die Begründung der Ausschlussempfehlung: Abstand zum Schätzpreis (nur ohne Schätzpreis zum günstigsten Angebot)
+ *  und Ausreißer nach oben. Liegt das Angebot unter dem Schätzpreis, wird der Preis nicht als Grund genannt. */
+export function ausschlussAuto(s: State, b: AnfrageBieter): string {
   const { c } = b;
-  const teile: string[] = [];
-  if (c.dKosten != null && c.dKosten > 0) teile.push(`das Angebot rund ${fmtNum(c.dKosten, 0)} % über unserem Schätzpreis liegt`);
-  else if (c.dMin != null && c.dMin > 0) teile.push(`das Angebot rund ${fmtNum(c.dMin, 0)} % über dem günstigsten Angebot liegt`);
-  const hoch = b.vergleich.filter((p) => p.status === 'auffaellig' && p.delta > 0).length;
-  if (hoch >= 3) teile.push('teilweise extreme Ausreißer nach oben aufweist');
-  return teile.join(' und ');
+  const hoch = b.vergleich.filter((p) => p.status === 'auffaellig' && p.delta > 0).length >= 3;
+  const preis = c.dKosten != null
+    ? (c.dKosten > 0 ? `${c.dKosten > s.project.schwelle ? 'weit ' : ''}über unserem Schätzpreis liegt` : '')
+    : c.dMin != null && c.dMin > 0 ? `rund ${fmtNum(c.dMin, 0)} % über dem günstigsten Angebot liegt` : '';
+  const ausreisser = 'im Vergleich zu den anderen Bietern teilweise extreme Ausreißer nach oben aufweist';
+  if (preis && hoch) return `das Angebot ${preis} und ${ausreisser}`;
+  if (preis) return `das Angebot ${preis}`;
+  return hoch ? `das Angebot ${ausreisser}` : '';
 }
 
 export function anfrageText(s: State, los: Los, cells: Cell[], runde: number): string {
@@ -74,7 +77,7 @@ export function anfrageText(s: State, los: Los, cells: Cell[], runde: number): s
     const grund = (a.grund[b.c.offer.id] ?? '').trim();
     const wertung = getBew(s, b.c.offer.id, los.id).ausschluss.trim();
     if (wertung) out.push('', `Wir empfehlen vorab, den ${name} aufgrund ${wertung.replace(/\.$/, '')} von der weiteren Angebotsprüfung auszuschließen.`);
-    else out.push('', `Wir empfehlen vorab, den ${name} von der weiteren Angebotsprüfung auszuschließen, da ${(grund || ausschlussAuto(b) || '[Grund angeben]').replace(/\.$/, '')}.`);
+    else out.push('', `Wir empfehlen vorab, den ${name} von der weiteren Angebotsprüfung auszuschließen, da ${(grund || ausschlussAuto(s, b) || '[Grund angeben]').replace(/\.$/, '')}.`);
   }
   if (nach.length) {
     out.push('', `Wir bitten, für ${nach.length > 1 ? 'folgende Bieter' : 'folgenden Bieter'} für die jeweils aufgeführten Positionen eine detaillierte Angebotskalkulation nachzufordern, da diese ${schaetz ? 'von unserem LV-Schätzpreis' : 'vom günstigsten Angebot'} deutlich abweichen.`);

@@ -105,8 +105,9 @@ Die Vercel-Variablennamen `AWS_*` sind reserviert, daher die eigenen Namen.
 - Die Eignungsprüfung mit Claude (Schritt 4) hat zwei eigene Einwilligungen: **Referenzen auswerten** übermittelt die
   Referenzunterlagen des Bieters (auch nachgereichte) und die Losbezeichnungen über Amazon Bedrock (EU); **Im Internet recherchieren** übermittelt nur
   Firmenname, Ort und Losbezeichnungen – Claude sucht damit über die Websuche von Anthropic. Beides läuft nur auf Knopfdruck je Bieter.
-- `public/datenschutz.html` und `public/impressum.html` sind **Entwürfe** mit gelb markierten Platzhaltern; vor dem produktiven Einsatz
-  ergänzen und rechtlich prüfen lassen (AVV mit Vercel, AWS und Anthropic, Drittlandübertragung, Verarbeitungsverzeichnis, Vertraulichkeit im Vergabeverfahren).
+- `public/datenschutz.html` und `public/impressum.html` enthalten die Angaben des Betreibers (Verantwortlicher, Anschrift, USt-IdNr.)
+  und die Bedingungen von Vercel, AWS (Bedrock) und Anthropic. Offen ist nur die Geschäftsanschrift (gelb markiert). Eine rechtliche
+  Prüfung bleibt empfohlen (AVV mit den Kunden, Verarbeitungsverzeichnis, Vertraulichkeit im Vergabeverfahren).
 
 ## Eignung mit KI (Schritt 4, optional)
 - `api/eignung.ts` mit `art: 'referenzen'` (Referenzlisten → Projekte, Vergleichbarkeit mit den Losen, Hinweise, Fazit als JSON)

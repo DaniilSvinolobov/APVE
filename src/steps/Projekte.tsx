@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType } from 're
 import { PROJEKT_STATUS, type ProjektStatus } from '../domain/types';
 import { demoState, emptyState } from '../domain/demo';
 import { fmtDate } from '../domain/fmt';
-import { Chip, Icon } from '../components/ui';
+import { Icon } from '../components/ui';
 import { dauerhaftAnfordern, speicherInfo, type ProjektKopf, type ProjektRepo, type SpeicherInfo } from '../storage/projektRepo';
 import { sicherungLesen, sicherungName, sicherungZip } from '../storage/sicherung';
 import { downloadBlob } from '../storage/exportCsv';
@@ -10,14 +10,24 @@ import { clearAllLocal } from '../storage/projectStore';
 import { deleteDb } from '../storage/idb';
 
 const mb = (n: number | null) => (n == null ? '–' : `${(n / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: n < 10 * 1024 * 1024 ? 1 : 0 })} MB`);
-const heute = () => new Date().toISOString().slice(0, 10);
-const zeit = (iso: string) => { const d = new Date(iso); return `${fmtDate(iso.slice(0, 10))}, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`; };
+const isoTag = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const heute = () => isoTag(new Date());
+/** „heute, 14:20“ / „gestern, 09:05“ / „28.10.2026“ */
+const geaendert = (iso: string) => {
+  const d = new Date(iso);
+  const uhr = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const g = new Date(); g.setDate(g.getDate() - 1);
+  return isoTag(d) === heute() ? `heute, ${uhr}` : isoTag(d) === isoTag(g) ? `gestern, ${uhr}` : fmtDate(isoTag(d));
+};
+const plural = (n: number, eins: string, viele: string) => `${n.toLocaleString('de-DE')} ${n === 1 ? eins : viele}`;
 
 /** Projektübersicht: alle im Browser gespeicherten Vergaben, mit Stand und Frist für Nachreichungen. */
 export function Projekte({ repo, fehler, onOpen, Brand, Foot }: { repo: ProjektRepo; fehler: string; onOpen: (id: string) => void; Brand: ComponentType; Foot: ComponentType }) {
   const [liste, setListe] = useState<ProjektKopf[] | null>(null);
   const [info, setInfo] = useState<SpeicherInfo | null>(null);
   const [err, setErr] = useState(fehler);
+  const [filter, setFilter] = useState<ProjektStatus | ''>('');
+  const [suche, setSuche] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const neuLaden = useCallback(async () => {
@@ -61,83 +71,124 @@ export function Projekte({ repo, fehler, onOpen, Brand, Foot }: { repo: ProjektR
   };
   const dauerhaft = async () => { if (!(await dauerhaftAnfordern())) alert('Der Browser hat die dauerhafte Speicherung nicht bestätigt. Bitte regelmäßig Sicherungen herunterladen.'); await neuLaden(); };
 
+  const alle = liste ?? [];
+  const q = suche.trim().toLowerCase();
+  const sichtbar = alle.filter((k) => (!filter || k.status === filter) && (!q || `${k.titel || 'Ohne Bezeichnung'} ${k.nummer} ${k.auftraggeber}`.toLowerCase().includes(q)));
+  const anzahl = (v: ProjektStatus) => alle.filter((k) => k.status === v).length;
+  const faellig = alle.filter((k) => k.status === 'nachforderung' && k.frist && k.frist < heute()).length;
+
   return (
     <div className="app">
       <header className="top no-print">
         <Brand />
         <div className="top-title">Projekte</div>
-        <div className="top-actions">
-          <button className="btn ghost" onClick={() => anlegen(demoState())}><Icon name="sparkle" /> Beispiel</button>
-          <button className="btn ghost" title="Sicherung (ZIP oder älteres JSON) als neues Projekt laden" onClick={() => fileRef.current?.click()}><Icon name="upload" /> Sicherung laden</button>
-          <button className="btn ghost" title="Löscht alle in diesem Browser gespeicherten Daten dieser Anwendung" onClick={allesLoeschen}><Icon name="trash" /> Alle Daten löschen</button>
-          <input ref={fileRef} type="file" accept=".zip,application/zip,application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void laden(f); }} />
-        </div>
       </header>
+      <input ref={fileRef} type="file" accept=".zip,application/zip,application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void laden(f); }} />
 
-      <main className="main">
-        <div className="stack">
-          {err && <section className="card attention"><h2><Icon name="alert" /> Hinweis</h2><p>{err}</p></section>}
-          <section className="card">
-            <div className="card-head">
-              <div>
-                <h2>Ihre Vergaben</h2>
-                <p className="lead">Jede Änderung wird automatisch gespeichert. Projekte lassen sich jederzeit wieder öffnen, z. B. wenn nachgeforderte Unterlagen eingehen.</p>
-              </div>
+      <main className="main pj">
+        <div className="pj-head">
+          <div>
+            <h1>Ihre Vergaben</h1>
+            <p className="muted">
+              {liste == null ? 'Wird geladen …' : alle.length ? `${plural(alle.length, 'Projekt', 'Projekte')} · jede Änderung wird automatisch gespeichert` : 'Jede Änderung wird automatisch gespeichert – Projekte lassen sich jederzeit fortsetzen.'}
+              {faellig > 0 && <> · <span className="pj-faellig">{plural(faellig, 'Frist', 'Fristen')} abgelaufen</span></>}
+            </p>
+          </div>
+          {alle.length > 0 && (
+            <div className="row">
+              <button className="btn ghost" onClick={() => anlegen(demoState())}><Icon name="sparkle" /> Beispiel</button>
+              <button className="btn" title="Sicherung (ZIP oder älteres JSON) als neues Projekt laden" onClick={() => fileRef.current?.click()}><Icon name="upload" /> Sicherung laden</button>
               <button className="btn primary" onClick={() => anlegen()}><Icon name="plus" /> Neues Projekt</button>
             </div>
-            {liste == null ? <p className="muted">Wird geladen …</p> : liste.length === 0 ? (
-              <p className="muted">Noch keine Projekte. Legen Sie ein neues Projekt an, laden Sie eine Sicherung oder sehen Sie sich das Beispiel an.</p>
-            ) : (
-              <div className="scroll">
-                <table className="projekte">
-                  <thead><tr><th>Projekt</th><th>Stand</th><th>Frist Nachreichung</th><th className="r">Bieter</th><th className="r">Dateien</th><th>Geändert</th><th /></tr></thead>
-                  <tbody>
-                    {liste.map((k) => {
-                      const ueberfaellig = k.frist && k.frist < heute() && k.status === 'nachforderung';
-                      return (
-                        <tr key={k.id}>
-                          <td className="name">
-                            <button className="linkbtn" onClick={() => onOpen(k.id)}>{k.titel || 'Ohne Bezeichnung'}</button>
-                            <small className="muted block">{[k.nummer, k.auftraggeber].filter(Boolean).join(' · ') || '–'}</small>
-                          </td>
-                          <td>
-                            <select value={k.status} aria-label="Stand" onChange={(e) => { const v = e.target.value as ProjektStatus; void aendern(k.id, (p) => void (p.status = v)); }}>
-                              {PROJEKT_STATUS.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
-                            </select>
-                          </td>
-                          <td>
-                            <input type="date" value={k.frist} aria-label="Frist Nachreichung" onChange={(e) => { const v = e.target.value; void aendern(k.id, (p) => void (p.frist = v)); }} />
-                            {ueberfaellig && <Chip kind="bad">abgelaufen</Chip>}
-                          </td>
-                          <td className="r">{k.angebote}</td>
-                          <td className="r">{k.dokumente}</td>
-                          <td className="muted">{zeit(k.geaendert)}</td>
-                          <td className="aktionen">
-                            <button className="btn small primary" onClick={() => onOpen(k.id)}>Öffnen</button>
-                            <button className="btn small" title="Projekt mit allen Unterlagen als ZIP-Datei herunterladen" onClick={() => sichern(k)}><Icon name="download" /></button>
-                            <button className="btn small" title="Kopie anlegen" onClick={() => kopieren(k)}>Kopie</button>
-                            <button className="btn small" title="Projekt löschen" onClick={() => loeschen(k)}><Icon name="trash" /></button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+          )}
+        </div>
 
-          <section className="card">
-            <h2>Wo liegen die Daten?</h2>
-            <p className="lead">Projekte und Unterlagen werden <b>nur in diesem Browser auf diesem Gerät</b> gespeichert (IndexedDB) und nicht an uns übertragen. In einem anderen Browser, auf einem anderen Gerät oder nach dem Löschen der Websitedaten sind sie nicht vorhanden. Für den Wechsel des Geräts, die Weitergabe an Kollegen und als Sicherung: Projekt als ZIP herunterladen und dort über „Sicherung laden“ öffnen.</p>
-            <div className="row">
-              {info?.dauerhaft
-                ? <Chip kind="ok">Dauerhaft gespeichert – der Browser löscht die Daten nicht von sich aus</Chip>
-                : <><Chip kind="warn">Der Browser darf die Daten bei Platzmangel löschen</Chip><button className="btn small" onClick={dauerhaft}>Dauerhafte Speicherung anfordern</button></>}
-              <span className="muted">Belegt: {mb(info?.belegt ?? null)} · frei: {mb(info?.frei ?? null)}</span>
+        {err && <div className="pj-alert"><Icon name="alert" /> {err}</div>}
+
+        {liste != null && alle.length === 0 && (
+          <section className="pj-empty">
+            <div className="pj-empty-icon"><Icon name="folder" /></div>
+            <h2>Noch keine Vergabe angelegt</h2>
+            <p className="muted">Legen Sie ein Projekt an und lesen Sie LV und Angebote ein. Sie können jederzeit unterbrechen und später weitermachen, z. B. wenn nachgeforderte Unterlagen eingehen.</p>
+            <div className="pj-tiles">
+              <button className="pj-tile main" onClick={() => anlegen()}><Icon name="plus" /><b>Neues Projekt</b><span>Leeres Projekt anlegen, LV und Angebotsordner einlesen</span></button>
+              <button className="pj-tile" onClick={() => fileRef.current?.click()}><Icon name="upload" /><b>Sicherung laden</b><span>ZIP-Sicherung von einem anderen Gerät oder von Kollegen</span></button>
+              <button className="pj-tile" onClick={() => anlegen(demoState())}><Icon name="sparkle" /><b>Beispiel ansehen</b><span>Erfundenes Projekt mit 2 Losen und 3 Bietern</span></button>
             </div>
           </section>
-        </div>
+        )}
+
+        {alle.length > 0 && (
+          <>
+            <div className="pj-bar">
+              <div className="pj-filter" role="tablist">
+                <button role="tab" aria-selected={!filter} className={!filter ? 'on' : ''} onClick={() => setFilter('')}>Alle <span>{alle.length}</span></button>
+                {PROJEKT_STATUS.map((x) => (
+                  <button key={x.v} role="tab" aria-selected={filter === x.v} className={filter === x.v ? 'on' : ''} onClick={() => setFilter(x.v)}>{x.label} <span>{anzahl(x.v)}</span></button>
+                ))}
+              </div>
+              <label className="pj-search"><Icon name="search" /><input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Suchen" aria-label="Projekte durchsuchen" /></label>
+            </div>
+
+            {sichtbar.length === 0 ? <p className="muted pj-none">Keine Projekte für diese Auswahl.</p> : (
+              <div className="pj-grid">
+                {sichtbar.map((k) => {
+                  const abgelaufen = !!k.frist && k.frist < heute() && k.status === 'nachforderung';
+                  return (
+                    <article key={k.id} className="pj-card">
+                      <div className="pj-card-top">
+                        <label className={`pj-st st-${k.status}`} title="Stand ändern">
+                          <i />
+                          <select value={k.status} aria-label="Stand" onChange={(e) => { const v = e.target.value as ProjektStatus; void aendern(k.id, (p) => void (p.status = v)); }}>
+                            {PROJEKT_STATUS.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
+                          </select>
+                        </label>
+                        <span className="pj-icons">
+                          <button className="btn ghost" title="Sicherung als ZIP herunterladen (mit allen Unterlagen)" aria-label="Sicherung herunterladen" onClick={() => sichern(k)}><Icon name="download" /></button>
+                          <button className="btn ghost" title="Kopie anlegen" aria-label="Kopie anlegen" onClick={() => kopieren(k)}><Icon name="copy" /></button>
+                          <button className="btn ghost danger" title="Projekt löschen" aria-label="Projekt löschen" onClick={() => loeschen(k)}><Icon name="trash" /></button>
+                        </span>
+                      </div>
+
+                      <button className="pj-title" onClick={() => onOpen(k.id)}>{k.titel || 'Ohne Bezeichnung'}</button>
+                      <div className="pj-sub">{[k.nummer, k.auftraggeber].filter(Boolean).join(' · ') || 'Noch keine Eckdaten'}</div>
+
+                      <div className="pj-meta">
+                        <span>{plural(k.angebote, 'Bieter', 'Bieter')} · {plural(k.dokumente, 'Datei', 'Dateien')}</span>
+                        <span title={new Date(k.geaendert).toLocaleString('de-DE')}>{geaendert(k.geaendert)}</span>
+                      </div>
+                      {(k.status === 'nachforderung' || k.frist) && (
+                        <label className={`pj-frist ${abgelaufen ? 'bad' : ''}`}>
+                          {abgelaufen ? 'Frist abgelaufen' : 'Nachreichen bis'}
+                          <input type="date" value={k.frist} aria-label="Frist für Nachreichungen" onChange={(e) => { const v = e.target.value; void aendern(k.id, (p) => void (p.frist = v)); }} />
+                        </label>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        <section className="pj-store">
+          <div className="pj-store-main">
+            <Icon name="lock" />
+            <div>
+              <b>Nur in diesem Browser gespeichert</b>
+              <span className="muted"> · {mb(info?.belegt ?? null)} belegt{info?.dauerhaft ? ' · dauerhaft gesichert' : ''}</span>
+              <details>
+                <summary>Was heißt das?</summary>
+                <p>Projekte und Unterlagen liegen <b>nur in diesem Browser auf diesem Gerät</b> (IndexedDB) und werden nicht an uns übertragen. In einem anderen Browser, auf einem anderen Gerät oder nach dem Löschen der Websitedaten sind sie nicht vorhanden. Für den Gerätewechsel, die Weitergabe an Kollegen und als Sicherung: Projekt als ZIP herunterladen <Icon name="download" /> und dort über „Sicherung laden“ öffnen.</p>
+                {!info?.dauerhaft && <p>Ohne dauerhafte Speicherung darf der Browser die Daten bei Platzmangel selbst löschen.</p>}
+              </details>
+            </div>
+          </div>
+          <div className="row">
+            {!info?.dauerhaft && <button className="btn small" onClick={dauerhaft}>Dauerhaft speichern</button>}
+            <button className="btn small ghost danger" title="Löscht alle in diesem Browser gespeicherten Daten dieser Anwendung" onClick={allesLoeschen}><Icon name="trash" /> Alle Daten löschen</button>
+          </div>
+        </section>
       </main>
       <Foot />
     </div>

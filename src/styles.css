@@ -28,12 +28,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 /* Layout */
 .top{display:flex;align-items:center;gap:20px;min-height:96px;padding:16px 28px;background:var(--band);color:var(--on-band);position:sticky;top:0;z-index:30;overflow:hidden}
-.top::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(var(--band-line) 1px,transparent 1px),linear-gradient(90deg,var(--band-line) 1px,transparent 1px);background-size:48px 48px;background-position:50% 0}
+.top::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(var(--band-line) 1px,transparent 1px),linear-gradient(90deg,var(--band-line) 1px,transparent 1px);background-size:48px 48px;background-position:50% 0;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,transparent 420px,#000 640px);mask-image:linear-gradient(90deg,transparent 0,transparent 420px,#000 640px)}
 .top>*{position:relative}
 /* Marke: NodeArq-Bildmarke (N + Entscheidungspunkt) und Wortmarke, daneben kleiner der Name der Anwendung */
 .brand{display:flex;align-items:center;gap:20px;min-width:0}
-.brand-mark{display:flex;align-items:center;gap:12px;flex:none}
-.logo{width:34px;height:34px;flex:none;color:var(--on-band)}.logo-dot{fill:#c9c8fb}
+/* Bildmarke steht auf der Grundlinie der Wortmarke, N ≈ 1,25 × Versalhöhe, Abstand ≈ 0,6 × N-Höhe (Logo-Kit) */
+.brand-mark{display:flex;align-items:baseline;gap:14px;flex:none}
+.logo{height:30px;width:auto;flex:none;color:var(--on-band)}.logo-dot{fill:#c7c6ff}
 .wordmark{font-size:30px;font-weight:400;letter-spacing:-.045em;line-height:1;color:var(--on-band)}.wordmark b{font-weight:700}
 .brand-app{padding-left:20px;border-left:1px solid var(--band-line-strong);min-width:0}
 .brand-app b{display:block;font-size:var(--fs-lg);font-weight:500;letter-spacing:-.01em;line-height:1.25}.brand-app small{display:block;margin-top:2px;color:var(--on-band-muted);font-size:var(--fs-sm)}
@@ -203,7 +205,7 @@ table.doc tr.hl td{background:#e8f7ef;font-weight:700}
 .modal textarea{font-family:var(--font-mono);font-size:var(--fs-sm);white-space:pre}
 
 @media (max-width:900px){
-  .top{flex-wrap:wrap;min-height:0;padding:12px 16px}.wordmark{font-size:24px}.logo{width:26px;height:26px}.brand{gap:14px}.brand-app{padding-left:14px}.brand-app b{font-size:var(--fs-base)}.brand-app small{font-size:var(--fs-xs)}.top-title{order:3;flex-basis:100%;text-align:left}
+  .top{flex-wrap:wrap;min-height:0;padding:12px 16px}.wordmark{font-size:24px}.logo{height:24px}.brand-mark{gap:11px}.brand{gap:14px}.brand-app{padding-left:14px}.brand-app b{font-size:var(--fs-base)}.brand-app small{font-size:var(--fs-xs)}.top-title{order:3;flex-basis:100%;text-align:left}
   .steps{overflow-x:auto;padding:14px 16px 0}.step{min-width:150px}.step small{display:none}
   .main{padding:16px}.card{padding:18px}.paper{padding:28px 22px}.aufk{grid-template-columns:1fr}.meta{grid-template-columns:1fr 1fr}
 }

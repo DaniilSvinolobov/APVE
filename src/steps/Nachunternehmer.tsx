@@ -1,6 +1,7 @@
 import type { Nachunternehmer, Offer, State } from '../domain/types';
 import { eignungsNachweis, nuOf, pqFremd } from '../domain/calc';
 import { Chip, Icon } from '../components/ui';
+import { pqErsetzt124 } from '../import/apply';
 
 type Up = (fn: (d: State) => void) => void;
 
@@ -18,7 +19,7 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
     fn(l);
     x.nu = l; x.nuQuelle = 'user';
   });
-  const setPq = (v: string) => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) { x.pq = v; delete x.pqQuelle; } });
+  const setPq = (v: string) => up((d) => { const x = d.offers.find((y) => y.id === o.id); if (x) { x.pq = v; delete x.pqQuelle; pqErsetzt124(d, x); } });
   const ausKi = o.nuQuelle !== 'user' && !!liste?.length;
   const fremd = pqFremd(o);
   // ältere Prüfung: PQ-Nummer aus 233/235 dem gewählten Unternehmen zuordnen und beim Bieter entfernen
@@ -29,6 +30,7 @@ export function NuEditor({ s, up, o }: { s: State; up: Up; o: Offer }) {
     if (l[i]) l[i].pq = x.pq?.trim();
     x.nu = l; x.nuQuelle = 'user';
     delete x.pq; delete x.pqQuelle;
+    pqErsetzt124(d, x);
   });
   return (
     <div className="nubox">

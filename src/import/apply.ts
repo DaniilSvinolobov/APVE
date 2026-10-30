@@ -1,7 +1,7 @@
 import { ozKey, type GaebDoc } from '../gaeb/gaeb';
 import type { BidPos, Los, LvBefund, LvPos, Offer, State, ZusatzPos } from '../domain/types';
 import { fmtEur, round2, uid } from '../domain/fmt';
-import { losPositions, zusatzWert } from '../domain/calc';
+import { bieterPq, losPositions, unterlageZeile, zusatzWert } from '../domain/calc';
 import { gleicherBieter, kette, naechsteRunde } from '../domain/runden';
 import { nachName, type ParsedBid } from './analyze';
 import { matchPositions, SICHER } from './ozMatch';
@@ -334,6 +334,25 @@ export function pruefNachDateien(d: State, offer: Offer) {
     if (!d.unterlagen.includes(row)) d.unterlagen.push(row);
     if (frei(row.id)) setNach(row.id, n);
   }
+  pqErsetzt124(d, offer);
+}
+
+const PQ_HINWEIS = 'Bieter präqualifiziert';
+
+/**
+ * Präqualifizierte Bieter weisen die Eignung über den Eintrag im PQ-Verzeichnis nach (§ 6b VOB/A); die Eigenerklärung
+ * zur Eignung (VVB 124) entfällt dann und gehört nicht in die Nachforderung. Ein beigefügtes 124 bleibt „vorhanden“,
+ * Eingaben von Hand bleiben unangetastet. Ohne PQ-Nummer wird die Kennzeichnung wieder aufgehoben.
+ */
+export function pqErsetzt124(d: State, offer: Offer) {
+  const z = unterlageZeile(d, '124');
+  if (!z) return;
+  const cur = offer.pruef[z.id];
+  const pq = bieterPq(offer);
+  const vonPq = cur?.k === 'auto' && cur.s === 'entf' && !!cur.n?.startsWith(PQ_HINWEIS);
+  if (!pq) { if (vonPq) delete offer.pruef[z.id]; return; }
+  if (cur && (cur.k === 'user' || cur.s === 'ok' || cur.s === 'nach')) return;
+  offer.pruef[z.id] = { s: 'entf', d: '', n: `${PQ_HINWEIS} (PQ-Nr. ${pq}) – Eigenerklärung zur Eignung entfällt.`, k: 'auto' };
 }
 
 /** Datei als nachgereicht markieren (`nach` = Datum, '' = unbekannt) oder die Markierung aufheben. */

@@ -1,5 +1,6 @@
 import { istNuDok, nuZusammen } from '../domain/calc';
 import type { HsEintrag, Nachunternehmer, Offer, PStatus, State } from '../domain/types';
+import { pqErsetzt124 } from '../import/apply';
 import { applyKopf, verfahrenAus } from '../import/kopfdaten';
 import { docStore, type DocFile } from '../import/docStore';
 import { erlaubteZeilen, formNummern, nameWiderspruch } from './formblatt';
@@ -80,6 +81,7 @@ export function applyKi(d: State, offerId: string, roh: KiDoc[]) {
     // bereits „nachgereicht“ bleibt als Hinweis erhalten, wenn die Datei in Ordner „Nachforderung“ lag
     o.pruef[id] = { s: cur?.s === 'nach' && b.s === 'ok' ? 'nach' : b.s, d: cur?.d ?? '', n: b.n, k: 'ki' };
   }
+  pqErsetzt124(d, o);
 }
 
 /**

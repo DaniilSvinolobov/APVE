@@ -481,3 +481,11 @@ select.pst.teil,select.pst.pdf{background-color:#fffaeb;color:#93500a;box-shadow
 select.pst.entf{background-color:#f5f6f8;color:#7a8394;box-shadow:inset 4px 0 0 #b5bcc9}
 input.pdate{margin-top:4px;padding:4px 8px;font-size:var(--fs-xs)}
 .vtab input.pdate{margin:0;width:100%;height:30px;padding:0 8px;font-size:var(--fs-xs);border-radius:8px}
+
+/* Projektübersicht */
+table.projekte td{vertical-align:middle}table.projekte th,table.projekte td{text-align:left}table.projekte th.r,table.projekte td.r{text-align:right}
+table.projekte td.name{min-width:240px}table.projekte td.muted{white-space:nowrap}
+table.projekte select{width:auto;min-width:170px}
+table.projekte input[type=date]{width:auto}
+table.projekte td.aktionen{white-space:nowrap;text-align:right}table.projekte td.aktionen .btn{margin-left:4px;vertical-align:middle;min-height:32px}
+.linkbtn{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--ink);cursor:pointer;text-align:left}.linkbtn:hover{color:var(--brand);text-decoration:underline}

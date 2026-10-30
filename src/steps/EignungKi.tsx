@@ -81,7 +81,7 @@ export function EignungKi({ s, up, o, b, setBew, ctx }: { s: State; up: Up; o: O
     <div className="eignung">
       <div className="row">
         {ctx.consent.referenzen && (
-          <button className="btn" disabled={!!busy || blocked || !docs.length} onClick={() => run('referenzen')} title={docs.length ? docs.map((d) => d.name).join('\n') : 'Keine Referenzunterlagen im Arbeitsspeicher – Angebotsordner in Schritt 2 (erneut) laden.'}>
+          <button className="btn" disabled={!!busy || blocked || !docs.length} onClick={() => run('referenzen')} title={docs.length ? docs.map((d) => d.name).join('\n') : 'Keine Referenzunterlagen gespeichert – Angebotsordner in Schritt 2 (erneut) laden.'}>
             <Icon name="sparkle" /> {busy === 'referenzen' ? 'Wird ausgewertet …' : `Referenzen auswerten (${docs.length} Datei${docs.length === 1 ? '' : 'en'})`}
           </button>
         )}
@@ -92,7 +92,7 @@ export function EignungKi({ s, up, o, b, setBew, ctx }: { s: State; up: Up; o: O
         )}
         {text && <button className="btn primary" disabled={b.qualifikation.includes(text)} onClick={() => setBew({ qualifikation: b.qualifikation.trim() ? `${b.qualifikation.trim()}\n${text}` : text })}><Icon name="arrow" /> In „Qualifikation / Referenzen“ übernehmen</button>}
       </div>
-      {ctx.consent.referenzen && !docs.length && <p className="muted small">Keine Referenzunterlagen im Arbeitsspeicher. Dateien mit „Referenz“ im Namen (oder von der KI-Dokumentprüfung als Referenz erkannte) werden ausgewertet – nach einem Neuladen der Seite den Angebotsordner in Schritt 2 erneut laden.</p>}
+      {ctx.consent.referenzen && !docs.length && <p className="muted small">Keine Referenzunterlagen gespeichert. Dateien mit „Referenz“ im Namen (oder von der KI-Dokumentprüfung als Referenz erkannte) werden ausgewertet – bei Projekten aus der früheren Version den Angebotsordner in Schritt 2 erneut laden.</p>}
       {msg && <p className={msg.ok ? 'okbox slim' : 'warnbox slim'}><Icon name={msg.ok ? 'check' : 'alert'} /> {msg.text}</p>}
 
       {e?.referenzen && (

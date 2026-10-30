@@ -427,7 +427,9 @@ export function engereText(s: State, l: Los, cells: Cell[], mitLos: boolean): st
 /** Satz zu einem Angebot, das nicht in die engere Wahl kommt: Grund von Hand, sonst Abstand zu den geprüften Angeboten und zum Kostenvoranschlag. */
 export function nichtGewertetText(s: State, c: Cell, take: Cell[]): string {
   const wer = `Das Angebot Nr. ${c.offer.nr} der Fa. ${c.offer.firma}`;
-  const grund = getBew(s, c.offer.id, c.los.id).nichtGewertet.trim();
+  const b = getBew(s, c.offer.id, c.los.id);
+  if (b.ausschluss.trim()) return `${wer} wurde aufgrund ${b.ausschluss.trim().replace(/\.$/, '')} ausgeschlossen.`;
+  const grund = b.nichtGewertet.trim();
   if (grund) return `${wer} wird aus der weiteren Wertung genommen: ${/[.!?]$/.test(grund) ? grund : `${grund}.`}`;
   const auto = nichtGewertetAuto(s, c, take);
   return auto ? `${wer} ${auto}` : `${wer} wird aus der weiteren Wertung genommen. [Begründung angeben]`;

@@ -40,6 +40,12 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
     d.engere = { ...(d.engere ?? {}), [los.id]: ids };
   });
   const raus = ew.ranked.filter((c) => !ew.take.includes(c));
+  const [grundOffen, setGrundOffen] = useState<Record<string, boolean>>({});
+  // Vorschlag beim Haken „Ausschließen“: Grund aus dem Preis (editierbar)
+  const ausschlussVorschlag = (c: Cell) =>
+    c.dKosten != null && c.dKosten > 0 ? `des deutlich überhöhten Angebotspreises (ca. ${fmtNum(c.dKosten, 0)} % über dem Kostenvoranschlag)`
+    : c.dMin != null && c.dMin > 0 ? `des deutlich überhöhten Angebotspreises (ca. ${fmtNum(c.dMin, 0)} % über dem günstigsten Angebot)`
+    : '[Grund angeben]';
 
   return (
     <div className="stack">
@@ -54,7 +60,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
       {runden.map((r) => {
         const rc = cells.filter((c) => c.offer.runde === r);
         const ewHier = mitEw && r === hrl;
-        const ncol = ewHier ? 9 : 8;
+        const ncol = ewHier ? 10 : 9;
         return (
           <section className="card" key={r}>
             <h2><span className="stepno">1</span>Rangfolge {los.nr} · {r === hrl ? (r === 1 ? 'Hauptangebote' : 'Angebote') : 'Nachverhandlung'}</h2>
@@ -63,10 +69,10 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                 <textarea rows={2} value={s.nvGrund?.[los.id] ?? ''} onChange={(e) => up((d) => void (d.nvGrund = { ...(d.nvGrund ?? {}), [los.id]: e.target.value }))} placeholder="z. B. Missverständnisse bei Positionen, falsche Menge im LV …" />
               </label>
             )}
-            {ewHier && <p className="lead">Haken bei <b>Engere Wahl</b>: Angebot wird im Vermerk einzeln begründet, für die übrigen steht dort ein kurzer Satz. {ew.manuell ? <button className="link" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Vorbelegung wiederherstellen</button> : `Vorbelegt: die ${Math.max(1, s.project.engereWahl)} günstigsten.`}</p>}
+            {ewHier && <p className="lead"><b>Engere Wahl</b> ({ew.take.length} von {ew.ranked.length}): Angebot wird im Vermerk einzeln begründet und in der Rückfrage-E-Mail auf auffällige Positionen geprüft. Bieter ohne Haken: im Vermerk ein kurzer Satz, in der E-Mail Empfehlung zum Ausschluss. {ew.manuell ? <button className="link" onClick={() => up((d) => { const e = { ...(d.engere ?? {}) }; delete e[los.id]; d.engere = e; })}>Vorbelegung wiederherstellen</button> : `Vorbelegt: die ${Math.max(1, s.project.engereWahl)} günstigsten.`}</p>}
             <div className="scroll">
               <table className="matrix rank">
-                <thead><tr>{ewHier && <th>Engere Wahl</th>}<th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Hinweise</th></tr></thead>
+                <thead><tr>{ewHier && <th>Engere Wahl</th>}<th>Aus&shy;schließen</th><th>Rang</th><th>Nr.</th><th className="left">Bieter</th><th className="r">Netto</th><th className="r">Brutto</th><th className="r">zum günstigsten</th><th className="r">zum Kostenvoranschlag</th><th className="left">Hinweise</th></tr></thead>
                 <tbody>
                   {rc.map((c) => {
                     const b = getBew(s, c.offer.id, los.id);
@@ -78,6 +84,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                       <Fragment key={c.offer.id}>
                         <tr className={c.excluded ? 'dim' : isWin ? 'first' : ''}>
                           {ewHier && <td>{inEw && <input type="checkbox" checked={ewOn} disabled={ewOn && ew.take.length === 1} onChange={(e) => setEw(c.offer.id, e.target.checked)} aria-label={`Nr. ${c.offer.nr} in die engere Wahl`} />}</td>}
+                          <td><input type="checkbox" checked={!!b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.checked ? ausschlussVorschlag(c) : '' })} aria-label={`Nr. ${c.offer.nr} ausschließen`} /></td>
                           <td>{c.rankAll ? <span className={`rankbadge ${isWin ? 'one' : ''}`}>{c.rankAll}</span> : '–'}</td>
                           <td>{c.offer.nr}</td>
                           <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}{(() => { const e = entfernung(s, c.offer); return e ? ` · ca. ${e.km} km zur Baustelle` : ''; })()}</small></td>
@@ -87,25 +94,29 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                           <td className="r">{fmtPct(c.dKosten)}</td>
                           <td className="left flags">
                             <FlagList items={c.flags.length === 0 && c.eligible ? [{ kind: 'ok', text: 'Keine Auffälligkeiten' }] : c.flags} />
-                            <div className="row acts">
-                              <label className="mini"><input type="checkbox" checked={!!b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.checked ? 'fehlender Eignungsnachweise' : '' })} /> ausschließen</label>
-                              {needsAufk && (
+                            {needsAufk && (
+                              <div className="row acts">
                                 <select value={b.aufklaerung} onChange={(e) => setBew(c.offer.id, { aufklaerung: e.target.value as Bew['aufklaerung'] })} aria-label="Preisaufklärung">
                                   <option value="">Preisaufklärung: offen</option><option value="angemessen">Preis aufgeklärt – angemessen</option><option value="unangemessen">Preis unangemessen – nicht werten</option>
                                 </select>
-                              )}
-                            </div>
+                              </div>
+                            )}
                           </td>
                         </tr>
-                        {ewHier && inEw && !ewOn && (
+                        {b.ausschluss ? (
                           <tr><td colSpan={ncol} className="reason">
-                            <span>Grund</span>
-                            <input value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={nichtGewertetAuto(s, c, ew.take) ? 'leer lassen = Text aus den Preisen (siehe unten)' : 'Grund angeben – das Angebot ist günstiger als ein gewähltes'} />
-                            <small className="muted block ewvorschau">Im Vermerk: {nichtGewertetText(s, c, ew.take)}</small>
+                            <span>Ausschlussgrund</span>
+                            <input value={b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.value })} placeholder="z. B. des deutlich überhöhten Angebotspreises" aria-label="Ausschlussgrund" />
+                            <small className="muted block ewvorschau">Im Vermerk und in der E-Mail: „… aufgrund {b.ausschluss.trim().replace(/\.$/, '')} ausgeschlossen.“</small>
                           </td></tr>
-                        )}
-                        {b.ausschluss && (
-                          <tr><td colSpan={ncol} className="reason"><span>Aufgrund</span><input value={b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.value })} placeholder="… fehlender Referenzen in vergleichbaren Leistungen wurde das Angebot ausgeschlossen" /></td></tr>
+                        ) : ewHier && inEw && !ewOn && (
+                          <tr><td colSpan={ncol} className="reason">
+                            {grundOffen[c.offer.id] || b.nichtGewertet || !nichtGewertetAuto(s, c, ew.take) ? <>
+                              <span>Grund</span>
+                              <input value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={nichtGewertetAuto(s, c, ew.take) ? 'leer lassen = Text aus den Preisen (siehe unten)' : 'Grund angeben – das Angebot ist günstiger als ein gewähltes'} />
+                            </> : null}
+                            <small className="muted block ewvorschau">Im Vermerk: {nichtGewertetText(s, c, ew.take)}{!grundOffen[c.offer.id] && !b.nichtGewertet && nichtGewertetAuto(s, c, ew.take) && <> <button className="link" onClick={() => setGrundOffen((o) => ({ ...o, [c.offer.id]: true }))}>Text ändern</button></>}</small>
+                          </td></tr>
                         )}
                         {b.aufklaerung && (
                           <tr><td colSpan={ncol} className="reason"><span>Aufklärung</span><input value={b.aufklaerungNotiz} onChange={(e) => setBew(c.offer.id, { aufklaerungNotiz: e.target.value })} placeholder="Begründung des Bieters / Ergebnis kurz festhalten" /></td></tr>

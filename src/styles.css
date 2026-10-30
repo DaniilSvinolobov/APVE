@@ -110,9 +110,14 @@ thead th{background:#f8f9fc;font-size:var(--fs-xs);color:var(--muted);font-weigh
 .matrix textarea{margin-top:8px;font-size:var(--fs-sm)}
 
 table.preis th,table.preis td{padding:4px 8px;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
-.preis .bh{font-size:var(--fs-xs);color:var(--ink);font-weight:600;line-height:1.3;white-space:nowrap;padding-top:8px;padding-bottom:6px}
-.preis .bh .bnr{display:block;font-size:var(--fs-xs);color:var(--muted);font-weight:500}
-.preis tr.sub th{top:44px;font-weight:500;font-size:var(--fs-xs);padding-top:2px;padding-bottom:4px;white-space:nowrap}
+.preis .bh{font-size:var(--fs-xs);color:var(--ink);font-weight:600;line-height:1.3;padding-top:8px;padding-bottom:6px;vertical-align:top}
+.preis .bh .bnr{display:block;font-size:var(--fs-xs);color:var(--muted);font-weight:500;white-space:nowrap}
+/* Firmenname höchstens zwei Zeilen (voller Name als Tooltip), Kopfzeile dadurch immer gleich hoch */
+.preis .bh .bname{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;height:2.6em;overflow-wrap:anywhere}
+table.preis.fixed{table-layout:fixed}
+.preis.fixed td,.preis.fixed th{overflow-wrap:anywhere}
+.preis.fixed td.gp,.preis.fixed .big{overflow:hidden;text-overflow:ellipsis}
+.preis tr.sub th{top:61px;font-weight:500;font-size:var(--fs-xs);padding-top:2px;padding-bottom:4px;white-space:nowrap}
 .preis .big{white-space:nowrap}
 .preis .g0{border-left:1px solid var(--line)}
 .preis td.gp{color:var(--muted);text-align:right;white-space:nowrap}
@@ -439,7 +444,7 @@ table.hstab td.feld{color:var(--muted)}
 /* ===== Aufgeräumt: Abstände und Umbrüche ===== */
 .card>h2:first-child+.grid,.card>h2:first-child+.loslist{margin-top:14px}
 .card-head>h2{margin:0}
-.preis td.flags .flaglist{min-width:200px;max-width:280px}
+.preis td.flags .flaglist{min-width:0;max-width:none}
 .chkfield{min-height:42px;display:flex;align-items:center}
 .offer-opts select{width:auto;min-width:200px;padding:4px 8px;font-size:var(--fs-sm);height:30px}
 .offer-opts .numwrap.sm input{height:30px;font-size:var(--fs-sm)}

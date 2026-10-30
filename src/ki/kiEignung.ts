@@ -20,7 +20,7 @@ const MAX_SEITEN = 30;
 /** Dateiname deutet auf Referenzen hin – auch wenn die Datei einer anderen Kategorie zugeordnet ist (z. B. „Eignungsnachweis_Referenzen.pdf“). */
 const REF_NAME = /referenz|projektliste|leistungsnachweis|(^|[\s._-])ref([\s._-]|\d)/i;
 
-/** Referenzunterlagen eines Angebots (nur im Arbeitsspeicher; nach Neuladen der Seite Ordner erneut einlesen).
+/** Referenzunterlagen eines Angebots (aus dem Projektspeicher; fehlen bei Projekten aus der früheren Version).
  *  Erkannt am Dateinamen oder daran, dass die KI-Dokumentprüfung die Datei als Referenz eingeordnet hat; leere Dateien nicht. */
 export function referenzDocs(o: Offer): DocFile[] {
   const ki = new Set((o.kiDocs ?? []).filter((k) => /referenz/i.test(k.art)).map((k) => k.datei));

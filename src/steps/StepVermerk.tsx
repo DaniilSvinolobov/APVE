@@ -4,7 +4,9 @@ import { buildVermerk, anlagenList, budgetAusKosten, footerText, nichtGewertetAu
 import { computeLos, engereWahl, getBew, nuOf, pruefStatus } from '../domain/calc';
 import { istHaupt, nvHinweis } from '../domain/runden';
 import { uid } from '../domain/fmt';
-import { downloadJson } from '../storage/exportCsv';
+import { downloadBlob } from '../storage/exportCsv';
+import { sicherungName, sicherungZip } from '../storage/sicherung';
+import { docStore } from '../import/docStore';
 import { Icon } from '../components/ui';
 import { useGeo } from '../geo/entfernung';
 import { VollstaendigkeitPdfButton } from './Vollstaendigkeit';
@@ -88,7 +90,7 @@ export function StepVermerk({ s, up }: { s: State; up: Up }) {
         <div className="card-head">
           <div><h2>Vergabevermerk</h2><p className="lead">Aus Ihren Daten erzeugt. Text anklicken zum Ändern, „automatisch“ setzt ihn zurück.</p></div>
           <div className="row">
-            <button className="btn" onClick={() => downloadJson(`Vergabe_${p.nummer || 'Sicherung'}.json`, s)}><Icon name="download" /> Datensicherung</button>
+            <button className="btn" title="Projekt mit allen Unterlagen als ZIP-Datei sichern" onClick={async () => downloadBlob(sicherungName(s), await sicherungZip(s, docStore))}><Icon name="download" /> Datensicherung</button>
             <button className="btn primary" onClick={() => window.print()}><Icon name="print" /> Als PDF drucken</button>
           </div>
         </div>

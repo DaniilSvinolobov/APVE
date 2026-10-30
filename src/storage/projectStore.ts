@@ -2,21 +2,23 @@ import { VERFAHREN_PRIVAT, type State } from '../domain/types';
 import { emptyState } from '../domain/demo';
 import { verknuepfeAlte } from '../domain/runden';
 
-const KEY = 'apve-state-v2';
+const KEY = 'apve-state-v2'; // bis Version 0.1: ein einziges Projekt im localStorage, jetzt nur noch für die Übernahme (projektRepo/migration)
 const STEP_KEY = 'apve-step';
+const AKTIV_KEY = 'apve-aktiv';
 
-/** Gespeichertes Projekt aus dem Browser laden (oder leeres Projekt). */
-export function loadState(): State {
+/** Projekt aus dem früheren localStorage-Speicher (oder null, wenn keines oder nur ein leeres vorhanden ist). */
+export function legacyState(): State | null {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return parseBackup(JSON.parse(raw)) ?? emptyState();
-  } catch { /* ignore */ }
-  return emptyState();
+    const st = raw ? parseBackup(JSON.parse(raw)) : null;
+    if (!st) return null;
+    const leer = emptyState();
+    const benutzt = st.offers.length || st.lv.length || st.lose.length || JSON.stringify(st.project) !== JSON.stringify(leer.project);
+    return benutzt ? st : null;
+  } catch { return null; }
 }
-
-/** Projekt speichern; `false`, wenn der Browser-Speicher voll ist. */
-export function saveState(s: State): boolean {
-  try { localStorage.setItem(KEY, JSON.stringify(s)); return true; } catch { return false; }
+export function clearLegacy() {
+  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
 }
 
 /** Datensicherung (JSON) prüfen; `null`, wenn es keine Sicherung dieser Version ist. */
@@ -39,6 +41,14 @@ const ALTE_VERFAHREN: Record<string, string> = {
   'Freihändige Vergabe': 'Freihändige Vergabe nach VOB/A',
   'Privat / intern': VERFAHREN_PRIVAT,
 };
+
+/** Geöffnetes Projekt dieses Tabs (nach dem Neuladen wieder öffnen; ein neuer Tab beginnt in der Übersicht). */
+export function loadAktiv(): string | null {
+  try { return sessionStorage.getItem(AKTIV_KEY); } catch { return null; }
+}
+export function saveAktiv(id: string | null) {
+  try { id ? sessionStorage.setItem(AKTIV_KEY, id) : sessionStorage.removeItem(AKTIV_KEY); } catch { /* ignore */ }
+}
 
 export function loadStep(): number {
   try { return Number(sessionStorage.getItem(STEP_KEY) ?? 0) || 0; } catch { return 0; }

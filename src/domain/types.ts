@@ -152,7 +152,18 @@ export interface Project {
   unterzeichner: string;
   datum: string; // Datum des Vermerks
   vollstaendigkeit: boolean; // Vollständigkeitsprüfung im Anlagenverzeichnis aufführen (eigenes PDF)
+  status?: ProjektStatus; // Bearbeitungsstand in der Projektübersicht; fehlt = „in Prüfung“
+  frist?: string; // Frist für nachzureichende Unterlagen (ISO-Datum, Projektübersicht)
 }
+
+/** Bearbeitungsstand eines Projekts (nur Übersicht, ändert keine Wertung). */
+export type ProjektStatus = 'pruefung' | 'nachforderung' | 'wertung' | 'abgeschlossen';
+export const PROJEKT_STATUS: { v: ProjektStatus; label: string }[] = [
+  { v: 'pruefung', label: 'In Prüfung' },
+  { v: 'nachforderung', label: 'Nachforderung läuft' },
+  { v: 'wertung', label: 'Wertung' },
+  { v: 'abgeschlossen', label: 'Abgeschlossen' },
+];
 
 export interface State {
   v: 2;

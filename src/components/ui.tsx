@@ -80,6 +80,7 @@ const P: Record<string, string> = {
   arrow: 'M5 12h14m-6-6l6 6-6 6', back: 'M19 12H5m6-6l-6 6 6 6', file: 'M7 3h7l5 5v13H7zM14 3v5h5',
   folder: 'M3 6h6l2 2h10v11H3z', undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3', down: 'M6 9l6 6 6-6', right: 'M9 6l6 6-6 6',
   edit: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
+  copy: 'M9 9h11v11H9zM5 15H4V4h11v1', search: 'M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5', lock: 'M6 11h12v10H6zM8 11V7a4 4 0 018 0v4',
 };
 export function Icon({ name }: { name: keyof typeof P }) {
   return (

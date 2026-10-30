@@ -52,7 +52,7 @@ export function StepUnterlagen({ s, up }: { s: State; up: Up }) {
         const setInfo = (s: 'ok' | 'skip' | 'fehler', t: string) => up((d) => { const x = d.offers.find((y) => y.id === id); if (x) x.kiInfo = { s, t }; });
         const docs = offerDocs(o);
         if (!docs.length) {
-          const t = 'Originaldateien nicht mehr verfügbar – bitte den Ordner erneut einlesen.';
+          const t = 'Keine Originaldateien gespeichert (z. B. Projekt aus der früheren Version) – bitte den Ordner erneut einlesen.';
           notes.push(`Nr. ${o.nr}: ${t}`); setInfo('skip', t); continue;
         }
         // Ein Fehler bei einem Angebot stoppt die übrigen nicht; nur ein falscher Zugangscode bricht alles ab.

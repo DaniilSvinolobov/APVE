@@ -56,7 +56,7 @@ export function AnfrageKarte({ s, up, los, cells, offen, setOffen }: { s: State;
       {runden.length > 1 && <div className="anfrage-runde"><Seg small value={runde} onChange={setRunde} options={runden.map((r) => ({ value: r, label: r === runden[0] ? 'Hauptangebote' : `Nachverhandlung ${r - 1}` }))} /></div>}
 
       <h3 className="anf-h">Bieter und Positionen</h3>
-      <p className="muted small">Vorbelegt: Bieter der engeren Wahl mit auffälligen Positionen (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben {mitSchaetz ? 'unserem LV-Schätzpreis, ohne Schätzpreis dem günstigsten Angebot' : 'dem günstigsten Angebot'}, Auswirkung ab {fmtNum(minEuro, 0)} €). Positionen nach Titeln geordnet; per Haken einzeln oder je Titel ab- oder zuwählen.</p>
+      <p className="muted small">Vorbelegt: Bieter der engeren Wahl mit auffälligen Positionen (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben {mitSchaetz ? 'unserem LV-Schätzpreis, ohne Schätzpreis dem günstigsten Angebot' : 'dem günstigsten Angebot'}, Auswirkung ab {fmtNum(minEuro, 0)} €); Bieter außerhalb der engeren Wahl mit Empfehlung zum Ausschluss. Positionen nach Titeln geordnet; per Haken einzeln oder je Titel ab- oder zuwählen.</p>
 
       <div className="stack">
         {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} titles={s.titles} minEuro={minEuro} />)}

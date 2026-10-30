@@ -29,16 +29,18 @@ export function anfrageBieter(s: State, los: Los, cells: Cell[], runde: number):
   const a = anfrageOf(s, los);
   const rc = anfrageCells(cells, runde);
   const min = mindestEuro(cells, runde);
-  const aus = rc.filter((c) => a.modus[c.offer.id] === 'aus').map((c) => c.offer.id);
-  // Vorbelegung: Kalkulation nur bei Bietern der engeren Wahl nachfordern (in der ersten Runde)
+  // Vorbelegung (in der ersten Runde): Kalkulation nur bei Bietern der engeren Wahl nachfordern,
+  // Bieter außerhalb der engeren Wahl werden nicht weiter betrachtet → Ausschluss vorab empfehlen
   const hr = Math.min(...cells.map((c) => c.offer.runde));
   const engere = runde === hr ? engereWahl(s, cells).take : rc;
+  const modusOf = (c: Cell): AnfrageModus | undefined => a.modus[c.offer.id] ?? (engere.includes(c) ? undefined : 'aus');
+  const aus = rc.filter((c) => modusOf(c) === 'aus').map((c) => c.offer.id);
   return rc.map((c) => {
     const vergleich = positionsVergleich(s, los, cells, c, min, aus);
     const auto = vergleich.filter((p) => p.status === 'auffaellig').map((p) => p.oz).sort(ozSort);
     const hand = a.pos[c.offer.id];
     const liste = hand == null ? auto : [...new Set(hand.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean))].sort(ozSort);
-    return { c, modus: a.modus[c.offer.id] ?? (auto.length && engere.includes(c) ? 'nach' : 'ohne'), vergleich, auto, liste, manuell: hand != null };
+    return { c, modus: modusOf(c) ?? (auto.length ? 'nach' : 'ohne'), vergleich, auto, liste, manuell: hand != null };
   });
 }
 

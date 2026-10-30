@@ -116,7 +116,7 @@ export interface Bew {
 export type AnfrageModus = 'ohne' | 'nach' | 'aus'; // nicht erwähnen | Angebotskalkulation nachfordern | Ausschluss empfehlen
 export interface Anfrage {
   anrede: string; // leer = „Sehr geehrte Damen und Herren,“
-  modus: Record<string, AnfrageModus>; // [offerId]; fehlt = „nach“ bei auffälligen Positionen und Bieter in der engeren Wahl, sonst „ohne“
+  modus: Record<string, AnfrageModus>; // [offerId]; fehlt = außerhalb der engeren Wahl „aus“, sonst „nach“ bei auffälligen Positionen, sonst „ohne“
   grund: Record<string, string>; // [offerId] Begründung der Ausschlussempfehlung (leer = automatischer Text)
   pos: Record<string, string>; // [offerId] Positionen von Hand (kommagetrennt); fehlt = automatisch
 }

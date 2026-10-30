@@ -1,5 +1,5 @@
 import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
-import { engereWahl, mindestEuro, positionsVergleich, type AufklPos, type Cell } from '../domain/calc';
+import { engereWahl, getBew, mindestEuro, positionsVergleich, type AufklPos, type Cell } from '../domain/calc';
 import { fmtNum } from '../domain/fmt';
 
 /** E-Mail an den Auftraggeber während der Angebotsprüfung: Ausschluss einzelner Bieter vorab empfehlen und für auffällige Positionen
@@ -15,32 +15,37 @@ export const anfrageCells = (cells: Cell[], runde: number) => cells.filter((c) =
 
 const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true });
 
+export type AnfrageRolle = 'engere' | 'raus' | 'ausgeschlossen'; // in der engeren Wahl | nicht in der engeren Wahl | in der Wertung ausgeschlossen
+
 export interface AnfrageBieter {
   c: Cell;
-  modus: AnfrageModus;
+  rolle: AnfrageRolle;
+  modus: AnfrageModus; // engere Wahl → „nach“, sonst „aus“; „ohne“ = von Hand aus der E-Mail genommen
   vergleich: AufklPos[]; // alle bepreisten Positionen mit Vergleich, nach Auswirkung absteigend (ohne die zum Ausschluss empfohlenen Bieter)
   auto: string[]; // automatisch vorgeschlagene Positionen (auffällig)
   liste: string[]; // Positionen in der E-Mail
   manuell: boolean;
 }
 
-/** Stand je Bieter: Modus (von Hand oder automatisch) und Positionen. Zum Ausschluss empfohlene Bieter zählen nicht zum Vergleich der übrigen. */
+/** Stand je Bieter, abgeleitet aus der Wertung: engere Wahl → Kalkulation nachfordern (bei auffälligen Positionen),
+ *  nicht in der engeren Wahl oder ausgeschlossen → Ausschluss empfehlen. Diese Bieter zählen nicht zum Vergleich der übrigen. */
 export function anfrageBieter(s: State, los: Los, cells: Cell[], runde: number): AnfrageBieter[] {
   const a = anfrageOf(s, los);
   const rc = anfrageCells(cells, runde);
   const min = mindestEuro(cells, runde);
-  // Vorbelegung (in der ersten Runde): Kalkulation nur bei Bietern der engeren Wahl nachfordern,
-  // Bieter außerhalb der engeren Wahl werden nicht weiter betrachtet → Ausschluss vorab empfehlen
   const hr = Math.min(...cells.map((c) => c.offer.runde));
   const engere = runde === hr ? engereWahl(s, cells).take : rc;
-  const modusOf = (c: Cell): AnfrageModus | undefined => a.modus[c.offer.id] ?? (engere.includes(c) ? undefined : 'aus');
-  const aus = rc.filter((c) => modusOf(c) === 'aus').map((c) => c.offer.id);
+  const rolleOf = (c: Cell): AnfrageRolle => (c.excluded ? 'ausgeschlossen' : engere.includes(c) ? 'engere' : 'raus');
+  const aus = rc.filter((c) => rolleOf(c) !== 'engere').map((c) => c.offer.id);
   return rc.map((c) => {
+    const rolle = rolleOf(c);
     const vergleich = positionsVergleich(s, los, cells, c, min, aus);
     const auto = vergleich.filter((p) => p.status === 'auffaellig').map((p) => p.oz).sort(ozSort);
     const hand = a.pos[c.offer.id];
     const liste = hand == null ? auto : [...new Set(hand.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean))].sort(ozSort);
-    return { c, modus: modusOf(c) ?? (auto.length ? 'nach' : 'ohne'), vergleich, auto, liste, manuell: hand != null };
+    const gespeichert = a.modus[c.offer.id];
+    const modus: AnfrageModus = gespeichert === 'ohne' ? 'ohne' : rolle !== 'engere' ? 'aus' : gespeichert === 'nach' || auto.length ? 'nach' : 'ohne';
+    return { c, rolle, modus, vergleich, auto, liste, manuell: hand != null };
   });
 }
 
@@ -65,8 +70,11 @@ export function anfrageText(s: State, los: Los, cells: Cell[], runde: number): s
 
   const out = [a.anrede.trim() || 'Sehr geehrte Damen und Herren,', '', `wir befinden uns noch in der Angebotsprüfung${losText}.`];
   for (const b of aus) {
-    const grund = (a.grund[b.c.offer.id] ?? '').trim() || ausschlussAuto(b) || '[Grund angeben]';
-    out.push('', `Wir empfehlen vorab, den ${bieterNr(b.c.offer.nr)} ${b.c.offer.firma} von der weiteren Angebotsprüfung auszuschließen, da ${grund.replace(/\.$/, '')}.`);
+    const name = `${bieterNr(b.c.offer.nr)} ${b.c.offer.firma}`;
+    const grund = (a.grund[b.c.offer.id] ?? '').trim();
+    const wertung = getBew(s, b.c.offer.id, los.id).ausschluss.trim();
+    if (!grund && wertung) out.push('', `Wir empfehlen vorab, den ${name} aufgrund ${wertung.replace(/\.$/, '')} von der weiteren Angebotsprüfung auszuschließen.`);
+    else out.push('', `Wir empfehlen vorab, den ${name} von der weiteren Angebotsprüfung auszuschließen, da ${(grund || ausschlussAuto(b) || '[Grund angeben]').replace(/\.$/, '')}.`);
   }
   if (nach.length) {
     out.push('', `Wir bitten, für ${nach.length > 1 ? 'folgende Bieter' : 'folgenden Bieter'} für die jeweils aufgeführten Positionen eine detaillierte Angebotskalkulation nachzufordern, da diese ${schaetz ? 'von unserem LV-Schätzpreis' : 'vom günstigsten Angebot'} deutlich abweichen.`);

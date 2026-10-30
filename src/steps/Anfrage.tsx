@@ -3,17 +3,18 @@ import type { Anfrage, AnfrageModus, Los, State } from '../domain/types';
 import type { AufklPos, Cell } from '../domain/calc';
 import { fmtEur, fmtNum, fmtPct, round2 } from '../domain/fmt';
 import { anfrageBieter, anfrageOf, anfrageText, ausschlussAuto, leereAnfrage, type AnfrageBieter } from '../vermerk/anfrage';
-import { mindestEuro, titelKey } from '../domain/calc';
+import { getBew, mindestEuro, titelKey } from '../domain/calc';
 import { FlagList, Icon, Seg } from '../components/ui';
 import { downloadText } from '../storage/exportCsv';
 
 type Up = (fn: (d: State) => void) => void;
 type SetA = (fn: (a: Anfrage) => void) => void;
 
-const MODI: { value: AnfrageModus; label: string }[] = [
-  { value: 'nach', label: 'Kalkulation nachfordern' },
-  { value: 'aus', label: 'Ausschluss empfehlen' },
-];
+const ROLLE: Record<AnfrageBieter['rolle'], { label: string; kind: 'ok' | 'warn' | 'bad' }> = {
+  engere: { label: 'Engere Wahl → Kalkulation nachfordern', kind: 'ok' },
+  raus: { label: 'Nicht in der engeren Wahl → Ausschluss empfehlen', kind: 'warn' },
+  ausgeschlossen: { label: 'Ausgeschlossen → Ausschluss empfehlen', kind: 'bad' },
+};
 
 export const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true });
 const eur0 = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v), 0)} €`;
@@ -56,10 +57,10 @@ export function AnfrageKarte({ s, up, los, cells, offen, setOffen }: { s: State;
       {runden.length > 1 && <div className="anfrage-runde"><Seg small value={runde} onChange={setRunde} options={runden.map((r) => ({ value: r, label: r === runden[0] ? 'Hauptangebote' : `Nachverhandlung ${r - 1}` }))} /></div>}
 
       <h3 className="anf-h">Bieter und Positionen</h3>
-      <p className="muted small">Vorbelegt: Bieter der engeren Wahl mit auffälligen Positionen (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben {mitSchaetz ? 'unserem LV-Schätzpreis, ohne Schätzpreis dem günstigsten Angebot' : 'dem günstigsten Angebot'}, Auswirkung ab {fmtNum(minEuro, 0)} €); Bieter außerhalb der engeren Wahl mit Empfehlung zum Ausschluss. Positionen nach Titeln geordnet; per Haken einzeln oder je Titel ab- oder zuwählen.</p>
+      <p className="muted small">Richtet sich nach der Rangfolge oben: <b>Engere Wahl</b> → Kalkulation zu auffälligen Positionen nachfordern (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben {mitSchaetz ? 'unserem LV-Schätzpreis, ohne Schätzpreis dem günstigsten Angebot' : 'dem günstigsten Angebot'}, Auswirkung ab {fmtNum(minEuro, 0)} €). <b>Nicht in der engeren Wahl</b> oder <b>ausgeschlossen</b> → Ausschluss empfehlen. Ändern über die Haken in der Rangfolge.</p>
 
       <div className="stack">
-        {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} titles={s.titles} minEuro={minEuro} />)}
+        {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} titles={s.titles} minEuro={minEuro} wertung={getBew(s, b.c.offer.id, los.id).ausschluss.trim()} />)}
       </div>
 
       <h3 className="anf-h">E-Mail-Text</h3>
@@ -77,7 +78,7 @@ export function AnfrageKarte({ s, up, los, cells, offen, setOffen }: { s: State;
   );
 }
 
-function BieterZeile({ b, a, set, titles, minEuro }: { b: AnfrageBieter; a: Anfrage; set: SetA; titles: Record<string, string>; minEuro: number }) {
+function BieterZeile({ b, a, set, titles, minEuro, wertung }: { b: AnfrageBieter; a: Anfrage; set: SetA; titles: Record<string, string>; minEuro: number; wertung: string }) {
   const [neu, setNeu] = useState('');
   const { c } = b;
   const id = c.offer.id;
@@ -141,11 +142,11 @@ function BieterZeile({ b, a, set, titles, minEuro }: { b: AnfrageBieter; a: Anfr
     <div className={`anf-bieter ${b.modus}`} id={`anf-${id}`}>
       <div className="anf-kopf">
         <label className="mini big">
-          <input type="checkbox" checked={b.modus !== 'ohne'} onChange={(e) => setModus(e.target.checked ? 'nach' : 'ohne')} aria-label={`Nr. ${c.offer.nr} in die E-Mail`} />
+          <input type="checkbox" checked={b.modus !== 'ohne'} onChange={(e) => setModus(e.target.checked ? (b.rolle === 'engere' ? 'nach' : 'aus') : 'ohne')} aria-label={`Nr. ${c.offer.nr} in die E-Mail`} />
           <span><b>Nr. {c.offer.nr} · {c.offer.firma}</b>
           <small className="muted block">{fmtEur(c.sumNet)} netto · {fmtPct(c.dKosten)} zum Kostenvoranschlag · {fmtPct(c.dMin)} zum günstigsten · {b.auto.length ? `${b.auto.length} auffällige Position${b.auto.length > 1 ? 'en' : ''}` : 'keine auffälligen Positionen'}</small></span>
         </label>
-        {b.modus !== 'ohne' && <Seg small value={b.modus} onChange={setModus} options={MODI} />}
+        <span className={`chip ${b.modus === 'ohne' ? 'info' : ROLLE[b.rolle].kind}`}>{b.modus !== 'ohne' ? ROLLE[b.rolle].label : b.rolle === 'engere' && !b.auto.length ? 'Engere Wahl · nichts nachzufordern' : 'nicht in der E-Mail'}</span>
       </div>
 
       {b.modus === 'nach' && (
@@ -185,9 +186,9 @@ function BieterZeile({ b, a, set, titles, minEuro }: { b: AnfrageBieter; a: Anfr
       {b.modus === 'aus' && (
         <div className="anf-body">
           <label className="field wide"><span className="field-label">Begründung („… auszuschließen, da …“)</span>
-            <textarea rows={2} value={a.grund[id] ?? ''} onChange={(e) => set((x) => void (x.grund = { ...x.grund, [id]: e.target.value }))} placeholder={auto ? `Leer = automatisch: ${auto}` : 'z. B. das Angebot weit über unserem Schätzpreis liegt'} />
+            <textarea rows={2} value={a.grund[id] ?? ''} onChange={(e) => set((x) => void (x.grund = { ...x.grund, [id]: e.target.value }))} placeholder={wertung ? `Leer = aus der Wertung: „aufgrund ${wertung}“` : auto ? `Leer = automatisch: ${auto}` : 'z. B. das Angebot weit über unserem Schätzpreis liegt'} />
           </label>
-          {!auto && !(a.grund[id] ?? '').trim() && <FlagList items={[{ kind: 'warn', text: 'Bitte Begründung angeben.' }]} />}
+          {!auto && !wertung && !(a.grund[id] ?? '').trim() && <FlagList items={[{ kind: 'warn', text: 'Bitte Begründung angeben.' }]} />}
         </div>
       )}
     </div>

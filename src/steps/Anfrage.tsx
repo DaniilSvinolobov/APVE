@@ -10,10 +10,10 @@ import { downloadText } from '../storage/exportCsv';
 type Up = (fn: (d: State) => void) => void;
 type SetA = (fn: (a: Anfrage) => void) => void;
 
-const ROLLE: Record<AnfrageBieter['rolle'], { label: string; kind: 'ok' | 'warn' | 'bad' }> = {
-  engere: { label: 'Engere Wahl → Kalkulation nachfordern', kind: 'ok' },
-  raus: { label: 'Nicht in der engeren Wahl → Ausschluss empfehlen', kind: 'warn' },
-  ausgeschlossen: { label: 'Ausgeschlossen → Ausschluss empfehlen', kind: 'bad' },
+const ROLLE: Record<AnfrageBieter['rolle'], string> = {
+  engere: 'Engere Wahl · Kalkulation nachfordern',
+  raus: 'Nicht in der engeren Wahl · Ausschluss empfehlen',
+  ausgeschlossen: 'Ausgeschlossen · Ausschluss empfehlen',
 };
 
 export const ozSort = (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true });
@@ -146,7 +146,7 @@ function BieterZeile({ b, a, set, titles, minEuro, wertung }: { b: AnfrageBieter
           <span><b>Nr. {c.offer.nr} · {c.offer.firma}</b>
           <small className="muted block">{fmtEur(c.sumNet)} netto · {fmtPct(c.dKosten)} zum Kostenvoranschlag · {fmtPct(c.dMin)} zum günstigsten · {b.auto.length ? `${b.auto.length} auffällige Position${b.auto.length > 1 ? 'en' : ''}` : 'keine auffälligen Positionen'}</small></span>
         </label>
-        <span className={`chip ${b.modus === 'ohne' ? 'info' : ROLLE[b.rolle].kind}`}>{b.modus !== 'ohne' ? ROLLE[b.rolle].label : b.rolle === 'engere' && !b.auto.length ? 'Engere Wahl · nichts nachzufordern' : 'nicht in der E-Mail'}</span>
+        <span className="muted small">{b.modus !== 'ohne' ? ROLLE[b.rolle] : b.rolle === 'engere' && !b.auto.length ? 'Engere Wahl · nichts nachzufordern' : 'nicht in der E-Mail'}</span>
       </div>
 
       {b.modus === 'nach' && (
@@ -183,12 +183,13 @@ function BieterZeile({ b, a, set, titles, minEuro, wertung }: { b: AnfrageBieter
         </div>
       )}
 
-      {b.modus === 'aus' && (
+      {b.modus === 'aus' && wertung && <p className="muted small anf-body">Grund aus der Wertung: „… aufgrund {wertung.replace(/\.$/, '')} von der weiteren Angebotsprüfung auszuschließen.“</p>}
+      {b.modus === 'aus' && !wertung && (
         <div className="anf-body">
           <label className="field wide"><span className="field-label">Begründung („… auszuschließen, da …“)</span>
-            <textarea rows={2} value={a.grund[id] ?? ''} onChange={(e) => set((x) => void (x.grund = { ...x.grund, [id]: e.target.value }))} placeholder={wertung ? `Leer = aus der Wertung: „aufgrund ${wertung}“` : auto ? `Leer = automatisch: ${auto}` : 'z. B. das Angebot weit über unserem Schätzpreis liegt'} />
+            <textarea rows={2} value={a.grund[id] ?? ''} onChange={(e) => set((x) => void (x.grund = { ...x.grund, [id]: e.target.value }))} placeholder={auto ? `Leer = automatisch: ${auto}` : 'z. B. das Angebot weit über unserem Schätzpreis liegt'} />
           </label>
-          {!auto && !wertung && !(a.grund[id] ?? '').trim() && <FlagList items={[{ kind: 'warn', text: 'Bitte Begründung angeben.' }]} />}
+          {!auto && !(a.grund[id] ?? '').trim() && <FlagList items={[{ kind: 'warn', text: 'Bitte Begründung angeben.' }]} />}
         </div>
       )}
     </div>

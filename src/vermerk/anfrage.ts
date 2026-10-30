@@ -73,7 +73,7 @@ export function anfrageText(s: State, los: Los, cells: Cell[], runde: number): s
     const name = `${bieterNr(b.c.offer.nr)} ${b.c.offer.firma}`;
     const grund = (a.grund[b.c.offer.id] ?? '').trim();
     const wertung = getBew(s, b.c.offer.id, los.id).ausschluss.trim();
-    if (!grund && wertung) out.push('', `Wir empfehlen vorab, den ${name} aufgrund ${wertung.replace(/\.$/, '')} von der weiteren Angebotsprüfung auszuschließen.`);
+    if (wertung) out.push('', `Wir empfehlen vorab, den ${name} aufgrund ${wertung.replace(/\.$/, '')} von der weiteren Angebotsprüfung auszuschließen.`);
     else out.push('', `Wir empfehlen vorab, den ${name} von der weiteren Angebotsprüfung auszuschließen, da ${(grund || ausschlussAuto(b) || '[Grund angeben]').replace(/\.$/, '')}.`);
   }
   if (nach.length) {

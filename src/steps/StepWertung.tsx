@@ -40,6 +40,12 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
     d.engere = { ...(d.engere ?? {}), [los.id]: ids };
   });
   const raus = ew.ranked.filter((c) => !ew.take.includes(c));
+  const [grundOffen, setGrundOffen] = useState<Record<string, boolean>>({});
+  // Vorschlag beim Haken „Ausschließen“: Grund aus dem Preis (editierbar)
+  const ausschlussVorschlag = (c: Cell) =>
+    c.dKosten != null && c.dKosten > 0 ? `des deutlich überhöhten Angebotspreises (ca. ${fmtNum(c.dKosten, 0)} % über dem Kostenvoranschlag)`
+    : c.dMin != null && c.dMin > 0 ? `des deutlich überhöhten Angebotspreises (ca. ${fmtNum(c.dMin, 0)} % über dem günstigsten Angebot)`
+    : '[Grund angeben]';
 
   return (
     <div className="stack">
@@ -78,7 +84,7 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                       <Fragment key={c.offer.id}>
                         <tr className={c.excluded ? 'dim' : isWin ? 'first' : ''}>
                           {ewHier && <td>{inEw && <input type="checkbox" checked={ewOn} disabled={ewOn && ew.take.length === 1} onChange={(e) => setEw(c.offer.id, e.target.checked)} aria-label={`Nr. ${c.offer.nr} in die engere Wahl`} />}</td>}
-                          <td><input type="checkbox" checked={!!b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.checked ? 'fehlender Eignungsnachweise' : '' })} aria-label={`Nr. ${c.offer.nr} ausschließen`} /></td>
+                          <td><input type="checkbox" checked={!!b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.checked ? ausschlussVorschlag(c) : '' })} aria-label={`Nr. ${c.offer.nr} ausschließen`} /></td>
                           <td>{c.rankAll ? <span className={`rankbadge ${isWin ? 'one' : ''}`}>{c.rankAll}</span> : '–'}</td>
                           <td>{c.offer.nr}</td>
                           <td className="left"><b>{c.offer.firma}</b><small className="muted block">{c.offer.ort}{(() => { const e = entfernung(s, c.offer); return e ? ` · ca. ${e.km} km zur Baustelle` : ''; })()}</small></td>
@@ -97,15 +103,20 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
                             )}
                           </td>
                         </tr>
-                        {ewHier && inEw && !ewOn && (
+                        {b.ausschluss ? (
                           <tr><td colSpan={ncol} className="reason">
-                            <span>Grund</span>
-                            <input value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={nichtGewertetAuto(s, c, ew.take) ? 'leer lassen = Text aus den Preisen (siehe unten)' : 'Grund angeben – das Angebot ist günstiger als ein gewähltes'} />
-                            <small className="muted block ewvorschau">Im Vermerk: {nichtGewertetText(s, c, ew.take)}</small>
+                            <span>Ausschlussgrund</span>
+                            <input value={b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.value })} placeholder="z. B. des deutlich überhöhten Angebotspreises" aria-label="Ausschlussgrund" />
+                            <small className="muted block ewvorschau">Im Vermerk und in der E-Mail: „… aufgrund {b.ausschluss.trim().replace(/\.$/, '')} ausgeschlossen.“</small>
                           </td></tr>
-                        )}
-                        {b.ausschluss && (
-                          <tr><td colSpan={ncol} className="reason"><span>Aufgrund</span><input value={b.ausschluss} onChange={(e) => setBew(c.offer.id, { ausschluss: e.target.value })} placeholder="… fehlender Referenzen in vergleichbaren Leistungen wurde das Angebot ausgeschlossen" /></td></tr>
+                        ) : ewHier && inEw && !ewOn && (
+                          <tr><td colSpan={ncol} className="reason">
+                            {grundOffen[c.offer.id] || b.nichtGewertet || !nichtGewertetAuto(s, c, ew.take) ? <>
+                              <span>Grund</span>
+                              <input value={b.nichtGewertet} onChange={(e) => setBew(c.offer.id, { nichtGewertet: e.target.value })} placeholder={nichtGewertetAuto(s, c, ew.take) ? 'leer lassen = Text aus den Preisen (siehe unten)' : 'Grund angeben – das Angebot ist günstiger als ein gewähltes'} />
+                            </> : null}
+                            <small className="muted block ewvorschau">Im Vermerk: {nichtGewertetText(s, c, ew.take)}{!grundOffen[c.offer.id] && !b.nichtGewertet && nichtGewertetAuto(s, c, ew.take) && <> <button className="link" onClick={() => setGrundOffen((o) => ({ ...o, [c.offer.id]: true }))}>Text ändern</button></>}</small>
+                          </td></tr>
                         )}
                         {b.aufklaerung && (
                           <tr><td colSpan={ncol} className="reason"><span>Aufklärung</span><input value={b.aufklaerungNotiz} onChange={(e) => setBew(c.offer.id, { aufklaerungNotiz: e.target.value })} placeholder="Begründung des Bieters / Ergebnis kurz festhalten" /></td></tr>

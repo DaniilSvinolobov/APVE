@@ -60,7 +60,7 @@ export function AnfrageKarte({ s, up, los, cells, offen, setOffen }: { s: State;
       <p className="muted small">Richtet sich nach der Rangfolge oben: <b>Engere Wahl</b> → Kalkulation zu auffälligen Positionen nachfordern (Einheitspreis mehr als {fmtNum(p.abweichung, 0)} % neben {mitSchaetz ? 'unserem LV-Schätzpreis, ohne Schätzpreis dem günstigsten Angebot' : 'dem günstigsten Angebot'}, Auswirkung ab {fmtNum(minEuro, 0)} €). <b>Nicht in der engeren Wahl</b> oder <b>ausgeschlossen</b> → Ausschluss empfehlen. Ändern über die Haken in der Rangfolge.</p>
 
       <div className="stack">
-        {bieter.map((b) => <BieterZeile key={b.c.offer.id} b={b} a={a} set={set} titles={s.titles} minEuro={minEuro} wertung={getBew(s, b.c.offer.id, los.id).ausschluss.trim()} />)}
+        {bieter.map((b) => <BieterZeile key={b.c.offer.id} s={s} b={b} a={a} set={set} titles={s.titles} minEuro={minEuro} wertung={getBew(s, b.c.offer.id, los.id).ausschluss.trim()} />)}
       </div>
 
       <h3 className="anf-h">E-Mail-Text</h3>
@@ -78,7 +78,7 @@ export function AnfrageKarte({ s, up, los, cells, offen, setOffen }: { s: State;
   );
 }
 
-function BieterZeile({ b, a, set, titles, minEuro, wertung }: { b: AnfrageBieter; a: Anfrage; set: SetA; titles: Record<string, string>; minEuro: number; wertung: string }) {
+function BieterZeile({ s, b, a, set, titles, minEuro, wertung }: { s: State; b: AnfrageBieter; a: Anfrage; set: SetA; titles: Record<string, string>; minEuro: number; wertung: string }) {
   const [neu, setNeu] = useState('');
   const { c } = b;
   const id = c.offer.id;
@@ -98,7 +98,7 @@ function BieterZeile({ b, a, set, titles, minEuro, wertung }: { b: AnfrageBieter
     if (oz) setListe([...b.liste, oz]);
     setNeu('');
   };
-  const auto = ausschlussAuto(b);
+  const auto = ausschlussAuto(s, b);
   const setModus = (m: AnfrageModus) => set((x) => void (x.modus = { ...x.modus, [id]: m }));
   const kopf = (
     <tr><th /><th className="left">Pos.</th><th className="left">Kurztext</th><th className="r">Menge</th><th className="r">EP Bieter</th><th className="r">GP Bieter</th><th className="r">Vergleichs-EP</th><th className="r">Auswirkung</th></tr>

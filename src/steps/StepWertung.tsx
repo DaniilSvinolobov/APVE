@@ -41,10 +41,10 @@ export function StepWertung({ s, up }: { s: State; up: Up }) {
   });
   const raus = ew.ranked.filter((c) => !ew.take.includes(c));
   const [grundOffen, setGrundOffen] = useState<Record<string, boolean>>({});
-  // Vorschlag beim Haken „Ausschließen“: Grund aus dem Preis (editierbar)
+  // Vorschlag beim Haken „Ausschließen“: Grund aus dem Abstand zum Schätzpreis (nur ohne Schätzpreis zum günstigsten Angebot), editierbar
   const ausschlussVorschlag = (c: Cell) =>
-    c.dKosten != null && c.dKosten > 0 ? `des deutlich überhöhten Angebotspreises (ca. ${fmtNum(c.dKosten, 0)} % über dem Kostenvoranschlag)`
-    : c.dMin != null && c.dMin > 0 ? `des deutlich überhöhten Angebotspreises (ca. ${fmtNum(c.dMin, 0)} % über dem günstigsten Angebot)`
+    c.dKosten != null ? (c.dKosten > 0 ? `des ${c.dKosten > s.project.schwelle ? 'weit ' : ''}über unserem Schätzpreis liegenden Angebotspreises (ca. ${fmtNum(c.dKosten, 0)} %)` : '[Grund angeben]')
+    : c.dMin != null && c.dMin > 0 ? `des deutlich über dem günstigsten Angebot liegenden Angebotspreises (ca. ${fmtNum(c.dMin, 0)} %)`
     : '[Grund angeben]';
 
   return (

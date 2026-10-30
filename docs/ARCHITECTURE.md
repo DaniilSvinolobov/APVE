@@ -16,7 +16,8 @@ Dateien (Ordner/ZIP)
    │  import/apply.ts     LV (+ Schätzpreise aus 82) und Angebote in den State schreiben, Vollständigkeit vorbelegen
    │                      Nachverhandlung = eigenes Angebot mit `basis` → Hauptangebot (files.ts `splitNv` trennt Unterordner „Nachverhandlung“; domain/runden.ts)
    ▼
-State  (domain/types.ts)  ── ein Objekt für das ganze Projekt, liegt im Browser (storage/projectStore.ts)
+State  (domain/types.ts)  ── ein Objekt je Projekt, liegt im Browser (storage/projektRepo.ts → IndexedDB, idb.ts);
+   │                         Originaldateien je Angebot in import/docStore.ts, App.tsx schreibt jede Änderung in den Projektspeicher
    │  domain/calc.ts      Preisspiegel, Rang je Los und Runde, Auffälligkeiten, Rechenprüfung
    ▼
 Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
@@ -31,9 +32,9 @@ Oberfläche (steps/)  →  Vergabevermerk (vermerk/vermerk.ts) → Druck/PDF
 | `ki/` | optionale Dokumentprüfung (Einwilligung, Zugangscode, Zerlegen großer Dateien in `teile.ts`, Word-Formblätter als Text in `docx.ts`, strenge Zuordnung Formblatt → Prüfzeile in `formblatt.ts`, ein Dokument je Anfrage, Aufruf von `api/pruefen.ts` → Bedrock EU über `api/_ki.ts`) und Eignungsprüfung (`kiEignung.ts` → `api/eignung.ts`: Referenzen, Recherche) | nein |
 | `vermerk/` | Aufbau und Texte des Vergabevermerks; `anfrage.ts` = E-Mail-Text „Rückfrage an den Auftraggeber“ | nein |
 | `geo/` | geschätzte Entfernung Bieter → Baustelle (`entfernung.ts`, Hook `useGeo` lädt die PLZ-Tabelle `plzDaten.ts` als eigenen Chunk nach) | Hook |
-| `steps/` | die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen; `Nachunternehmer.tsx` (PQ-Nummer und Nachunternehmer je Bieter prüfen/korrigieren); `Anfrage.tsx` (Rückfrage an den Auftraggeber, in der Wertung) | ja |
+| `steps/` | `Projekte.tsx` = Projektübersicht (Startseite); die fünf Schritte; `stepList.ts` = Schrittliste und Fortschrittshaken; `LvKarte.tsx` (eigenes LV) und `OfferDateien.tsx` (Unterlagen je Angebot) mit Dateiliste zum Entfernen/Ergänzen; `Nachunternehmer.tsx` (PQ-Nummer und Nachunternehmer je Bieter prüfen/korrigieren); `Anfrage.tsx` (Rückfrage an den Auftraggeber, in der Wertung) | ja |
 | `components/` | wiederverwendbare UI-Bausteine (`ui.tsx`, `DropZone.tsx`) | ja |
-| `storage/` | Browser-Speicher (`projectStore.ts`), Export CSV/JSON (`exportCsv.ts`), Preisspiegel als PDF (`preisspiegelPdf.ts`, pdf-lib + Schrift Inter, im Browser erzeugt) | nein |
+| `storage/` | Projektspeicher: Schnittstelle `ProjektRepo` und IndexedDB-Umsetzung (`projektRepo.ts`, `idb.ts`; heute Browser, später austauschbar gegen einen Server), Sicherung als ZIP mit Unterlagen (`sicherung.ts`), Sitzungswerte und Übernahme alter Daten (`projectStore.ts`), Export CSV (`exportCsv.ts`), Preisspiegel als PDF (`preisspiegelPdf.ts`, pdf-lib + Schrift Inter, im Browser erzeugt) | nein |
 
 ## Regeln, damit es lesbar bleibt
 - Abhängigkeiten zeigen nach unten: `steps` → `import`/`ki`/`vermerk`/`storage` → `geo` → `domain`/`gaeb`. Nie umgekehrt.

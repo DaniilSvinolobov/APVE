@@ -2,7 +2,7 @@
 
 Web-App (deutsch) für die Auswertung von Angeboten mit mehreren Losen und Nachverhandlung:
 Unterlagen einlesen → Preisspiegel je Los → Wertung → Vergabevermerk (PDF).
-Alle Projektdaten bleiben im Browser (localStorage). Einziger Server-Teil ist die optionale Dokumentprüfung (`api/pruefen.ts`, siehe unten).
+Alle Projektdaten bleiben im Browser (IndexedDB, mehrere Projekte mit ihren Unterlagen, jederzeit wieder zu öffnen). Einziger Server-Teil ist die optionale Dokumentprüfung (`api/pruefen.ts`, siehe unten).
 
 ```bash
 npm install
@@ -87,8 +87,15 @@ Einrichtung durch den Betreiber (einmalig):
 Ohne Bedrock-Zugang bleibt die App voll nutzbar; die Tabelle wird dann nur anhand der Dateinamen vorbelegt.
 Die Vercel-Variablennamen `AWS_*` sind reserviert, daher die eigenen Namen.
 
+## Projekte speichern
+- Startseite ist die **Projektübersicht**: alle Vergaben in diesem Browser mit Stand (*In Prüfung / Nachforderung läuft / Wertung / Abgeschlossen*), Frist für Nachreichungen (abgelaufen = rot), Anzahl Bieter und Dateien. Öffnen, Kopie, Sicherung (ZIP), Löschen.
+- Jede Änderung wird automatisch gespeichert, auch die Originalunterlagen der Angebote (bisher nur bis zum Neuladen vorhanden). Nachgereichte Unterlagen lassen sich Tage später im Schritt „Unterlagen“ ergänzen.
+- Ein Projekt aus der früheren Version (localStorage) wird beim ersten Start einmalig als Projekt übernommen.
+- Die Oberfläche spricht nur die Schnittstelle `ProjektRepo` an (`src/storage/projektRepo.ts`); eine spätere Server-Variante (z. B. Firebase je Organisation) kann sie ersetzen, ohne die Schritte zu ändern.
+
 ## Datenschutz (DSGVO)
-- Projektdaten bleiben im Browser (localStorage); „Daten löschen“ in der Kopfzeile entfernt sie.
+- Projektdaten und Originalunterlagen bleiben im Browser (IndexedDB) und werden nicht übertragen; „Alle Daten löschen“ in der Projektübersicht entfernt sie.
+  Sie liegen nur in diesem Browser auf diesem Gerät. Wechsel des Geräts, Weitergabe und Sicherung über „Sicherung“ (ZIP mit `projekt.json` und allen Unterlagen), wieder einlesen über „Sicherung laden“ (ältere JSON-Sicherungen gehen weiterhin).
 - Schriftarten werden lokal ausgeliefert (keine Google Fonts), keine Cookies, kein Tracking.
 - Die Entfernung zur Baustelle wird im Browser aus einer mitgelieferten PLZ-Tabelle geschätzt; Anschriften verlassen den Browser nicht.
 - Vercel-Functions laufen in Frankfurt (`regions: ["fra1"]` in `vercel.json`).

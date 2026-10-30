@@ -22,7 +22,7 @@ Zusätzlich die betroffene Funktion im Browser prüfen (z. B. mit Playwright). E
 - `src/import/` – Ordner/ZIP einlesen (`zip`, `files`), Angebote lesen (`analyze`), in den State schreiben (`apply`); Zuordnung über Ordnungszahl
 - `src/domain/calc.ts` – Preisspiegel, Rang je Los und Runde, Auffälligkeiten, Rechenprüfung
 - `src/vermerk/vermerk.ts` – Aufbau und Texte des Vergabevermerks; `src/steps/StepVermerk.tsx` – Anzeige/Druck
-- `src/steps/` (`Step*.tsx`, `Vollstaendigkeit.tsx`) – die fünf Schritte der Oberfläche; `src/storage/` – Browser-Speicher und Export
+- `src/steps/` (`Step*.tsx`, `Vollstaendigkeit.tsx`) – die fünf Schritte der Oberfläche; `src/steps/Projekte.tsx` – Projektübersicht; `src/storage/` – Projektspeicher (`projektRepo.ts`-Schnittstelle, IndexedDB in `idb.ts`), Sicherung als ZIP (`sicherung.ts`) und Export
 - `docs/ARCHITECTURE.md` – Datenfluss und Ordnerübersicht
 - `api/_ki.ts` – Zugang zu Claude über Amazon Bedrock in der EU (Zugangsdaten nur in `BEDROCK_*`; Region/Modell außerhalb der EU werden abgelehnt)
 - `api/pruefen.ts` – optionale Dokumentprüfung mit Claude; `src/ki/teile.ts` zerlegt große Dateien im Browser
@@ -35,6 +35,6 @@ Zusätzlich die betroffene Funktion im Browser prüfen (z. B. mit Playwright). E
 - Die App ersetzt keine Rechtsprüfung; Hinweise auf Aufklärungspflichten (auffallend niedrige Preise) bleiben Hinweise.
 
 ## Datenschutz (DSGVO)
-- Projektdaten bleiben im Browser (localStorage). Keine Cookies, kein Tracking, **keine externen Hosts** (keine CDN-Schriften, keine Analytics).
+- Projektdaten und Unterlagen bleiben im Browser (IndexedDB über `ProjektRepo`; localStorage nur für Einstellungen). Keine Cookies, kein Tracking, **keine externen Hosts** (keine CDN-Schriften, keine Analytics).
 - Übermittlung an Dritte nur optional, nach ausdrücklicher Aktivierung durch den Nutzer und nur, was der Zweck braucht (Datenminimierung). Dokumente (alle Unterlagen der Angebote, auch Meisterbriefe, Versicherungs- und Präqualifikationsnachweise) gehen nach Einwilligung ausschließlich an Claude über Amazon Bedrock in der EU; an die Websuche (Anthropic-API, USA) nur Firmenname, Ort und Losbezeichnungen.
 - Server-Funktionen in Frankfurt (`fra1`). Neue Datenflüsse zuerst mit dem Nutzer abstimmen und in README/Datenschutzhinweisen dokumentieren.

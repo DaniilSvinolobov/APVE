@@ -124,6 +124,10 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
   const visibleOz = visibleGroups.flatMap(([k, ps]) => (open.has(k) || onlyAuff ? ps.map((p) => p.oz) : []));
   const anyOpen = visibleOz.length > 0 || (zList.length > 0 && hasLv);
   const ncol = hasLv ? 4 : 1;
+  // Feste Spaltenbreiten: jeder Bieter bekommt gleich viel Platz, egal wie lang der Firmenname ist
+  const colW = hasLv
+    ? [72, 300, 100, 56, ...refHead.flatMap(() => [105, 105]), ...cells.flatMap(() => [105, 105])]
+    : [360, ...cells.map(() => 210)];
   const notes: { kind: 'warn' | 'info'; text: string }[] = [];
   if (lvFremdText) notes.push({ kind: 'warn', text: lvFremdText });
   if (cells.some((c) => c.mengeAbw.length)) notes.push({ kind: 'warn', text: 'Mengen im LV weichen von der Bieterdatei ab – betroffene Zellen sind links blau markiert.' });
@@ -169,12 +173,13 @@ export function StepPreisspiegel({ s, up }: { s: State; up: Up }) {
             </div>
             {notes.length > 0 && <div className={`notes ${notes.some((n) => n.kind === 'warn') ? 'warn' : ''}`}><b>Hinweise zu diesem Los</b><FlagList items={notes} /></div>}
             <div className="scroll big" onPaste={(e) => { const t = e.target as HTMLElement; const oz = t.dataset.oz, c = t.dataset.c; if (oz && c) onPaste(e, oz, Number(c), visibleOz); }}>
-              <table className="preis" style={{ minWidth: 440 + refHead.length * 125 + cells.length * 180 }}>
+              <table className="preis fixed" style={{ minWidth: colW.reduce((a, w) => a + w, 0) }}>
+                <colgroup>{colW.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
                 <thead>
                   <tr>
                     {hasLv ? <><th className="sticky c0 left">Pos.</th><th className="sticky c1 left">Leistung</th><th>Menge</th><th>Einh.</th></> : <th className="left">Position</th>}
-                    {hasLv && refHead.map(([k, l]) => <th key={k} colSpan={2} className="bh ref g0"><span className="bnr">{k === 'sch' ? 'eigenes LV' : 'gewertete Bieter'}</span>{l}</th>)}
-                    {cells.map((c) => <th key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`bh g0 ${c.excluded ? 'dim' : ''}`}><span className="bnr">Nr. {c.offer.nr}</span>{c.offer.firma}</th>)}
+                    {hasLv && refHead.map(([k, l]) => <th key={k} colSpan={2} className="bh ref g0"><span className="bnr">{k === 'sch' ? 'eigenes LV' : 'gewertete Bieter'}</span><span className="bname">{l}</span></th>)}
+                    {cells.map((c) => <th key={c.offer.id} colSpan={hasLv ? 2 : 1} className={`bh g0 ${c.excluded ? 'dim' : ''}`}><span className="bnr">Nr. {c.offer.nr}</span><span className="bname" title={c.offer.firma}>{c.offer.firma}</span></th>)}
                   </tr>
                   {hasLv && <tr className="sub"><th className="sticky c0" /><th className="sticky c1" /><th /><th />{anyOpen
                     ? <>{refHead.map(([k]) => <Fragment key={k}><th className="ref g0 r">EP €</th><th className="ref r">GP €</th></Fragment>)}{cells.map((c) => <Fragment key={c.offer.id}><th className="g0 r">EP €</th><th className="r">GP €</th></Fragment>)}</>

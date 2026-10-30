@@ -18,7 +18,13 @@ const repo = localRepo;
 let uebernahme: Promise<unknown> | null = null; // nur einmal, auch wenn der Effekt doppelt läuft (StrictMode)
 
 const Brand = () => (
-  <div className="brand"><svg className="logo" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M1 14h26M14 1v26" stroke="currentColor" strokeWidth="1" opacity=".5" /><circle cx="14" cy="14" r="4" fill="currentColor" /></svg><div><b>Angebotsauswertung</b><small>Preisspiegel & Vergabeempfehlung</small></div></div>
+  <div className="brand">
+    <div className="brand-mark" aria-label="NodeArq">
+      <svg className="logo" viewBox="0 0 100 100" aria-hidden="true"><path d="M0 100V24h26l48 52V46h26v54H74L26 48v52z" fill="currentColor" /><circle className="logo-dot" cx="87" cy="16" r="13" /></svg>
+      <span className="wordmark"><b>Node</b>Arq</span>
+    </div>
+    <div className="brand-app"><b>Angebotsauswertung</b><small>Preisspiegel & Vergabeempfehlung</small></div>
+  </div>
 );
 const Foot = () => <footer className="foot no-print"><a href="/datenschutz.html" target="_blank" rel="noreferrer">Datenschutz</a> · <a href="/impressum.html" target="_blank" rel="noreferrer">Impressum</a></footer>;
 

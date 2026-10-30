@@ -81,13 +81,13 @@ export function Projekte({ repo, fehler, onOpen, Brand, Foot }: { repo: ProjektR
     <div className="app">
       <header className="top no-print">
         <Brand />
-        <div className="top-title">Projekte</div>
       </header>
       <input ref={fileRef} type="file" accept=".zip,application/zip,application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void laden(f); }} />
 
       <main className="main pj">
         <div className="pj-head">
           <div>
+            <span className="pj-eyebrow"><Icon name="folder" /> Projekte</span>
             <h1>Ihre Vergaben</h1>
             <p className="muted">
               {liste == null ? 'Wird geladen …' : alle.length ? `${plural(alle.length, 'Projekt', 'Projekte')} · jede Änderung wird automatisch gespeichert` : 'Jede Änderung wird automatisch gespeichert – Projekte lassen sich jederzeit fortsetzen.'}

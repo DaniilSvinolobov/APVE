@@ -20,7 +20,7 @@ let uebernahme: Promise<unknown> | null = null; // nur einmal, auch wenn der Eff
 const Brand = () => (
   <div className="brand">
     <div className="brand-mark" aria-label="NodeArq">
-      <svg className="logo" viewBox="12 7.5 43 46.5" aria-hidden="true"><polygon points="12,54 12,14 23,14 43,41.6 43,30 52,30 52,54 41,54 21,26.4 21,54" fill="currentColor" /><circle className="logo-dot" cx="47.5" cy="15" r="7.5" /></svg>
+      <svg className="logo" viewBox="10.75 8.75 42.5 49.25" aria-hidden="true"><path d="M14 58V30A18 18 0 0 1 50 30V58" fill="none" stroke="currentColor" strokeWidth="6.5" /><circle cx="32" cy="38" r="7" fill="currentColor" /></svg>
       <span className="wordmark"><b>Node</b>Arq</span>
     </div>
     <div className="brand-app"><b>Angebotsauswertung</b><small>Preisspiegel & Vergabeempfehlung</small></div>

@@ -31,11 +31,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .top::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(var(--band-line) 1px,transparent 1px),linear-gradient(90deg,var(--band-line) 1px,transparent 1px);background-size:48px 48px;background-position:50% 0;
   -webkit-mask-image:linear-gradient(90deg,transparent 0,transparent 420px,#000 640px);mask-image:linear-gradient(90deg,transparent 0,transparent 420px,#000 640px)}
 .top>*{position:relative}
-/* Marke: NodeArq-Bildmarke (N + Entscheidungspunkt) und Wortmarke, daneben kleiner der Name der Anwendung */
+/* Marke: NodeArq-Bildmarke (Bogen + Knotenpunkt) und Wortmarke, daneben kleiner der Name der Anwendung */
 .brand{display:flex;align-items:center;gap:20px;min-width:0}
-/* Bildmarke steht auf der Grundlinie der Wortmarke, N ≈ 1,25 × Versalhöhe, Abstand ≈ 0,6 × N-Höhe (Logo-Kit) */
+/* Bildmarke (Bogen) steht auf der Grundlinie der Wortmarke, Höhe ≈ 1,25 × Versalhöhe, Abstand ≈ 0,6 × Markenhöhe (Logo-Kit) */
 .brand-mark{display:flex;align-items:baseline;gap:14px;flex:none}
-.logo{height:30px;width:auto;flex:none;color:var(--on-band)}.logo-dot{fill:#c7c6ff}
+.logo{height:30px;width:auto;flex:none;color:var(--on-band)}
 .wordmark{font-size:30px;font-weight:400;letter-spacing:-.045em;line-height:1;color:var(--on-band)}.wordmark b{font-weight:700}
 .brand-app{padding-left:20px;border-left:1px solid var(--band-line-strong);min-width:0}
 .brand-app b{display:block;font-size:var(--fs-lg);font-weight:500;letter-spacing:-.01em;line-height:1.25}.brand-app small{display:block;margin-top:2px;color:var(--on-band-muted);font-size:var(--fs-sm)}
